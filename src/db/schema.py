@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS trainers (
     specialty TEXT NOT NULL,                     -- 得意分野 ('turf', 'dirt', 'distance_long', 'distance_sprint', 'early_growth', 'late_growth', 'durability_care', 'general')
     horse_capacity INTEGER NOT NULL DEFAULT 30,  -- 最大受入頭数 (初期30頭、最大50頭)
     reputation REAL NOT NULL DEFAULT 50.0,       -- 厩舎評価
+    skill_level REAL NOT NULL DEFAULT 50.0,      -- 調教師スキル (年数・勝利数で向上、減少しない)
     former_jockey_id INTEGER,                    -- 前身の引退騎手ID (引き継ぎ元)
     current_year_starts INTEGER NOT NULL DEFAULT 0, -- 今年の出走数
     current_year_wins INTEGER NOT NULL DEFAULT 0,
@@ -72,20 +73,27 @@ CREATE TABLE IF NOT EXISTS trainers (
     FOREIGN KEY (former_jockey_id) REFERENCES jockeys(jockey_id)
 );
 
--- 4. 騎手テーブル (Jockeys: 美浦30名、栗東30名、計60名、女性騎手含む、現役30年定員維持)
+-- 4. 騎手テーブル (Jockeys: 美浦45名、栗東45名、計90名、女性騎手含む、定員維持)
 CREATE TABLE IF NOT EXISTS jockeys (
     jockey_id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     gender TEXT NOT NULL DEFAULT 'male' CHECK (gender IN ('male', 'female')), -- 性別
     location TEXT NOT NULL CHECK (location IN ('美浦', '栗東')),
-    age INTEGER NOT NULL,                        -- 年齢 (20〜50歳)
+    age INTEGER NOT NULL,                        -- 年齢 (18〜60歳)
     debut_year INTEGER NOT NULL,                 -- デビュー年
-    career_years INTEGER NOT NULL DEFAULT 1,     -- 騎手歴 (最大30年)
+    career_years INTEGER NOT NULL DEFAULT 1,     -- 騎手歴 (1〜42年)
     is_active INTEGER NOT NULL DEFAULT 1,
     
-    -- 能力値 (30.0〜90.0, 平均 50.0)
-    skill REAL NOT NULL,                         -- 操縦技術・位置取り
-    drive REAL NOT NULL,                         -- 直線の追い・推進力
+    -- 所属・成長・スタイル
+    growth_type TEXT NOT NULL DEFAULT 'standard' CHECK (growth_type IN ('early', 'standard', 'late', 'persistent')), -- 成長曲線
+    is_free INTEGER NOT NULL DEFAULT 0,          -- 0: 厩舎所属, 1: フリー騎手
+    trainer_id INTEGER,                          -- 所属厩舎ID (フリーの場合はNULL)
+    experience REAL NOT NULL DEFAULT 0.0,        -- 経験値 (年数・騎乗数・勝利で上昇)
+    stamina REAL NOT NULL DEFAULT 50.0,          -- 体力 (40歳前後ピークで低下)
+    
+    -- 基本能力値 (30.0〜90.0, 平均 50.0)
+    skill REAL NOT NULL,                         -- 操縦技術・位置取り (経験で上昇)
+    drive REAL NOT NULL,                         -- 直線の追い・推進力 (体力・年齢影響)
     start_dash REAL NOT NULL,                    -- スタートダッシュ
     temperament_handling REAL NOT NULL,          -- 気性難カバー・折り合い
     
@@ -103,7 +111,22 @@ CREATE TABLE IF NOT EXISTS jockeys (
     g1_wins INTEGER NOT NULL DEFAULT 0,
     g2_wins INTEGER NOT NULL DEFAULT 0,
     g3_wins INTEGER NOT NULL DEFAULT 0,
-    career_earnings INTEGER NOT NULL DEFAULT 0
+    career_earnings INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (trainer_id) REFERENCES trainers(trainer_id)
+);
+
+-- 4-2. 調教助手テーブル (Assistant Trainers: 引退騎手転身、〜50歳定年)
+CREATE TABLE IF NOT EXISTS assistant_trainers (
+    assistant_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jockey_id INTEGER NOT NULL UNIQUE,
+    trainer_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    age INTEGER NOT NULL,
+    career_wins INTEGER NOT NULL DEFAULT 0,
+    g1_wins INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,        -- 1: 現役調教助手, 0: 定年退職
+    FOREIGN KEY (jockey_id) REFERENCES jockeys(jockey_id),
+    FOREIGN KEY (trainer_id) REFERENCES trainers(trainer_id)
 );
 
 -- 5. 競走馬テーブル (Horses: 個体能力、遺伝情報、成績)
@@ -206,7 +229,9 @@ CREATE TABLE IF NOT EXISTS races (
     condition TEXT NOT NULL DEFAULT 'good',      -- 'good' (良馬場固定)
     full_gate INTEGER NOT NULL DEFAULT 18,
     is_trial INTEGER NOT NULL DEFAULT 0,         -- トライアル競走フラグ
-    target_g1_name TEXT                          -- トライアルの場合の対象G1名
+    target_g1_name TEXT,                         -- トライアルの場合の対象G1名
+    base_prize INTEGER NOT NULL DEFAULT 0,       -- 1着本賞金 (円)
+    condition_prize INTEGER NOT NULL DEFAULT 0   -- 1着収得賞金 (円)
 );
 
 -- 7. レース結果テーブル (Results)

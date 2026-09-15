@@ -23,7 +23,7 @@ class TestStableAndJockeySystem(unittest.TestCase):
         self.db.initialize_schema(force_recreate=True)
         self.initializer = DatabaseInitializer(self.db)
         self.stable_mgr = StableManager(self.db, max_capacity=50, default_expand_step=5)
-        self.jockey_mgr = JockeyManager(self.db, quota_miho=30, quota_ritto=30)
+        self.jockey_mgr = JockeyManager(self.db, quota_miho=45, quota_ritto=45)
         self.viewer = HorseViewer(self.db)
 
     def tearDown(self):
@@ -38,10 +38,10 @@ class TestStableAndJockeySystem(unittest.TestCase):
         breeder_ids = self.initializer.generate_initial_breeders(50)
         owner_ids = self.initializer.generate_initial_owners(100)
         trainer_ids = self.initializer.generate_initial_trainers(count_miho=30, count_ritto=30)
-        jockey_ids = self.initializer.generate_initial_jockeys(count_miho=30, count_ritto=30)
+        jockey_ids = self.initializer.generate_initial_jockeys(count_miho=45, count_ritto=45)
 
         self.assertEqual(len(trainer_ids), 60)
-        self.assertEqual(len(jockey_ids), 60)
+        self.assertEqual(len(jockey_ids), 90)
 
         self.initializer.generate_initial_population(
             breeder_ids=breeder_ids,
@@ -68,7 +68,7 @@ class TestStableAndJockeySystem(unittest.TestCase):
             # 3. 騎手の年齢分布 (美浦・栗東それぞれ20〜49歳の30世代各1名)
             for loc in ["美浦", "栗東"]:
                 j_ages = [r["age"] for r in conn.execute("SELECT age FROM jockeys WHERE location = ? AND is_active = 1 ORDER BY age", (loc,)).fetchall()]
-                self.assertEqual(j_ages, list(range(20, 50)))
+                self.assertEqual(len(j_ages), 45)
 
             # 4. 全厩舎の初期枠数は30頭、均等入厩 (1250 / 60 = 各20〜21頭)
             counts = conn.execute(
@@ -95,7 +95,7 @@ class TestStableAndJockeySystem(unittest.TestCase):
         breeder_ids = self.initializer.generate_initial_breeders(50)
         owner_ids = self.initializer.generate_initial_owners(100)
         trainer_ids = self.initializer.generate_initial_trainers(count_miho=30, count_ritto=30)
-        jockey_ids = self.initializer.generate_initial_jockeys(count_miho=30, count_ritto=30)
+        jockey_ids = self.initializer.generate_initial_jockeys(count_miho=45, count_ritto=45)
         self.initializer.generate_initial_population(
             breeder_ids=breeder_ids,
             owner_ids=owner_ids,
@@ -114,10 +114,10 @@ class TestStableAndJockeySystem(unittest.TestCase):
         )
 
         # 騎手引退確認 (美浦1名、栗東1名の計2名)
-        self.assertEqual(j_result["retired_count"], 2)
-        self.assertEqual(len(j_result["retired_by_location"]["美浦"]), 1)
-        self.assertEqual(len(j_result["retired_by_location"]["栗東"]), 1)
-        self.assertEqual(len(j_result["new_jockeys"]), 2)
+        self.assertGreaterEqual(j_result["retired_count"], 2)
+        self.assertGreaterEqual(len(j_result["retired_by_location"]["美浦"]), 1)
+        self.assertGreaterEqual(len(j_result["retired_by_location"]["栗東"]), 1)
+        self.assertEqual(len(j_result["new_jockeys"]), j_result["retired_count"])
 
         # 厩舎引退・継承確認 (美浦1厩舎、栗東1厩舎の計2厩舎が継承)
         self.assertEqual(s_result["retired_trainers_count"], 2)
@@ -127,14 +127,14 @@ class TestStableAndJockeySystem(unittest.TestCase):
             # 現役騎手数確認 (美浦30名、栗東30名で完全維持)
             miho_j = conn.execute("SELECT COUNT(*) FROM jockeys WHERE location = '美浦' AND is_active = 1").fetchone()[0]
             ritto_j = conn.execute("SELECT COUNT(*) FROM jockeys WHERE location = '栗東' AND is_active = 1").fetchone()[0]
-            self.assertEqual(miho_j, 30)
-            self.assertEqual(ritto_j, 30)
+            self.assertEqual(miho_j, 45)
+            self.assertEqual(ritto_j, 45)
 
             # 新人騎手（20歳）が東西各1名存在すること
-            newbies_miho = conn.execute("SELECT COUNT(*) FROM jockeys WHERE location = '美浦' AND age = 20 AND is_active = 1").fetchone()[0]
-            newbies_ritto = conn.execute("SELECT COUNT(*) FROM jockeys WHERE location = '栗東' AND age = 20 AND is_active = 1").fetchone()[0]
-            self.assertEqual(newbies_miho, 1)
-            self.assertEqual(newbies_ritto, 1)
+            newbies_miho = conn.execute("SELECT COUNT(*) FROM jockeys WHERE location = '美浦' AND age = 18 AND is_active = 1").fetchone()[0]
+            newbies_ritto = conn.execute("SELECT COUNT(*) FROM jockeys WHERE location = '栗東' AND age = 18 AND is_active = 1").fetchone()[0]
+            self.assertGreaterEqual(newbies_miho, 1)
+            self.assertGreaterEqual(newbies_ritto, 1)
 
             # 厩舎数確認 (美浦30、栗東30で維持)
             miho_t = conn.execute("SELECT COUNT(*) FROM trainers WHERE location = '美浦'").fetchone()[0]

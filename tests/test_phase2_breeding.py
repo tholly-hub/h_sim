@@ -115,9 +115,9 @@ class TestPhase2Breeding(unittest.TestCase):
 
             # 3. 騎手世代交代検証: 30年超の現役騎手がゼロであること
             jockeys_over_career = conn.execute(
-                "SELECT COUNT(*) FROM jockeys WHERE is_active = 1 AND career_years > 30"
+                "SELECT COUNT(*) FROM jockeys WHERE is_active = 1 AND age >= 60"
             ).fetchone()[0]
-            self.assertEqual(jockeys_over_career, 0, "騎手は30年現役で引退する必要があります")
+            self.assertEqual(jockeys_over_career, 0, "騎手は60歳定年で引退する必要があります")
 
             # 4. 牧場最低保証の検証: 全50牧場に種牡馬1頭以上、繁殖牝馬1頭以上が存在すること
             breeders = conn.execute("SELECT breeder_id FROM breeders").fetchall()
@@ -128,6 +128,58 @@ class TestPhase2Breeding(unittest.TestCase):
                 self.assertGreaterEqual(s_cnt, 1, f"牧場 ID {b_id} の種牡馬が0頭になっています（最低1頭保証違反）")
                 self.assertGreaterEqual(d_cnt, 1, f"牧場 ID {b_id} の繁殖牝馬が0頭になっています（最低1頭保証違反）")
 
+    def test_4_repeat_mating_rule(self):
+        """同一種牡馬の再種付けルール検証（産駒G1勝利必須＆生涯最大4回上限）"""
+        # 1. 単体ロジック検証
+        # ケースA: 初回交配 (産駒数0) -> OK
+        hist_empty = {}
+        self.assertTrue(BreedingEngine.can_mate_sire_and_dam(1, 10, hist_empty))
+
+        # ケースB: 過去1頭産駒あり、G1未勝利 -> NG (再種付け不可)
+        hist_no_g1 = {(1, 10): {"foal_count": 1, "has_g1_winner": False}}
+        self.assertFalse(BreedingEngine.can_mate_sire_and_dam(1, 10, hist_no_g1))
+
+        # ケースC: 過去産駒あり、G1勝利馬あり、産駒数3頭 -> OK (再種付け可能)
+        hist_with_g1 = {(1, 10): {"foal_count": 3, "has_g1_winner": True}}
+        self.assertTrue(BreedingEngine.can_mate_sire_and_dam(1, 10, hist_with_g1))
+
+        # ケースD: 過去産駒あり、G1勝利馬あり、産駒数4頭 -> NG (生涯上限4回到達)
+        hist_max_reached = {(1, 10): {"foal_count": 4, "has_g1_winner": True}}
+        self.assertFalse(BreedingEngine.can_mate_sire_and_dam(1, 10, hist_max_reached))
+
+        # 2. 2年目交配を実行し、G1勝ちのないペアが再種付けされていないことを検証
+        newborn_y2 = self.breeding_engine.perform_annual_breeding(current_year=2)
+        self.assertGreater(len(newborn_y2), 300)
+
+        with self.db.session() as conn:
+            # 1年目と2年目で同一種牡馬×同一繁殖牝馬のペアを調査
+            duplicate_matings = conn.execute(
+                """
+                SELECT dam_id, sire_id, COUNT(*) as foal_count
+                FROM horses
+                WHERE birth_year IN (1, 2) AND dam_id IS NOT NULL AND sire_id IS NOT NULL
+                GROUP BY dam_id, sire_id
+                HAVING COUNT(*) > 1
+                """
+            ).fetchall()
+
+            for dup in duplicate_matings:
+                d_id = dup["dam_id"]
+                s_id = dup["sire_id"]
+                # 1年目の産駒がG1を勝っているか確認
+                g1_check = conn.execute(
+                    """
+                    SELECT MAX(g1_wins) as max_g1
+                    FROM horses
+                    WHERE dam_id = ? AND sire_id = ? AND birth_year = 1
+                    """,
+                    (d_id, s_id),
+                ).fetchone()
+                has_g1 = g1_check["max_g1"] is not None and g1_check["max_g1"] > 0
+                self.assertTrue(has_g1, f"dam {d_id} と sire {s_id} の再種付けは産駒G1未勝利のため許可されません")
+                self.assertLessEqual(dup["foal_count"], 4, "同一種牡馬との産駒数は生涯最大4頭以下である必要があります")
+
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -18,6 +18,95 @@ class GeneticsEngine:
     POPULATION_MEAN: float = 50.0   # 集団平均 μ
     ENVIRONMENTAL_STD: float = 5.5  # 環境・変異標準偏差 σ_e
 
+    # 主要系統大分類 (Major Sire Line Systems)
+    MAJOR_SYSTEMS: List[str] = [
+        "サンデーサイレンス系",  # SS系 (ヘイロー系含む)
+        "キングマンボ系",        # MP系 (ミスタープロスペクター系含む)
+        "ノーザンダンサー系",    # ND系 (サドラーズウェルズ、ダンチヒ等)
+        "ロベルト系",            # ROB系 (ヘイルトゥリーズン系)
+        "ナスルーラ系",          # NAS系 (グレイソヴリン、トニービン等)
+        "マイナー系",            # その他系統 (トウルビヨン、ヒペリオン等)
+    ]
+
+    # ニックス（好相性）ペアの定義 (双方向対応)
+    NICKS_PAIRS: Set[Tuple[str, str]] = {
+        ("サンデーサイレンス系", "キングマンボ系"),
+        ("キングマンボ系", "サンデーサイレンス系"),
+        ("サンデーサイレンス系", "ノーザンダンサー系"),
+        ("ノーザンダンサー系", "サンデーサイレンス系"),
+        ("サンデーサイレンス系", "ロベルト系"),
+        ("ロベルト系", "サンデーサイレンス系"),
+        ("キングマンボ系", "ノーザンダンサー系"),
+        ("ノーザンダンサー系", "キングマンボ系"),
+        ("キングマンボ系", "ロベルト系"),
+        ("ロベルト系", "キングマンボ系"),
+        ("ナスルーラ系", "サンデーサイレンス系"),
+        ("サンデーサイレンス系", "ナスルーラ系"),
+    }
+
+    @classmethod
+    def get_major_system(cls, line_name: Optional[str]) -> str:
+        """
+        サイアーライン名から主要6大系統グループを判定（架空系統名も決定論的に分類）
+        """
+        if not line_name:
+            return "マイナー系"
+
+        ln = line_name.lower()
+        if any(k in ln for k in ["サンデー", "sunday", "ヘイロー", "halo", "ディープ", "ハーツ"]):
+            return "サンデーサイレンス系"
+        if any(k in ln for k in ["キングマンボ", "kingmambo", "ミスプロ", "prospector", "ロードカナロア"]):
+            return "キングマンボ系"
+        if any(k in ln for k in ["ノーザン", "northern", "ダンサー", "サドラー", "danzig", "クロフネ"]):
+            return "ノーザンダンサー系"
+        if any(k in ln for k in ["ロベルト", "roberto", "ブライアン", "グラス", "エピファネイア"]):
+            return "ロベルト系"
+        if any(k in ln for k in ["ナスルーラ", "nasrullah", "グレイ", "grey", "トニービン"]):
+            return "ナスルーラ系"
+
+        # 既存架空サイアーライン等の決定論的分類（ハッシュ剰余）
+        idx = hash(line_name) % len(cls.MAJOR_SYSTEMS)
+        return cls.MAJOR_SYSTEMS[idx]
+
+    @classmethod
+    def check_nicks(cls, sire_line: Optional[str], dam_line: Optional[str]) -> Dict[str, Any]:
+        """
+        種牡馬の父系と母系（母父または母の系統）のニックス（系統相性）を判定
+        返り値:
+        - is_nicks: bool (ニックス成立フラグ)
+        - sire_system: 種牡馬の大系統
+        - dam_system: 繁殖牝馬の大系統
+        - label: ニックス表示名
+        - speed_bonus: スピード補正
+        - accel_bonus: 加速・瞬発力補正
+        - vitality_bonus: 底力・気性補正
+        """
+        s_sys = cls.get_major_system(sire_line)
+        d_sys = cls.get_major_system(dam_line)
+
+        is_nicks = (s_sys, d_sys) in cls.NICKS_PAIRS
+
+        if is_nicks:
+            speed_bonus = round(random.uniform(1.2, 2.5), 1)
+            accel_bonus = round(random.uniform(1.0, 2.0), 1)
+            vitality_bonus = round(random.uniform(1.0, 2.0), 1)
+            label = f"黄金ニックス成立（{s_sys} × {d_sys}）"
+        else:
+            speed_bonus = 0.0
+            accel_bonus = 0.0
+            vitality_bonus = 0.0
+            label = "通常配合"
+
+        return {
+            "is_nicks": is_nicks,
+            "sire_system": s_sys,
+            "dam_system": d_sys,
+            "label": label,
+            "speed_bonus": speed_bonus,
+            "accel_bonus": accel_bonus,
+            "vitality_bonus": vitality_bonus,
+        }
+
     @classmethod
     def sample_mstn_offspring(cls, sire_mstn: GenotypeMSTN, dam_mstn: GenotypeMSTN) -> GenotypeMSTN:
         """

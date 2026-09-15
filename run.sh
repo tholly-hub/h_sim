@@ -6,6 +6,7 @@
 cd "$(dirname "$0")"
 
 export PYTHONIOENCODING="utf-8"
+export PYTHONPATH="."
 
 if command -v python3 &>/dev/null; then
     python3 main.py "$@"

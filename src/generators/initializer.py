@@ -225,8 +225,8 @@ class DatabaseInitializer:
 
     def generate_initial_trainers(self, count_miho: int = 30, count_ritto: int = 30) -> List[int]:
         """
-        美浦（東）30厩舎、栗東（西）30厩舎（計60厩舎）を生成してDBへ登録
-        50〜79歳の各世代を美浦・栗東で各1名ずつ均等割り当て（開業1〜30年目、初期成績0デフォルト）
+        美浦（東）30厩舎、栗東（西）30厩舎（計60厩舎）を生成
+        50歳〜80歳定年の均等分布、調教師歴1〜30年、スキルレベル初期値（初期成績0デフォルト）
         """
         trainer_ids = []
         specialties = list(TrainerSpecialty)
@@ -239,17 +239,18 @@ class DatabaseInitializer:
                 age = 50 + (i % 30)
                 trainer_years = age - 49
                 reputation = round(random.uniform(45.0, 55.0), 1)
+                skill_level = round(50.0 + (trainer_years * 0.4) + random.uniform(-1.5, 1.5), 1)
 
                 cursor = conn.execute(
                     """
                     INSERT INTO trainers (
-                        name, location, specialty, horse_capacity, reputation, age, trainer_years, created_year,
+                        name, location, specialty, horse_capacity, reputation, skill_level, age, trainer_years, created_year,
                         current_year_starts, current_year_wins, current_year_g1, current_year_g2, current_year_g3, current_year_earnings,
                         career_starts, career_wins, g1_wins, g2_wins, g3_wins, career_earnings
                     )
-                    VALUES (?, '美浦', ?, 30, ?, ?, ?, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                    VALUES (?, '美浦', ?, 30, ?, ?, ?, ?, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
                     """,
-                    (name, spec, reputation, age, trainer_years),
+                    (name, spec, reputation, skill_level, age, trainer_years),
                 )
                 trainer_ids.append(cursor.lastrowid)
 
@@ -260,56 +261,89 @@ class DatabaseInitializer:
                 age = 50 + (i % 30)
                 trainer_years = age - 49
                 reputation = round(random.uniform(45.0, 55.0), 1)
+                skill_level = round(50.0 + (trainer_years * 0.4) + random.uniform(-1.5, 1.5), 1)
 
                 cursor = conn.execute(
                     """
                     INSERT INTO trainers (
-                        name, location, specialty, horse_capacity, reputation, age, trainer_years, created_year,
+                        name, location, specialty, horse_capacity, reputation, skill_level, age, trainer_years, created_year,
                         current_year_starts, current_year_wins, current_year_g1, current_year_g2, current_year_g3, current_year_earnings,
                         career_starts, career_wins, g1_wins, g2_wins, g3_wins, career_earnings
                     )
-                    VALUES (?, '栗東', ?, 30, ?, ?, ?, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                    VALUES (?, '栗東', ?, 30, ?, ?, ?, ?, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
                     """,
-                    (name, spec, reputation, age, trainer_years),
+                    (name, spec, reputation, skill_level, age, trainer_years),
                 )
                 trainer_ids.append(cursor.lastrowid)
 
         return trainer_ids
 
-    def generate_initial_jockeys(self, count_miho: int = 30, count_ritto: int = 30) -> List[int]:
+    def generate_initial_jockeys(self, count_miho: int = 45, count_ritto: int = 45, trainer_ids: Optional[List[int]] = None) -> List[int]:
         """
-        美浦（東）30名、栗東（西）30名（計60名、女性騎手各5名含む）の騎手を生成
-        キャリア1〜30年（年齢20〜49歳）を美浦・栗東で各世代1名ずつ均等割り当て（初期成績0デフォルト）
+        美浦（東）45名、栗東（西）45名（計90名、女性騎手各5名含む）の騎手を生成
+        - デビュー年齢は18歳（初期年齢18〜58歳、キャリア1〜41年）
+        - 美浦30厩舎・栗東30厩舎に専属所属騎手を1名ずつ配備 (計60名)
+        - 残り30名（美浦15名/栗東15名）は実績上位のフリー騎手または追加所属騎手として配備
         """
         jockey_ids = []
+        growth_types = ["early", "standard", "standard", "late", "persistent"]
 
+        # 厩舎の取得（美浦30、栗東30に分類）
         with self.db.session() as conn:
-            for loc, count in [("美浦", count_miho), ("栗東", count_ritto)]:
-                female_indices = {2, 7, 12, 18, 24}
+            trainers_miho = [r["trainer_id"] for r in conn.execute("SELECT trainer_id FROM trainers WHERE location = '美浦' ORDER BY trainer_id").fetchall()]
+            trainers_ritto = [r["trainer_id"] for r in conn.execute("SELECT trainer_id FROM trainers WHERE location = '栗東' ORDER BY trainer_id").fetchall()]
+
+            for loc, count, t_ids in [("美浦", count_miho, trainers_miho), ("栗東", count_ritto, trainers_ritto)]:
+                female_indices = {2, 9, 17, 26, 38}
                 for i in range(count):
                     gender = "female" if i in female_indices else "male"
                     name = self.person_name_gen.generate_jockey_name(gender=gender)
-                    career_years = (i % 30) + 1
-                    age = 20 + (career_years - 1)
+                    
+                    # 18歳から58歳までの年齢分布
+                    career_years = (i % 40) + 1
+                    age = 18 + (career_years - 1)
                     debut_year = -(career_years - 1)
+                    g_type = growth_types[i % len(growth_types)]
 
-                    base_mean = 50.0 + min(10.0, career_years * 0.3)
-                    skill = self._sample_normal(mean=base_mean, std=7.0, min_val=30.0, max_val=88.0)
-                    drive = self._sample_normal(mean=base_mean, std=7.0, min_val=30.0, max_val=88.0)
-                    start_dash = self._sample_normal(mean=base_mean, std=7.0, min_val=30.0, max_val=88.0)
-                    temp_hand = self._sample_normal(mean=base_mean, std=7.0, min_val=30.0, max_val=88.0)
+                    # 所属厩舎の決定: 最初の30名は各厩舎に1名ずつ専属所属、残り15名はフリー騎手
+                    if i < len(t_ids):
+                        t_id = t_ids[i]
+                        is_free = 0
+                    else:
+                        t_id = None
+                        is_free = 1
+
+                    # 年齢とピークに応じた基礎能力
+                    peak = 36 if g_type == "early" else (43 if g_type == "late" else 40)
+                    exp = round(min(100.0, career_years * 2.2), 1)
+
+                    if age <= peak:
+                        base_skill = 48.0 + (age - 18) * 0.8
+                        base_drive = 50.0 + (age - 18) * 0.7
+                        stamina = round(min(90.0, 50.0 + (age - 18) * 0.8), 1)
+                    else:
+                        base_skill = 48.0 + (peak - 18) * 0.8 + (age - peak) * 0.3
+                        base_drive = max(35.0, 50.0 + (peak - 18) * 0.7 - (age - peak) * 0.9)
+                        stamina = round(max(30.0, 70.0 - (age - peak) * 1.2), 1)
+
+                    skill = self._sample_normal(mean=base_skill, std=6.0, min_val=30.0, max_val=92.0)
+                    drive = self._sample_normal(mean=base_drive, std=6.0, min_val=30.0, max_val=92.0)
+                    start_dash = self._sample_normal(mean=base_skill, std=6.0, min_val=30.0, max_val=90.0)
+                    temp_hand = self._sample_normal(mean=base_skill, std=6.0, min_val=30.0, max_val=92.0)
 
                     cursor = conn.execute(
                         """
                         INSERT INTO jockeys (
                             name, gender, location, age, debut_year, career_years, is_active,
+                            growth_type, is_free, trainer_id, experience, stamina,
                             skill, drive, start_dash, temperament_handling,
                             current_year_starts, current_year_wins, current_year_g1, current_year_g2, current_year_g3, current_year_earnings,
                             career_starts, career_wins, career_rides, career_earnings, g1_wins, g2_wins, g3_wins
-                        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
                         """,
                         (
                             name, gender, loc, age, debut_year, career_years,
+                            g_type, is_free, t_id, exp, stamina,
                             skill, drive, start_dash, temp_hand,
                         ),
                     )
@@ -326,6 +360,8 @@ class DatabaseInitializer:
         num_sires: int = 60,
         num_dams: int = 600,
         num_active_horses: int = 1250,
+        with_careers: bool = False,
+        include_yearlings: bool = False,
     ) -> None:
         """
         初期繁殖群（種牡馬・繁殖牝馬）および初期現役競走馬群を生成
@@ -396,7 +432,7 @@ class DatabaseInitializer:
                     INSERT INTO sires (horse_id, breeder_id, sire_line, max_coverings, stud_fee, is_active)
                     VALUES (?, ?, ?, 30, ?, 1)
                     """,
-                    (h_id, breeder_id, sire_line, random.randint(1_000_000, 5_000_000)),
+                    (h_id, breeder_id, sire_line, (random.randint(1_000_000, 5_000_000) // 100_000) * 100_000),
                 )
 
             # 2. 初期繁殖牝馬の生成 (num_dams頭: 年齢5〜18歳、引退扱い、is_dam=1)
@@ -496,6 +532,72 @@ class DatabaseInitializer:
 
                     birth_year = -(age - 1)
 
+                    # 初期クラス・出走実績の配分（with_careers=True時のみリアルな分布を付与）
+                    starts = 0
+                    wins = 0
+                    g1_w = 0
+                    g2_w = 0
+                    g3_w = 0
+                    prize = 0
+                    c_prize = 0
+
+                    if with_careers:
+                        if age == 2:
+                            starts = 0
+                            wins = 0
+                        elif age == 3:
+                            overall = speed + stamina + accel
+                            if overall >= 168.0:
+                                starts = random.randint(4, 7)
+                                wins = random.randint(3, 4)
+                                c_prize = 16_000_000
+                                prize = random.randint(30_000_000, 60_000_000)
+                                if random.random() < 0.5:
+                                    g3_w = 1
+                            elif overall >= 153.0:
+                                starts = random.randint(4, 6)
+                                wins = 2
+                                c_prize = 10_000_000
+                                prize = random.randint(18_000_000, 28_000_000)
+                            elif overall >= 138.0:
+                                starts = random.randint(3, 5)
+                                wins = 1
+                                c_prize = 4_000_000
+                                prize = random.randint(8_000_000, 14_000_000)
+                            else:
+                                starts = random.randint(1, 4)
+                                wins = 0
+                                c_prize = 0
+                                prize = random.randint(500_000, 2_500_000)
+                        else:
+                            overall = speed + stamina + accel
+                            if overall >= 168.0:
+                                starts = random.randint(12, 22)
+                                wins = random.randint(4, 7)
+                                c_prize = random.randint(24_000_000, 48_000_000)
+                                prize = random.randint(60_000_000, 180_000_000)
+                                if random.random() < 0.4:
+                                    g3_w = random.randint(1, 2)
+                                if random.random() < 0.2:
+                                    g2_w = 1
+                                if random.random() < 0.08:
+                                    g1_w = 1
+                            elif overall >= 156.0:
+                                starts = random.randint(10, 18)
+                                wins = 3
+                                c_prize = 15_000_000
+                                prize = random.randint(35_000_000, 55_000_000)
+                            elif overall >= 143.0:
+                                starts = random.randint(8, 15)
+                                wins = 2
+                                c_prize = 9_000_000
+                                prize = random.randint(20_000_000, 32_000_000)
+                            else:
+                                starts = random.randint(6, 12)
+                                wins = 1
+                                c_prize = 4_000_000
+                                prize = random.randint(9_000_000, 15_000_000)
+
                     # 父母を初期種牡馬・初期繁殖牝馬から割り当て
                     sire_id = sire_horse_ids[active_idx % len(sire_horse_ids)]
                     dam_id = dam_horse_ids[active_idx % len(dam_horse_ids)]
@@ -521,7 +623,7 @@ class DatabaseInitializer:
                             1, 0, 0, ?,
                             ?, ?, ?, ?, ?, ?,
                             ?, ?, ?, ?,
-                            0, 0, 0, 0, 0, '', 0, 0
+                            ?, ?, ?, ?, ?, '', ?, ?
                         )
                         """,
                         (
@@ -530,6 +632,7 @@ class DatabaseInitializer:
                             self._sample_mstn().value,
                             speed, stamina, accel, temp, dura, vitality,
                             growth_type.value, peak_age, round(current_ability, 2), self._sample_running_style().value,
+                            starts, wins, g1_w, g2_w, g3_w, prize, c_prize,
                         ),
                     )
                     h_id = cursor.lastrowid
@@ -538,30 +641,93 @@ class DatabaseInitializer:
                         "overall_ability": speed + stamina + accel,
                     })
 
-            # 4. 主戦騎手の優先配分（能力上位の馬に実力上位の騎手を優先）
-            if jockey_ids:
-                print("-> 現役馬への主戦騎手を割り当て中...")
-                jockey_ranking = conn.execute(
-                    """
-                    SELECT jockey_id, (skill + drive + start_dash + temperament_handling) as total_ability
-                    FROM jockeys
-                    WHERE is_active = 1
-                    ORDER BY total_ability DESC
-                    """
-                ).fetchall()
-                ranked_j_ids = [j["jockey_id"] for j in jockey_ranking]
-
-                # 馬も能力上位順にソート
-                active_horse_records.sort(key=lambda x: x["overall_ability"], reverse=True)
-
-                for idx, h_rec in enumerate(active_horse_records):
-                    assigned_jockey_id = ranked_j_ids[idx % len(ranked_j_ids)]
+            # 3-2. 初期1歳幼駒の生成（翌年2歳デビュー用：350頭、is_active=0）
+            if include_yearlings:
+                print("-> 初期1歳幼駒 350 頭を生成中（翌年2歳デビュー用）...")
+                for i in range(350):
+                    owner_id = random.choice(owner_ids)
+                    breeder_id = random.choice(breeder_ids)
+                    sex_str = "colt" if random.random() < 0.5 else "filly"
+                    prefix_row = conn.execute("SELECT prefix FROM owners WHERE owner_id = ?", (owner_id,)).fetchone()
+                    name = self.name_gen.generate_name(prefix_row["prefix"], sex=sex_str)
+                    growth_type, peak_age = self._sample_growth()
+                    speed = self._sample_normal(mean=50.0, std=8.0)
+                    stamina = self._sample_normal(mean=50.0, std=8.0)
+                    accel = self._sample_normal(mean=50.0, std=8.0)
+                    temp = self._sample_normal(mean=50.0, std=8.0)
+                    dura = self._sample_normal(mean=50.0, std=8.0)
+                    vitality = self._sample_normal(mean=50.0, std=8.0)
+                    sire_id = sire_horse_ids[i % len(sire_horse_ids)]
+                    dam_id = dam_horse_ids[i % len(dam_horse_ids)]
                     conn.execute(
-                        "UPDATE horses SET jockey_id = ? WHERE horse_id = ?",
-                        (assigned_jockey_id, h_rec["horse_id"]),
+                        """
+                        INSERT INTO horses (
+                            name, sex, birth_year, age, breeder_id, owner_id, trainer_id,
+                            sire_id, dam_id, is_active, is_sire, is_dam, mstn_type,
+                            speed, stamina, acceleration, temperament, durability, maternal_vitality,
+                            growth_type, peak_age, current_ability_rate, running_style,
+                            career_starts, career_wins, g1_wins, g2_wins, g3_wins, major_wins, prize_money, condition_prize_money
+                        ) VALUES (
+                            ?, ?, 0, 1, ?, ?, NULL,
+                            ?, ?, 0, 0, 0, ?,
+                            ?, ?, ?, ?, ?, ?,
+                            ?, ?, 0.3, ?,
+                            0, 0, 0, 0, 0, '', 0, 0
+                        )
+                        """,
+                        (
+                            name, sex_str, breeder_id, owner_id,
+                            sire_id, dam_id, self._sample_mstn().value,
+                            speed, stamina, accel, temp, dura, vitality,
+                            growth_type.value, peak_age, self._sample_running_style().value,
+                        ),
                     )
 
-    def initialize_all(self, force_recreate: bool = True) -> None:
+            # 4. 主戦騎手の優先配分（能力上位の馬に実力上位の騎手を優先）
+            # 4. 主戦騎手の配分 (自厩舎の所属騎手を基本とし、有力馬には有力フリー騎手も配分可能)
+            if jockey_ids:
+                print("-> 現役馬への主戦騎手を割り当て中...")
+                # 厩舎ごとの所属騎手マップ
+                stable_jockey_map: Dict[int, int] = {}
+                j_rows = conn.execute("SELECT jockey_id, trainer_id, is_free FROM jockeys WHERE is_active = 1").fetchall()
+                for jr in j_rows:
+                    if jr["trainer_id"] is not None:
+                        stable_jockey_map[jr["trainer_id"]] = jr["jockey_id"]
+
+                # フリー騎手および実力上位騎手
+                free_jockeys = [jr["jockey_id"] for jr in j_rows if jr["is_free"] == 1]
+
+                # 馬の能力上位20%は有力馬として扱い、フリー騎手も積極的に起用可能
+                active_horse_records.sort(key=lambda x: x["overall_ability"], reverse=True)
+                top_cutoff = len(active_horse_records) // 5
+
+                for idx, h_rec in enumerate(active_horse_records):
+                    h_row = conn.execute("SELECT trainer_id FROM horses WHERE horse_id = ?", (h_rec["horse_id"],)).fetchone()
+                    t_id = h_row["trainer_id"] if h_row else None
+                    
+                    assigned_j_id = None
+                    if idx < top_cutoff and free_jockeys and (idx % 2 == 0):
+                        # 有力馬の一部はフリー騎手を主戦に
+                        assigned_j_id = free_jockeys[idx % len(free_jockeys)]
+                    elif t_id and t_id in stable_jockey_map:
+                        # 基本は自厩舎の所属騎手
+                        assigned_j_id = stable_jockey_map[t_id]
+                    elif free_jockeys:
+                        assigned_j_id = free_jockeys[idx % len(free_jockeys)]
+                    else:
+                        assigned_j_id = jockey_ids[idx % len(jockey_ids)]
+
+                    conn.execute(
+                        "UPDATE horses SET jockey_id = ? WHERE horse_id = ?",
+                        (assigned_j_id, h_rec["horse_id"]),
+                    )
+
+    def initialize_all(
+        self,
+        force_recreate: bool = True,
+        with_careers: bool = False,
+        include_yearlings: bool = False,
+    ) -> None:
         """スキーマ初期化から初期データ投入までを一括実行"""
         print("=== データベース初期化を開始 ===")
         self.db.initialize_schema(force_recreate=force_recreate)
@@ -579,8 +745,8 @@ class DatabaseInitializer:
         trainer_ids = self.generate_initial_trainers(count_miho=30, count_ritto=30)
         print(f"[OK] 厩舎 {len(trainer_ids)} 厩舎を登録完了")
 
-        print("-> 騎手（美浦30名、栗東30名、計60名）生成中...")
-        jockey_ids = self.generate_initial_jockeys(count_miho=30, count_ritto=30)
+        print("-> 騎手（美浦45名、栗東45名、計90名・18歳デビュー・専属所属配備）生成中...")
+        jockey_ids = self.generate_initial_jockeys(count_miho=45, count_ritto=45, trainer_ids=trainer_ids)
         print(f"[OK] 騎手 {len(jockey_ids)} 名を登録完了")
 
         print("-> 初期個体群（種牡馬60頭、繁殖牝馬600頭、現役馬1250頭）生成中...")
@@ -592,7 +758,8 @@ class DatabaseInitializer:
             num_sires=60,
             num_dams=600,
             num_active_horses=1250,
+            with_careers=with_careers,
+            include_yearlings=include_yearlings,
         )
         print("[OK] 初期個体群の生成完了")
         print("=== データベース初期化が正常に完了しました ===")
-

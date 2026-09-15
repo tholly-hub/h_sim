@@ -65,7 +65,7 @@ class TestPhase3Features(unittest.TestCase):
             miho_females = conn.execute("SELECT COUNT(*) FROM jockeys WHERE is_active = 1 AND gender = 'female' AND location = '美浦'").fetchone()[0]
             ritto_females = conn.execute("SELECT COUNT(*) FROM jockeys WHERE is_active = 1 AND gender = 'female' AND location = '栗東'").fetchone()[0]
 
-            self.assertEqual(total_jockeys, 60)
+            self.assertEqual(total_jockeys, 90)
             self.assertEqual(female_jockeys, 10)
             self.assertEqual(miho_females, 5)
             self.assertEqual(ritto_females, 5)

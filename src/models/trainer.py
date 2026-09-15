@@ -45,6 +45,7 @@ class Trainer:
     specialty: TrainerSpecialty = TrainerSpecialty.GENERAL
     horse_capacity: int = 30            # 最大管理枠 (初期30頭、最大50頭)
     reputation: float = 50.0            # 評価・名声 (0.0〜100.0)
+    skill_level: float = 50.0           # 調教師スキル (年数・勝利数で向上、減少しない)
     current_year_starts: int = 0
     current_year_wins: int = 0
     current_year_g1: int = 0
@@ -63,6 +64,23 @@ class Trainer:
     created_year: int = 1
     trainer_id: Optional[int] = None
 
+    def calculate_skill_growth(self, wins_this_year: int = 0, g1_this_year: int = 0, g2_this_year: int = 0, g3_this_year: int = 0) -> float:
+        """
+        年次スキル成長値を計算（開業年数ベース + 当年成績ボーナス）
+        スキルは常に向上し、減少しない
+        """
+        # 年数による基礎経験値向上 (年あたり +0.3〜0.5)
+        base_growth = 0.35
+        # 勝利数ボーナス (1勝ごとに +0.05)
+        win_bonus = wins_this_year * 0.05
+        # 有力重賞ボーナス
+        graded_bonus = (g1_this_year * 1.0) + (g2_this_year * 0.5) + (g3_this_year * 0.25)
+        
+        total_delta = base_growth + win_bonus + graded_bonus
+        # 上限は 99.0
+        new_skill = min(99.0, self.skill_level + total_delta)
+        return round(new_skill, 2)
+
     @classmethod
     def from_row(cls, row) -> Trainer:
         """SQLite Row オブジェクトからインスタンス生成"""
@@ -74,6 +92,7 @@ class Trainer:
             specialty=TrainerSpecialty(row["specialty"]),
             horse_capacity=row["horse_capacity"],
             reputation=row["reputation"],
+            skill_level=row["skill_level"] if "skill_level" in keys else 50.0,
             current_year_starts=row["current_year_starts"] if "current_year_starts" in keys else 0,
             current_year_wins=row["current_year_wins"],
             current_year_g1=row["current_year_g1"] if "current_year_g1" in keys else 0,

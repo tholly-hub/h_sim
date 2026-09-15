@@ -11,7 +11,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.db.database import Database
 from src.generators.name_generator import PersonNameGenerator
+from src.management.jockey_manager import JockeyManager
 from src.models.horse import GrowthType
+from src.models.trainer import Trainer
 
 
 class LifecycleEngine:
@@ -20,15 +22,15 @@ class LifecycleEngine:
     MAX_RACING_AGE: int = 8             # 現役競走馬の上限年齢（8歳末引退、9歳以上は現役不可）
     TRAINER_OPEN_AGE: int = 50          # 調教師開業年齢
     TRAINER_RETIRE_AGE: int = 80        # 調教師定年引退年齢
-    JOCKEY_CAREER_YEARS_LIMIT: int = 30 # 騎手現役年数（約30年）
     FARM_DEFAULT_CAPACITY: int = 15     # 牧場初期収容頭数
     FARM_MAX_CAPACITY: int = 30         # 牧場拡張上限
 
     def __init__(self, db: Database):
         self.db = db
         self.person_name_gen = PersonNameGenerator()
+        self.jockey_mgr = JockeyManager(db=db, quota_miho=45, quota_ritto=45)
 
-    def advance_year(self, current_year: int) -> Dict[str, Any]:
+    def advance_year(self, current_year: int, strict_free_jockey: bool = True) -> Dict[str, Any]:
         """
         1年を進行させ、加齢・引退・入厩・世代交代・牧場動的分化を実行
         """
@@ -94,7 +96,7 @@ class LifecycleEngine:
                             INSERT INTO sires (horse_id, breeder_id, sire_line, max_coverings, stud_fee, is_active)
                             VALUES (?, ?, ?, 30, ?, 1)
                             """,
-                            (h_id, h["breeder_id"], p_sire_line, random.randint(1_500_000, 6_000_000)),
+                            (h_id, h["breeder_id"], p_sire_line, (random.randint(1_500_000, 6_000_000) // 100_000) * 100_000),
                         )
                         new_sires_count += 1
                         print(f"    - 【種牡馬入り】{h['name']} (牡8歳・重賞{h['g1_wins']+h['g2_wins']+h['g3_wins']}勝) -> {p_sire_line}を継承")
@@ -108,12 +110,13 @@ class LifecycleEngine:
 
             print(f"    ※ 8歳現役馬 {len(retired_horses)}頭 引退完了（新種牡馬: {new_sires_count}頭 / 新繁殖牝馬: {new_dams_count}頭）")
 
-            # 4. 2歳新馬の現役デビュー・厩舎入厩
+            # 4. 2歳新馬の現役デビュー・厩舎入厩（自厩舎の所属騎手を基本主戦に設定）
             debut_horses = conn.execute(
                 """
                 SELECT horse_id, name, sex, speed, stamina, acceleration, growth_type
                 FROM horses
                 WHERE age = 2 AND is_active = 0 AND is_sire = 0 AND is_dam = 0
+                ORDER BY (speed + stamina + acceleration) DESC
                 """
             ).fetchall()
 
@@ -132,15 +135,14 @@ class LifecycleEngine:
                 cnt = conn.execute("SELECT COUNT(*) FROM horses WHERE trainer_id = ? AND is_active = 1", (t["trainer_id"],)).fetchone()[0]
                 trainer_counts[t["trainer_id"]] = cnt
 
-            jockeys = conn.execute(
-                """
-                SELECT jockey_id, location, (skill + drive + start_dash + temperament_handling) as total_ability
-                FROM jockeys
-                WHERE is_active = 1
-                ORDER BY total_ability DESC
-                """
-            ).fetchall()
-            jockey_list = [j["jockey_id"] for j in jockeys]
+            # 各厩舎の所属騎手マップ
+            stable_jockey_map: Dict[int, int] = {}
+            j_active = conn.execute("SELECT jockey_id, trainer_id, is_free FROM jockeys WHERE is_active = 1").fetchall()
+            for jr in j_active:
+                if jr["trainer_id"] is not None:
+                    stable_jockey_map[jr["trainer_id"]] = jr["jockey_id"]
+
+            free_jockeys = [jr["jockey_id"] for jr in j_active if jr["is_free"] == 1]
 
             debut_count = 0
             for idx, h in enumerate(debut_horses):
@@ -148,7 +150,14 @@ class LifecycleEngine:
                 target_trainer = sorted_trainers[0]
                 t_id = target_trainer["trainer_id"]
 
-                assigned_jockey = jockey_list[idx % len(jockey_list)] if jockey_list else None
+                # 主戦騎手の配分: 有力新馬はフリー騎手も考慮、基本は自厩舎の所属騎手
+                assigned_jockey = None
+                if idx < (len(debut_horses) // 10) and free_jockeys and (idx % 2 == 0):
+                    assigned_jockey = free_jockeys[idx % len(free_jockeys)]
+                elif t_id in stable_jockey_map:
+                    assigned_jockey = stable_jockey_map[t_id]
+                elif free_jockeys:
+                    assigned_jockey = free_jockeys[idx % len(free_jockeys)]
 
                 conn.execute(
                     """
@@ -163,119 +172,118 @@ class LifecycleEngine:
 
             print(f"    ※ 新馬 {debut_count}頭 が美浦・栗東の全60厩舎へ入厩・現役登録完了。")
 
-            # 5. 騎手・厩舎の世代交代
-            print("[年進行] 4/7: 厩舎（調教師）の世代交代判定中（80歳定年引退・引退騎手による事業承継）...")
-            conn.execute("UPDATE trainers SET age = age + 1, trainer_years = trainer_years + 1")
+            # 5. 騎手の世代交代・成長・体力減衰・多段階引退・調教助手転身 & 新人騎手補充
+            print("[年進行] 4/7: 騎手の世代交代判定中（多段階引退・調教助手転身・フリー化・18歳新人デビュー）...")
+            jockey_progress_result = self.jockey_mgr.progress_year_and_maintain_quota(
+                current_year=current_year, strict_free=strict_free_jockey, conn=conn
+            )
+            ret_jockeys = jockey_progress_result["retired_jockeys"]
+            promoted_free = jockey_progress_result["promoted_free_jockeys"]
+            new_rookies = jockey_progress_result["new_jockeys"]
+
+            for rj in ret_jockeys:
+                print(f"    - 【騎手引退】{rj['name']} ({rj['age']}歳・通算{rj['career_wins']}勝/G1:{rj['g1_wins']}勝) 引退理由: {rj['reason']}")
+            for pf in promoted_free:
+                print(f"    - 【フリー転向】{pf['name']} (通算{pf['career_wins']}勝/G1:{pf['g1_wins']}勝) がフリー騎手へ転向！")
+            for nr in new_rookies:
+                print(f"    - 【新人デビュー】{nr.name} (18歳・{nr.location}) デビュー（定員90名維持）")
+
+            # 6. 厩舎（調教師）のスキル向上 & 世代交代判定（80歳定年引退・調教助手/有力フリー騎手承継）
+            print("[年進行] 5/7: 厩舎（調教師）のスキル向上および世代交代判定（80歳定年・調教助手/有力騎手承継）...")
+            
+            # 調教師の加齢 & スキル向上
+            t_rows = conn.execute("SELECT * FROM trainers").fetchall()
+            for tr in t_rows:
+                t = Trainer.from_row(tr)
+                new_skill = t.calculate_skill_growth(
+                    wins_this_year=t.current_year_wins,
+                    g1_this_year=t.current_year_g1,
+                    g2_this_year=t.current_year_g2,
+                    g3_this_year=t.current_year_g3,
+                )
+                conn.execute(
+                    "UPDATE trainers SET age = age + 1, trainer_years = trainer_years + 1, skill_level = ? WHERE trainer_id = ?",
+                    (new_skill, t.trainer_id),
+                )
 
             retired_trainers = conn.execute(
                 "SELECT trainer_id, name, location, age FROM trainers WHERE age >= ?",
                 (self.TRAINER_RETIRE_AGE,),
             ).fetchall()
 
-            # 現在DB内に存在する厩舎名全体（UNIQUE衝突防止用）
             existing_trainer_names: Set[str] = set(r["name"] for r in conn.execute("SELECT name FROM trainers").fetchall())
 
-            # 引退騎手（未承継）の候補を探す
-            retired_jockeys = conn.execute(
-                """
-                SELECT jockey_id, name, gender, location, age
-                FROM jockeys
-                WHERE is_active = 0 AND age >= 45 AND jockey_id NOT IN (
-                    SELECT former_jockey_id FROM trainers WHERE former_jockey_id IS NOT NULL
-                )
-                ORDER BY age DESC
-                """
-            ).fetchall()
-            ret_jockey_pool = list(retired_jockeys)
+            # 有力な引退フリー騎手の抽出（この年に引退したフリー騎手で通算100勝以上またはG1勝ち）
+            top_retired_free_jockeys = [
+                rj for rj in ret_jockeys 
+                if (rj.get("trainer_id") is None and (rj["career_wins"] >= 100 or rj["g1_wins"] >= 1))
+            ]
 
             for t in retired_trainers:
                 t_id = t["trainer_id"]
-
                 succ_jockey_id = None
-                if ret_jockey_pool:
-                    succ_jockey = ret_jockey_pool.pop(0)
-                    succ_jockey_id = succ_jockey["jockey_id"]
+                initial_skill = 50.0
+                succ_reason = ""
+
+                # 優先1: 有力な引退フリー騎手（自厩舎に調教助手がいない場合、または優先割当）
+                # 自厩舎所属の調教助手をチェック
+                assistants = conn.execute(
+                    """
+                    SELECT assistant_id, jockey_id, name, age, career_wins, g1_wins 
+                    FROM assistant_trainers 
+                    WHERE trainer_id = ? AND is_active = 1
+                    ORDER BY career_wins DESC, g1_wins DESC, age ASC
+                    """,
+                    (t_id,),
+                ).fetchall()
+
+                if top_retired_free_jockeys and not assistants:
+                    top_free = top_retired_free_jockeys.pop(0)
+                    succ_jockey_id = top_free["jockey_id"]
                     succ_name = PersonNameGenerator.get_stable_name_from_jockey(
-                        succ_jockey["name"], existing_names=existing_trainer_names
+                        top_free["name"], existing_names=existing_trainer_names
                     )
+                    # フリー騎手実績に応じた初期厩舎スキルボーナス
+                    initial_skill = round(50.0 + min(25.0, top_free["career_wins"] * 0.05 + top_free["g1_wins"] * 2.0), 1)
+                    succ_reason = f"引退有力フリー騎手 {top_free['name']} (通算{top_free['career_wins']}勝/G1:{top_free['g1_wins']}勝) が承継"
+                elif assistants:
+                    # 優先2: 自厩舎所属の調教助手
+                    top_asst = assistants[0]
+                    succ_jockey_id = top_asst["jockey_id"]
+                    succ_name = PersonNameGenerator.get_stable_name_from_jockey(
+                        top_asst["name"], existing_names=existing_trainer_names
+                    )
+                    # 調教助手退任
+                    conn.execute("UPDATE assistant_trainers SET is_active = 0 WHERE assistant_id = ?", (top_asst["assistant_id"],))
+                    # 実績に応じた初期スキル
+                    initial_skill = round(50.0 + min(18.0, top_asst["career_wins"] * 0.04 + top_asst["g1_wins"] * 1.5), 1)
+                    succ_reason = f"自厩舎調教助手 {top_asst['name']} ({top_asst['age']}歳・通算{top_asst['career_wins']}勝) が承継"
                 else:
-                    # 重複しない厩舎名を生成
+                    # 優先3: 新規調教師
                     while True:
                         cand = self.person_name_gen.generate_trainer_name()
                         if cand not in existing_trainer_names:
                             succ_name = cand
                             break
+                    initial_skill = 50.0
+                    succ_reason = f"新調教師 {succ_name} (50歳) が新規就任"
 
                 existing_trainer_names.add(succ_name)
                 self.person_name_gen.register_trainer_name(succ_name)
 
-                # 既存厩舎の事業を承継（名前更新、年齢50歳、歴1年、新元騎手ID紐付け、成績リフレッシュ）
+                # 厩舎の事業承継登録
                 conn.execute(
                     """
                     UPDATE trainers
-                    SET name = ?, age = 50, trainer_years = 1, former_jockey_id = ?,
+                    SET name = ?, age = 50, trainer_years = 1, former_jockey_id = ?, skill_level = ?,
                         current_year_starts = 0, current_year_wins = 0, current_year_g1 = 0,
                         current_year_g2 = 0, current_year_g3 = 0, current_year_earnings = 0,
                         career_starts = 0, career_wins = 0, g1_wins = 0, g2_wins = 0, g3_wins = 0, career_earnings = 0
                     WHERE trainer_id = ?
                     """,
-                    (succ_name, succ_jockey_id, t_id),
+                    (succ_name, succ_jockey_id, initial_skill, t_id),
                 )
-                print(f"    - 【世代交代】{t['name']} (80歳定年) が引退 -> 新調教師 {succ_name} (50歳) が事業を承継")
-
-            print("[年進行] 5/7: 騎手の世代交代判定中（現役30年または48歳以上で引退・新人騎手デビュー）...")
-            conn.execute("UPDATE jockeys SET age = age + 1, career_years = career_years + 1 WHERE is_active = 1")
-
-            retiring_jockeys = conn.execute(
-                """
-                SELECT jockey_id, name, location, gender, age, career_years
-                FROM jockeys
-                WHERE is_active = 1 AND (career_years > ? OR age >= 48)
-                """,
-                (self.JOCKEY_CAREER_YEARS_LIMIT,),
-            ).fetchall()
-
-            # 現在DB内に存在する騎手名全体（UNIQUE衝突防止用）
-            existing_jockey_names: Set[str] = set(r["name"] for r in conn.execute("SELECT name FROM jockeys").fetchall())
-            for name in existing_jockey_names:
-                self.person_name_gen.register_jockey_name(name)
-
-            for j in retiring_jockeys:
-                j_id = j["jockey_id"]
-                conn.execute("UPDATE jockeys SET is_active = 0 WHERE jockey_id = ?", (j_id,))
-
-                loc = j["location"]
-                gender = j["gender"]
-                # 重複しない騎手名を生成
-                while True:
-                    cand = self.person_name_gen.generate_jockey_name(gender=gender)
-                    if cand not in existing_jockey_names:
-                        new_name = cand
-                        break
-
-                existing_jockey_names.add(new_name)
-                self.person_name_gen.register_jockey_name(new_name)
-
-                cursor = conn.execute(
-                    """
-                    INSERT INTO jockeys (
-                        name, gender, location, age, debut_year, career_years, is_active,
-                        skill, drive, start_dash, temperament_handling,
-                        current_year_starts, current_year_wins, current_year_g1, current_year_g2, current_year_g3, current_year_earnings,
-                        career_starts, career_wins, career_rides, career_earnings, g1_wins, g2_wins, g3_wins
-                    ) VALUES (?, ?, ?, 18, ?, 1, 1, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-                    """,
-                    (
-                        new_name, gender, loc, next_year,
-                        round(random.uniform(45.0, 65.0), 1),
-                        round(random.uniform(45.0, 65.0), 1),
-                        round(random.uniform(45.0, 65.0), 1),
-                        round(random.uniform(45.0, 65.0), 1),
-                    ),
-                )
-                new_j_id = cursor.lastrowid
-                conn.execute("UPDATE horses SET jockey_id = ? WHERE jockey_id = ?", (new_j_id, j_id))
-                print(f"    - 【騎手引退・新人デビュー】{j['name']} ({j['career_years']}年活動) 引退 -> 新人騎手 {new_name} (18歳・{loc}) デビュー")
+                print(f"    - 【厩舎承継】{t['name']} (80歳定年引退) -> {succ_name} (初期スキル: {initial_skill}) / {succ_reason}")
 
             # 6. 生産牧場の動的分化・譲渡・拡張
             print("[年進行] 6/7: 生産牧場の動的収容バランス調整（最低1頭保証・あふれ移籍）中...")
