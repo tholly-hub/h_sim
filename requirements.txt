@@ -1,0 +1,7 @@
+# 競馬シミュレーションエンジン
+# Phase 1 は標準ライブラリ（Python 3.10+）で動作します。
+# Phase 4 で PyQt6 および matplotlib 等の可視化ライブラリを使用します。
+
+PyQt6>=6.5.0
+matplotlib>=3.7.0
+pytest>=7.0.0
