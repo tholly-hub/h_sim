@@ -19,6 +19,7 @@ from src.models.race import AgeRestriction, Race, RaceGrade, RaceResultRecord
 from src.models.trainer import Trainer
 from src.race.engine import RaceEngine
 from src.race.entry import RaceEntryManager
+from src.race.program import RaceProgramBuilder
 
 
 class CalendarController:
@@ -28,15 +29,24 @@ class CalendarController:
         self.db = db
         self.entry_manager = RaceEntryManager(db)
         self.engine = RaceEngine()
+        self.program_builder = RaceProgramBuilder(db)
 
     def get_races_for_week(self, year: int, week: int, conn: Optional[Any] = None) -> List[Race]:
-        """指定年・週のレース番組一覧を取得"""
+        """指定年・週のレース番組一覧を取得（未登録なら年間番組表を自動登録）"""
+        check_query = "SELECT COUNT(*) FROM races WHERE year = ?"
         query = "SELECT * FROM races WHERE year = ? AND week = ? ORDER BY race_id ASC"
+
         if conn is not None:
+            c = conn.execute(check_query, (year,)).fetchone()[0]
+            if c == 0:
+                self.program_builder.register_annual_program(year=year)
             cursor = conn.execute(query, (year, week))
             rows = cursor.fetchall()
         else:
             with self.db.session() as session_conn:
+                c = session_conn.execute(check_query, (year,)).fetchone()[0]
+                if c == 0:
+                    self.program_builder.register_annual_program(year=year)
                 cursor = session_conn.execute(query, (year, week))
                 rows = cursor.fetchall()
         return [Race.from_row(r) for r in rows]
@@ -194,8 +204,8 @@ class CalendarController:
                 INSERT INTO results (
                     race_id, horse_id, jockey_id, trainer_id, finish_position,
                     finish_time, margin, time_diff, prize_awarded,
-                    running_style_used, replay_data_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    running_style_used, gate_number, last_3f, odds, replay_data_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     res.race_id,
@@ -208,6 +218,9 @@ class CalendarController:
                     res.time_diff,
                     res.prize_awarded,
                     res.running_style_used,
+                    res.gate_number,
+                    getattr(res, "last_3f", 0.0),
+                    getattr(res, "odds", 0.0),
                     res.replay_data_json,
                 ),
             )

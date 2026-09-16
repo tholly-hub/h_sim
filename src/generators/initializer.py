@@ -762,4 +762,10 @@ class DatabaseInitializer:
             include_yearlings=include_yearlings,
         )
         print("[OK] 初期個体群の生成完了")
+
+        print("-> 1年目年間レース番組表（年間48週・全グレード番組）を登録中...")
+        from src.race.program import RaceProgramBuilder
+        RaceProgramBuilder(self.db).register_annual_program(year=1)
+        print("[OK] 年間レース番組表の登録完了")
+
         print("=== データベース初期化が正常に完了しました ===")

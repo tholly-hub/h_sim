@@ -28,10 +28,32 @@ class BreedingEngine:
         self.pedigree_builder = PedigreeBuilder(db)
 
     def _sync_existing_names(self, conn) -> None:
-        """DB内の全馬名をジェネレータに登録して重複を防止"""
-        rows = conn.execute("SELECT name FROM horses").fetchall()
-        for r in rows:
-            self.name_gen.register_name(r["name"])
+        """
+        馬名ジェネレータの禁止馬名セットを更新:
+        1. 重賞(G1, G2, G3)勝利馬の名前（過去の引退馬も含め永久に重複不可）
+        2. 現在活動中（現役・種牡馬・繁殖牝馬）の馬の名前（同時代重複不可）
+        ※ 重賞未勝利で引退した馬の名前は再利用可能
+        """
+        # 1. 重賞勝利馬（G1, G2, G3のいずれかを勝利）
+        rows_graded = conn.execute(
+            """
+            SELECT DISTINCT name FROM horses
+            WHERE g1_wins > 0 OR g2_wins > 0 OR g3_wins > 0
+            """
+        ).fetchall()
+        graded_names = {r["name"] for r in rows_graded}
+
+        # 2. 現在活動中の馬（現役、供用中種牡馬、供用中繁殖牝馬）
+        rows_active = conn.execute(
+            """
+            SELECT DISTINCT name FROM horses
+            WHERE is_active = 1 OR is_sire = 1 OR is_dam = 1
+            """
+        ).fetchall()
+        active_names = {r["name"] for r in rows_active}
+
+        forbidden = graded_names | active_names
+        self.name_gen.set_forbidden_names(forbidden)
 
     def _load_trainer_stats(self, conn) -> Dict[int, Dict[str, Any]]:
         """全調教師の通算成績・名声マップを取得"""

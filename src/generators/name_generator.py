@@ -138,30 +138,34 @@ NAME_WORDS = ALL_WORDS
 class HorseNameGenerator:
     """
     馬名自動生成クラス:
+    - 冠名（Prefix）＋単語（1単語のみ）による自然で格調高い命名
     - 7大カテゴリ（花、外国人名、地名、歴史上の人物、鉱物、食べ物、名跡）＋天体自然
-    - 同時代の馬同士で同じ単語が被らないよう、使用中単語（used_active_words）を厳格に管理
-    - 単一単語（約1,060種）および自然な2単語合成（数万種）により完全な重複防止を実現
+    - 重賞(G1, G2, G3)勝利馬（永久欠番）および現在活動中の馬との重複を厳格に排除
     - 性別（牡/牝）に応じた自然な命名カテゴリの優先配分
     """
 
     def __init__(self, existing_names: Optional[Iterable[str]] = None):
         """
         Args:
-            existing_names: 既存の馬名（重複回避用）
+            existing_names: 使用禁止馬名の初期セット（重賞勝ち馬、現役馬など）
         """
         self.used_names: Set[str] = set(existing_names or [])
         self.used_active_words: Set[str] = set()
 
+    def set_forbidden_names(self, names: Iterable[str]) -> None:
+        """使用禁止馬名（重賞勝利馬＋現在活動中の馬など）を一括設定"""
+        self.used_names = set(names)
+
     def register_name(self, name: str) -> None:
-        """既出馬名として登録"""
+        """既出・使用中馬名として登録"""
         self.used_names.add(name)
 
     def register_active_word(self, word: str) -> None:
-        """現在活動中の馬が使用しているコア単語として登録"""
+        """互換用"""
         self.used_active_words.add(word)
 
     def release_active_word(self, word: str) -> None:
-        """引退・退役した馬のコア単語を解放（再利用可能化）"""
+        """互換用"""
         self.used_active_words.discard(word)
 
     def is_name_available(self, name: str) -> bool:
@@ -206,89 +210,56 @@ class HorseNameGenerator:
 
         return random.choice(pool)
 
-    def _generate_compound_word(self, sex: Optional[str] = None) -> str:
-        """響きの良い自然な2単語合成（複合語）を生成"""
-        is_female = sex in ["filly", "mare"]
-        if is_female:
-            # パターン1: 鉱物 + 花 (例: ルビーローズ, サファイアリリー)
-            # パターン2: スイーツ + 果物/花 (例: ショコラベリー, ハニーバニラ)
-            # パターン3: 花/スイーツ + 天体 (例: ローズルナ, ベリーステラ)
-            pat = random.choice([1, 2, 3])
-            if pat == 1:
-                w1 = random.choice(MINERALS_GEMS)
-                w2 = random.choice(FLOWERS)
-            elif pat == 2:
-                w1 = random.choice(FOODS_SWEETS)
-                w2 = random.choice(FOODS_SWEETS + FLOWERS)
-            else:
-                w1 = random.choice(FLOWERS + FOODS_SWEETS)
-                w2 = random.choice(CELESTIAL_NATURAL)
-        else:
-            # 牡馬
-            # パターン1: 地名 + 天体/自然 (例: アルプスオーロラ, モナコブリーズ)
-            # パターン2: 鉱物 + 歴史/天体 (例: クリスタルキング, プラチナメテオ)
-            # パターン3: 名跡 + 自然/星 (例: パルテノンステラ, オリンピアサン)
-            pat = random.choice([1, 2, 3])
-            if pat == 1:
-                w1 = random.choice(GEOGRAPHY)
-                w2 = random.choice(CELESTIAL_NATURAL)
-            elif pat == 2:
-                w1 = random.choice(MINERALS_GEMS)
-                w2 = random.choice(HISTORICAL_FIGURES + CELESTIAL_NATURAL)
-            else:
-                w1 = random.choice(HISTORIC_SITES)
-                w2 = random.choice(CELESTIAL_NATURAL)
-
-        return f"{w1}{w2}"
-
     def generate_name(
         self,
         prefix: Optional[str] = None,
         sex: Optional[str] = None,
         category: Optional[str] = None,
-        max_attempts: int = 300,
+        max_attempts: int = 500,
     ) -> str:
         """
-        冠名（Prefix）に単語を結合し（冠名がなければ単独・複合単語）、同時代で同じ単語が被らない馬名を生成
+        冠名（Prefix）＋単語（1単語）により、重複しない馬名を生成
         Args:
             prefix: 馬主の冠名（省略時は冠名なし）
             sex: 'colt', 'filly', 'horse', 'mare'
             category: 'flower', 'western_name', 'geography', 'history', 'mineral', 'food', 'site', 'celestial'
             max_attempts: 最大試行回数
         Returns:
-            同時代で一意のユニークな馬名
+            [冠名] + [単語] 形式のユニークな馬名
         """
         pfx = prefix or ""
-        # 1. 単一単語から、同時代馬でまだ使われていない単語を探索
-        target_pool = CATEGORY_DICT.get(category, ALL_WORDS) if category else ALL_WORDS
-        available_single = [w for w in target_pool if w not in self.used_active_words]
-        random.shuffle(available_single)
 
-        # 性別指定がある場合は性別に好ましい単語を優先ソート
+        # 1. カテゴリまたは全単語から単語プールを作成
+        target_pool = list(CATEGORY_DICT.get(category, ALL_WORDS) if category else ALL_WORDS)
+        random.shuffle(target_pool)
+
+        # 性別指定がある場合は性別に好ましい単語を優先して先頭に配置
         if not category and sex:
             pref_word = self._pick_word_for_sex(sex)
-            if pref_word in available_single:
-                available_single.remove(pref_word)
-                available_single.insert(0, pref_word)
+            if pref_word in target_pool:
+                target_pool.remove(pref_word)
+                target_pool.insert(0, pref_word)
 
-        for w in available_single:
+        # 2. 単語を1つ選定して [冠名] + [単語] を生成
+        for w in target_pool:
             candidate = f"{pfx}{w}"
             if candidate not in self.used_names:
                 self.used_names.add(candidate)
                 self.used_active_words.add(w)
                 return candidate
 
-        # 2. 単一単語で空きがない場合は複合語（2単語合成）を生成
-        for _ in range(max_attempts):
-            comp_w = self._generate_compound_word(sex)
-            if comp_w not in self.used_active_words:
-                candidate = f"{pfx}{comp_w}"
+        # 3. 指定カテゴリ内で見つからなかった場合は ALL_WORDS 全体から探索
+        if category:
+            fallback_pool = list(ALL_WORDS)
+            random.shuffle(fallback_pool)
+            for w in fallback_pool:
+                candidate = f"{pfx}{w}"
                 if candidate not in self.used_names:
                     self.used_names.add(candidate)
-                    self.used_active_words.add(comp_w)
+                    self.used_active_words.add(w)
                     return candidate
 
-        # 3. 極限のフォールバック (番号付与)
+        # 4. 極限のフォールバック (単語すべて使い切った場合のみ番号付与)
         counter = 1
         while True:
             w = self._pick_word_for_sex(sex, category)

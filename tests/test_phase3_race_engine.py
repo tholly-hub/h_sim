@@ -51,15 +51,21 @@ class TestPhase3RaceEngine(unittest.TestCase):
         """競馬場モデルの取得テスト"""
         track_a = get_track_info('A')
         self.assertEqual(track_a.track_id, 'A')
-        self.assertEqual(track_a.straight_length, 400.0)
-        self.assertFalse(track_a.has_slope)
+        self.assertEqual(track_a.straight_length, 412.5)
+        self.assertEqual(track_a.name, '中京競馬場')
 
         track_b = get_track_info('B')
         self.assertTrue(track_b.has_slope)
-        self.assertEqual(track_b.straight_length, 520.0)
+        self.assertEqual(track_b.straight_length, 525.9)
+        self.assertEqual(track_b.name, '東京競馬場')
 
         track_c = get_track_info('C')
         self.assertEqual(track_c.slope_type, 'steep_slope')
+        self.assertEqual(track_c.name, '中山競馬場')
+
+        track_d = get_track_info('D')
+        self.assertEqual(track_d.slope_type, 'flat')
+        self.assertEqual(track_d.name, '小倉競馬場')
 
     def test_program_generation_and_registration(self):
         """番組表生成およびDB登録のテスト"""

@@ -1,0 +1,45 @@
+# 開催週表示の修正 & 直線における体力切れ馬の継続的減速 実装完了レポート
+
+## 1. 概要
+ユーザー様からのご要望に基づき、以下の2点の改修および検証を実施しました：
+1. **開催週の表示修正**: 月4回開催体系において「2月5週」等と年間通算週が表示されていた問題を、月内の「2月1週〜4週」として正しくフォーマット表示されるように修正。
+2. **直線で体力が尽きた馬の継続的減速**: 直線で体力が尽きた馬は、ゴールまで走るスピードが継続して落ち続ける物理モデル・減速処理をエンジンに導入。
+
+---
+
+## 2. 変更内容の詳細
+
+### ① 開催週の月内週表記への修正
+- [race_replay_view.py](file:///Users/takashihorimatsu/Library/CloudStorage/GoogleDrive-thorimatsu@gmail.com/マイドライブ/h_sim/src/gui/views/race_replay_view.py#L250-L255)
+  - リプレイ画面のレース選択コンボボックスにおいて、`races.week`（年間1〜48週）から月内週 `((week - 1) % 4) + 1` を算出。
+  - 表示フォーマットを `[{year}年 {month}月{week_in_m}週] {race_name} ({grade})` に変更（例：第5週のレースが「2月1週」と明快に表示）。
+- [dashboard_view.py](file:///Users/takashihorimatsu/Library/CloudStorage/GoogleDrive-thorimatsu@gmail.com/マイドライブ/h_sim/src/gui/views/dashboard_view.py#L235-L240)
+  - ダッシュボードの現在週表示および進行ダイアログにおいて、通算週とともに月内週（例：`2月1週 (第5週)`）を表示するように統一。
+
+### ② 直線で体力が尽きた馬の継続的減速処理
+- [engine.py](file:///Users/takashihorimatsu/Library/CloudStorage/GoogleDrive-thorimatsu@gmail.com/マイドライブ/h_sim/src/race/engine.py#L270-L310)
+  - **体力切れ地点の算出**:
+    - 各馬のスタミナ値（`stamina`）、距離適性、コース距離、道中ペース負荷（逃げ馬のスタミナ消費増等）に基づいて、余力限界地点 `exhaust_rem_dist` を計算。
+  - **継続減速（脚が上がる挙動）の適用**:
+    - 直線進入後、残り距離が限界地点を下回った（`rem_m <= exhaust_rem_dist`）馬について、体力切れ後の走行距離 `run_after_exhaust` を計測。
+    - 走るにつれて `fatigue_decay = max(0.48, 1.0 - (run_after_exhaust / 110.0) * 0.40)` で毎ステップ乗算減速。
+    - 体力が尽きた後は速度の維持や回復が起こらず、時速約37km/hから約22km/hへとゴールまで継続的にズルズルとスピードが落ち続けるリアルなバテ方を実現。
+
+---
+
+## 3. 検証結果
+
+### 自動検証スクリプト ([verify_stamina_and_week.py](file:///Users/takashihorimatsu/.gemini/antigravity/brain/85bf1bbe-1f92-4d4e-abe8-271bdeba2bf4/scratch/verify_stamina_and_week.py))
+- **月内週表記の確認**:
+  - 年間第5週のきさらぎ賞が `[2024年 2月1週] きさらぎ賞 (G3)` として正しく生成されることを確認。
+- **体力切れ馬の速度推移の確認**:
+  - スタミナ不足・短距離型逃げ馬（MSTN: CC型、スタミナ45）を2400mに出走させ、直線進入からゴールまでの速度推移を計測：
+    - 残り 349.3m: 10.40 m/s (37.4 km/h)
+    - 残り 307.8m:  8.20 m/s (29.5 km/h)
+    - 残り 264.8m:  6.60 m/s (23.8 km/h)
+    - 残り 167.6m:  6.30 m/s (22.7 km/h)
+  - 減速率 **39.4%** を記録し、スピードが一定にならずゴールまで単調に継続減速していることを確認。
+
+### 既存単体テストスイート
+- `python3 -m unittest discover -s tests`
+- **全44テスト PASSED**（既存機能への副作用なし）

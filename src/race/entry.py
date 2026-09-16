@@ -163,7 +163,8 @@ class RaceEntryManager:
         )
 
         starters = priority_horses + other_horses
-        return starters[: race.full_gate]
+        max_limit = min(18, race.full_gate if (hasattr(race, "full_gate") and race.full_gate) else 18)
+        return starters[:max_limit]
 
     def assign_jockeys(
         self,

@@ -355,6 +355,8 @@ def interactive_menu() -> None:
         print("  【管理】")
         print("  [20] 単体テスト実行")
         print("  [21] 設定情報確認・DBパス変更")
+        print("  【GUIデータ可視化 (Phase 4)】")
+        print("  [22] GUIデータ可視化＆レース再生システム起動 (--gui)")
         print("  [0] 終了")
         print("============================================================")
         try:
@@ -476,6 +478,9 @@ def interactive_menu() -> None:
                 new_path = input("新しいDBファイルの絶対パスを入力してください: ").strip()
                 if new_path:
                     config_mgr.set_db_path(new_path)
+        elif choice == "22":
+            from src.gui.app import launch_gui
+            launch_gui()
         elif choice == "0":
             print("終了します。")
             break
@@ -517,10 +522,16 @@ def main() -> None:
     parser.add_argument("--simulate-race-year", type=int, nargs="?", const=1, help="年間48週の全レースを一括シミュレーション実行")
     parser.add_argument("--race-results", type=int, nargs="?", const=0, help="レース結果を表示 (レースID指定可能、引数なしで直近重賞)")
     parser.add_argument("--rankings", type=str, choices=["jockey", "trainer", "owner", "breeder", "sire"], help="5大リーディングランキングを表示")
+    parser.add_argument("--gui", action="store_true", help="PyQt6 GUIデータ可視化＆レース再生システムを起動")
 
     args = parser.parse_args()
     config_mgr = get_config()
     viewer = HorseViewer()
+
+    if args.gui:
+        from src.gui.app import launch_gui
+        launch_gui()
+        return
 
     if len(sys.argv) == 1 or args.menu:
         interactive_menu()

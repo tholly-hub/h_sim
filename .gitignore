@@ -38,3 +38,4 @@ tests/*.html
 .idea/
 .DS_Store
 Thumbs.db
+:memory:

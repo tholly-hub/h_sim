@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS assistant_trainers (
 -- 5. 競走馬テーブル (Horses: 個体能力、遺伝情報、成績)
 CREATE TABLE IF NOT EXISTS horses (
     horse_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,                   -- カタカナ
+    name TEXT NOT NULL,                          -- カタカナ
     sex TEXT NOT NULL CHECK (sex IN ('colt', 'filly', 'horse', 'mare', 'gelding')),
     birth_year INTEGER NOT NULL,
     age INTEGER NOT NULL,
@@ -247,6 +247,9 @@ CREATE TABLE IF NOT EXISTS results (
     time_diff REAL NOT NULL DEFAULT 0.0,         -- 1着とのタイム差 (秒)
     prize_awarded INTEGER NOT NULL DEFAULT 0,    -- 獲得本賞金
     running_style_used TEXT,                     -- 実際のレース脚質
+    gate_number INTEGER NOT NULL DEFAULT 1,      -- 馬番 (枠番ゲート番号 1〜18)
+    last_3f REAL DEFAULT 0.0,                    -- 上がり3ハロンタイム (秒)
+    odds REAL DEFAULT 0.0,                       -- 単勝オッズ (倍率)
     replay_data_json TEXT,                       -- 0.1秒ごとの時系列位置データ (JSON)
     FOREIGN KEY (race_id) REFERENCES races(race_id),
     FOREIGN KEY (horse_id) REFERENCES horses(horse_id),
@@ -255,6 +258,7 @@ CREATE TABLE IF NOT EXISTS results (
 );
 
 -- インデックス作成 (検索・参照の高速化)
+CREATE INDEX IF NOT EXISTS idx_horses_name ON horses(name);
 CREATE INDEX IF NOT EXISTS idx_horses_owner ON horses(owner_id);
 CREATE INDEX IF NOT EXISTS idx_horses_breeder ON horses(breeder_id);
 CREATE INDEX IF NOT EXISTS idx_horses_trainer ON horses(trainer_id);

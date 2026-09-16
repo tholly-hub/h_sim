@@ -124,5 +124,8 @@ class RaceResultRecord:
     jockey_id: Optional[int] = None
     trainer_id: Optional[int] = None
     running_style_used: str = 'leading'
+    gate_number: int = 1
+    last_3f: float = 0.0
+    odds: float = 0.0
     replay_data_json: Optional[str] = None
     result_id: Optional[int] = None

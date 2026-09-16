@@ -26,12 +26,16 @@ class RankingManager:
             jockey_id, name, location, is_free,
             career_starts, career_wins,
             g1_wins, g2_wins, g3_wins,
+            career_earnings,
             career_earnings AS prize_money,
+            current_year_starts, current_year_wins,
+            current_year_g1, current_year_g2, current_year_g3,
+            current_year_earnings,
             CASE WHEN career_starts > 0
                  THEN ROUND(CAST(career_wins AS REAL) / career_starts, 3)
                  ELSE 0.0 END AS win_rate
         FROM jockeys
-        WHERE career_starts > 0
+        WHERE career_starts > 0 OR current_year_starts > 0
         ORDER BY career_wins DESC, career_earnings DESC
         LIMIT ?
         """
@@ -106,6 +110,7 @@ class RankingManager:
         SELECT
             s.sire_id,
             s.sire_line,
+            s.stud_fee,
             h_sire.name AS sire_name,
             COUNT(h_progeny.horse_id) AS progeny_count,
             SUM(h_progeny.career_starts) AS progeny_starts,

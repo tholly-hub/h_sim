@@ -40,7 +40,98 @@ class Database:
         conn.execute("PRAGMA journal_mode = WAL;")
         # 通常の同期モード (安全性と速度のバランス)
         conn.execute("PRAGMA synchronous = NORMAL;")
+
+        self._migrate_schema(conn)
         return conn
+
+    def _migrate_schema(self, conn: sqlite3.Connection) -> None:
+        """既存DBに対するカラム追加などの自動マイグレーション"""
+        try:
+            # resultsテーブルが存在するか確認
+            table_check = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='results'"
+            ).fetchone()
+            if table_check:
+                # gate_number カラムが存在するか確認
+                cols = [col["name"] for col in conn.execute("PRAGMA table_info(results)").fetchall()]
+                if "gate_number" not in cols:
+                    conn.execute("ALTER TABLE results ADD COLUMN gate_number INTEGER NOT NULL DEFAULT 1;")
+                if "last_3f" not in cols:
+                    conn.execute("ALTER TABLE results ADD COLUMN last_3f REAL DEFAULT 0.0;")
+                if "odds" not in cols:
+                    conn.execute("ALTER TABLE results ADD COLUMN odds REAL DEFAULT 0.0;")
+
+                # gate_number が全頭 1 に固定化されているレースの自動修復
+                stuck_races = conn.execute(
+                    """
+                    SELECT race_id, COUNT(*) as cnt 
+                    FROM results 
+                    GROUP BY race_id 
+                    HAVING COUNT(*) > 1 AND MAX(gate_number) = 1
+                    """
+                ).fetchall()
+
+                if stuck_races:
+                    import random
+                    for r in stuck_races:
+                        race_id = r["race_id"]
+                        horse_rows = conn.execute(
+                            "SELECT horse_id FROM results WHERE race_id = ? ORDER BY horse_id ASC",
+                            (race_id,),
+                        ).fetchall()
+                        total = len(horse_rows)
+                        rng = random.Random(race_id)
+                        gates = list(range(1, total + 1))
+                        rng.shuffle(gates)
+
+                        for idx, h_row in enumerate(horse_rows):
+                            conn.execute(
+                                "UPDATE results SET gate_number = ? WHERE race_id = ? AND horse_id = ?",
+                                (gates[idx], race_id, h_row["horse_id"]),
+                            )
+                # jockeysテーブルのカラム補完
+                j_check = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='jockeys'"
+                ).fetchone()
+                if j_check:
+                    j_cols = [col["name"] for col in conn.execute("PRAGMA table_info(jockeys)").fetchall()]
+                    if "is_free" not in j_cols:
+                        conn.execute("ALTER TABLE jockeys ADD COLUMN is_free INTEGER NOT NULL DEFAULT 0;")
+                    if "growth_type" not in j_cols:
+                        conn.execute("ALTER TABLE jockeys ADD COLUMN growth_type TEXT NOT NULL DEFAULT 'standard';")
+                    if "trainer_id" not in j_cols:
+                        conn.execute("ALTER TABLE jockeys ADD COLUMN trainer_id INTEGER;")
+                    if "experience" not in j_cols:
+                        conn.execute("ALTER TABLE jockeys ADD COLUMN experience REAL NOT NULL DEFAULT 0.0;")
+                    if "stamina" not in j_cols:
+                        conn.execute("ALTER TABLE jockeys ADD COLUMN stamina REAL NOT NULL DEFAULT 50.0;")
+
+                # trainersテーブルのカラム補完
+                t_check = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='trainers'"
+                ).fetchone()
+                if t_check:
+                    t_cols = [col["name"] for col in conn.execute("PRAGMA table_info(trainers)").fetchall()]
+                    if "skill_level" not in t_cols:
+                        conn.execute("ALTER TABLE trainers ADD COLUMN skill_level REAL NOT NULL DEFAULT 50.0;")
+
+                # assistant_trainersテーブルの自動作成
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS assistant_trainers (
+                        assistant_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        jockey_id INTEGER NOT NULL UNIQUE,
+                        trainer_id INTEGER NOT NULL,
+                        name TEXT NOT NULL,
+                        age INTEGER NOT NULL,
+                        career_wins INTEGER NOT NULL DEFAULT 0,
+                        g1_wins INTEGER NOT NULL DEFAULT 0,
+                        is_active INTEGER NOT NULL DEFAULT 1,
+                        FOREIGN KEY (jockey_id) REFERENCES jockeys(jockey_id),
+                        FOREIGN KEY (trainer_id) REFERENCES trainers(trainer_id)
+                    );
+                """)
+        except Exception as e:
+            pass
 
     @contextmanager
     def session(self) -> Generator[sqlite3.Connection, None, None]:
