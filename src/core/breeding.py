@@ -20,7 +20,7 @@ class BreedingEngine:
     """繁殖・交配シミュレーションエンジン"""
 
     MAX_COVERINGS_PER_SIRE: int = 30  # 種牡馬1頭あたりの年間上限種付け頭数
-    TARGET_FOAL_COUNT: int = 500      # 年間誕生目標当歳数
+    TARGET_FOAL_COUNT: int = 600      # 年間誕生目標当歳数（牡300頭・牝300頭同数）
 
     def __init__(self, db: Database):
         self.db = db
@@ -437,13 +437,21 @@ class BreedingEngine:
                 if random.random() > 0.88:
                     continue  # 不受胎
 
-                foal_count += 1
-                is_colt = (random.random() < 0.5)
+                # 牡馬・牝馬同数（各300頭）制御
+                target_each = self.TARGET_FOAL_COUNT // 2
+                if colt_count < target_each and filly_count < target_each:
+                    is_colt = (random.random() < 0.5)
+                elif colt_count < target_each:
+                    is_colt = True
+                else:
+                    is_colt = False
+
                 sex_str = "colt" if is_colt else "filly"
                 if is_colt:
                     colt_count += 1
                 else:
                     filly_count += 1
+                foal_count += 1
 
                 if nicks_info.get("is_nicks", False):
                     nicks_foal_count += 1
@@ -471,6 +479,20 @@ class BreedingEngine:
                 dura = GeneticsEngine.calculate_polygenic_stat(chosen_sire["durability"], dam["durability"])
                 vitality = GeneticsEngine.calculate_maternal_vitality(chosen_sire["maternal_vitality"], dam["maternal_vitality"])
 
+                # ★ 血統規制（5代血統表・両親の特性による適性規制）
+                sire_tree_5 = self.pedigree_builder.get_ancestors_tree(chosen_sire["horse_id"], depth=5)
+                dam_tree_5 = self.pedigree_builder.get_ancestors_tree(dam["horse_id"], depth=5)
+                ped_apt = GeneticsEngine.calculate_pedigree_aptitude(
+                    sire_mstn=GenotypeMSTN(chosen_sire["mstn_type"]),
+                    dam_mstn=GenotypeMSTN(dam["mstn_type"]),
+                    sire_surface="turf",
+                    dam_surface="turf",
+                    sire_ancestors=sire_tree_5,
+                    dam_ancestors=dam_tree_5,
+                )
+                if ped_apt.get("stamina_max_clamp") is not None:
+                    stamina = min(stamina, ped_apt["stamina_max_clamp"])
+
                 # インブリード効果の適用
                 speed += inbreeding_info["speed_bonus"]
                 accel += inbreeding_info["accel_bonus"]
@@ -494,9 +516,8 @@ class BreedingEngine:
                     GrowthType(chosen_sire["growth_type"]),
                     GrowthType(dam["growth_type"]),
                 )
-                running_style = GeneticsEngine.inherit_running_style(
-                    RunningStyle(chosen_sire["running_style"]),
-                    RunningStyle(dam["running_style"]),
+                running_style = Horse.determine_running_style(
+                    speed, stamina, accel, dura
                 )
 
                 # DBへ INSERT

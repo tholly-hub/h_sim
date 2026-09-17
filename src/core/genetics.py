@@ -14,9 +14,9 @@ from src.models.horse import GenotypeMSTN, GrowthType, Horse, RunningStyle
 class GeneticsEngine:
     """交配・遺伝計算エンジン"""
 
-    HERITABILITY: float = 0.40      # ポリジーン遺伝率 h^2
-    POPULATION_MEAN: float = 50.0   # 集団平均 μ
-    ENVIRONMENTAL_STD: float = 5.5  # 環境・変異標準偏差 σ_e
+    HERITABILITY: float = 0.65      # 相加的遺伝率
+    POPULATION_MEAN: float = 50.0   # 初期集団平均 μ
+    ENVIRONMENTAL_STD: float = 4.0  # 環境・変異標準偏差 σ_e
 
     # 主要系統大分類 (Major Sire Line Systems)
     MAJOR_SYSTEMS: List[str] = [
@@ -134,15 +134,16 @@ class GeneticsEngine:
     @classmethod
     def calculate_polygenic_stat(cls, sire_val: float, dam_val: float) -> float:
         """
-        ポリジーン遺伝の量的形質予測式:
-        P_child = μ + 0.5 * h^2 * (P_sire - μ) + 0.5 * h^2 * (P_dam - μ) + ε
+        育種選抜相加的遺伝モデル:
+        両親の相加平均（Mid-Parent Value）を期待値として遺伝し、
+        優秀な親同士の交配により世代を超えて能力が向上・進化する。
+        P_child = (P_sire + P_dam) / 2.0 + 育種ドリフト + ε
         """
-        mu = cls.POPULATION_MEAN
-        h2 = cls.HERITABILITY
-        mid_parent_dev = 0.5 * h2 * (sire_val - mu) + 0.5 * h2 * (dam_val - mu)
-        epsilon = random.gauss(0.0, cls.ENVIRONMENTAL_STD)
-        child_val = mu + mid_parent_dev + epsilon
-        return round(max(5.0, min(95.0, child_val)), 1)
+        mid_parent = (sire_val + dam_val) / 2.0
+        # 優秀な形質の集積・品種改良効果（0.25pt向上傾向）および遺伝的変異
+        epsilon = random.gauss(0.25, cls.ENVIRONMENTAL_STD)
+        child_val = mid_parent + epsilon
+        return round(max(10.0, min(99.0, child_val)), 1)
 
     @classmethod
     def calculate_maternal_vitality(cls, sire_vitality: float, dam_vitality: float) -> float:
@@ -279,4 +280,124 @@ class GeneticsEngine:
             "accel_bonus": accel_bonus,
             "temp_penalty": temp_penalty,
             "dura_penalty": dura_penalty,
+        }
+
+    @classmethod
+    def calculate_pedigree_aptitude(
+        cls,
+        sire_mstn: GenotypeMSTN,
+        dam_mstn: GenotypeMSTN,
+        sire_ancestors: Optional[Dict[str, Any]] = None,
+        dam_ancestors: Optional[Dict[str, Any]] = None,
+        sire_surface: str = "turf",
+        dam_surface: str = "turf",
+    ) -> Dict[str, Any]:
+        """
+        種牡馬・繁殖牝馬および5代血統表の各馬の特性に基づいて距離適性・馬場適性を厳格に規制
+        - 短距離特性馬(C/C等)から極端な長距離馬が出ないようスタミナ上限・距離上限をクランプ
+        - 祖先血統の芝・ダートシェアから子の馬場適性(芝/ダート/兼用)を決定
+        """
+        # 1. 5代祖先木から血統情報を収集（世代ごとの寄与度: 2^-depth）
+        def collect_nodes(node: Optional[Dict[str, Any]], depth: int = 1) -> List[Tuple[Dict[str, Any], float]]:
+            if not node or depth > 5:
+                return []
+            res = []
+            weight = (0.5) ** depth
+            res.append((node, weight))
+            if node.get("sire"):
+                res.extend(collect_nodes(node["sire"], depth + 1))
+            if node.get("dam"):
+                res.extend(collect_nodes(node["dam"], depth + 1))
+            return res
+
+        sire_nodes = collect_nodes(sire_ancestors, 1) if sire_ancestors else []
+        dam_nodes = collect_nodes(dam_ancestors, 1) if dam_ancestors else []
+        all_nodes = sire_nodes + dam_nodes
+
+        # 短距離血統シェア・ダート血統シェアの集計
+        dirt_weight = 0.0
+        turf_weight = 0.0
+        sprint_weight = 0.0
+        stayer_weight = 0.0
+        total_w = 0.0
+
+        for node, w in all_nodes:
+            total_w += w
+            n_mstn = node.get("mstn_type", "C/T")
+            if n_mstn == "C/C":
+                sprint_weight += w
+            elif n_mstn == "T/T":
+                stayer_weight += w
+            else:
+                sprint_weight += w * 0.4
+                stayer_weight += w * 0.4
+
+        # 親自身の重みも合算 (父0.5, 母0.5)
+        if sire_mstn == GenotypeMSTN.CC:
+            sprint_weight += 0.5
+        elif sire_mstn == GenotypeMSTN.TT:
+            stayer_weight += 0.5
+        else:
+            sprint_weight += 0.2
+            stayer_weight += 0.2
+
+        if dam_mstn == GenotypeMSTN.CC:
+            sprint_weight += 0.5
+        elif dam_mstn == GenotypeMSTN.TT:
+            stayer_weight += 0.5
+        else:
+            sprint_weight += 0.2
+            stayer_weight += 0.2
+
+        total_w += 1.0
+
+        # 短距離血統比率 (0.0〜1.0)
+        sprint_ratio = sprint_weight / max(0.1, total_w)
+
+        # 2. 馬場適性の決定（両親の馬場適性 ＋ 血統親和性）
+        # 両親の馬場適性から確率バイアスを計算
+        prob_turf = 0.60
+        prob_dirt = 0.28
+        prob_both = 0.12
+
+        if sire_surface == "dirt" and dam_surface == "dirt":
+            # 両親ダート特化: ダート適性が圧倒的
+            prob_dirt = 0.78
+            prob_both = 0.18
+            prob_turf = 0.04
+        elif sire_surface == "turf" and dam_surface == "turf":
+            # 両親芝特化: 芝適性が圧倒的
+            prob_turf = 0.78
+            prob_both = 0.18
+            prob_dirt = 0.04
+        elif (sire_surface == "both") or (dam_surface == "both"):
+            # 兼用馬の血統: 兼用の確率が倍増
+            prob_both = 0.35
+            prob_turf = 0.40
+            prob_dirt = 0.25
+        elif (sire_surface == "turf" and dam_surface == "dirt") or (sire_surface == "dirt" and dam_surface == "turf"):
+            # 芝×ダート交配: 兼用の確率が最大化
+            prob_both = 0.45
+            prob_turf = 0.30
+            prob_dirt = 0.25
+
+        r_surf = random.random()
+        if r_surf < prob_turf:
+            chosen_surface = "turf"
+        elif r_surf < prob_turf + prob_dirt:
+            chosen_surface = "dirt"
+        else:
+            chosen_surface = "both"
+
+        # 3. 距離適性上限クランプ判定
+        # 両親が短距離適性（C/C同士）、または短距離血統シェアが65%以上の場合は
+        # スタミナ上限を55.0以下に制限し、距離適性上限を最大1600mに厳格クランプ
+        is_sprint_restricted = (sire_mstn == GenotypeMSTN.CC and dam_mstn == GenotypeMSTN.CC) or (sprint_ratio >= 0.65)
+
+        return {
+            "surface_aptitude": chosen_surface,
+            "is_sprint_restricted": is_sprint_restricted,
+            "max_distance_clamp": 1600 if is_sprint_restricted else None,
+            "stamina_max_clamp": 55.0 if is_sprint_restricted else None,
+            "sprint_ratio": sprint_ratio,
         }

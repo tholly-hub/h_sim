@@ -110,14 +110,16 @@ class TrackCanvas(QWidget):
         self.horse_names.clear()
         self.horse_brackets.clear()
 
-        # コース特性に応じて直線の長さを調整（大箱は直線長め、小回りは短め）
+        # コース特性に応じて直線の長さを調整（大箱・中箱・小箱、全12競馬場対応）
         track = get_track_info(track_id)
+        self.turn = track.turn
+        self.world_straight = 1200.0 + max(0.0, track.straight_length - 280.0) * 2.8
         if track.size_type == "large":
-            self.world_straight = 2100.0
             self.world_r = 520.0
+        elif track.size_type == "medium":
+            self.world_r = 480.0
         else:
-            self.world_straight = 1500.0
-            self.world_r = 440.0
+            self.world_r = 430.0
         self.world_perimeter = 2.0 * self.world_straight + 2.0 * math.pi * self.world_r
 
         if not replay_json_str:
@@ -898,7 +900,9 @@ class TrackCanvas(QWidget):
 
         painter.setPen(QColor("#94a3b8"))
         painter.setFont(QFont("Hiragino Sans", 8))
-        painter.drawText(int(125), int(hud_y + 42), f"{track.name}・{'右' if self.turn == 'right' else '左'}")
+        chute_info = track.chutes.get(self.distance, "")
+        chute_label = f" ({chute_info[:8]})" if chute_info else ""
+        painter.drawText(int(115), int(hud_y + 42), f"{track.name}・{'右' if self.turn == 'right' else '左'}{chute_label}")
 
         # 時速 (km/h) のリアルタイム計算
         speed_kmh = 0.0
@@ -1038,10 +1042,10 @@ class TrackCanvas(QWidget):
         # -------------------------------------------------------------
         # 2-C. 中央セクション: リアルタイム隊列インジケーター (可変幅センタリング & 180度視点回転フリップ)
         # -------------------------------------------------------------
-        sec_right_w = 320.0
+        sec_right_w = 380.0
         avail_mid_start = sec_map_x + sec_map_w + 16.0
-        avail_mid_w = max(200.0, (hud_w - sec_right_w - 16.0) - avail_mid_start)
-        sec_mid_w = min(420.0, avail_mid_w)
+        avail_mid_w = max(180.0, (hud_w - sec_right_w - 16.0) - avail_mid_start)
+        sec_mid_w = min(400.0, avail_mid_w)
         sec_mid_x = avail_mid_start + (avail_mid_w - sec_mid_w) / 2.0
 
         # 先頭馬の現在のワールド進行方向（進行ベクトル x 方向）を取得
@@ -1214,8 +1218,8 @@ class TrackCanvas(QWidget):
                 hx = leader_screen_x + ratio * usable_w
             hx = max(left_bound, min(right_bound, hx))
 
-            # 横位置 (1.0m〜19.0m を track_y_min〜track_y_max にマッピング)
-            lat_ratio = max(0.0, min(1.0, (lat_m - 1.0) / 18.0))
+            # 横位置 (1.5m〜28.0m を track_y_min〜track_y_max にマッピング)
+            lat_ratio = max(0.0, min(1.0, (lat_m - 1.5) / 26.5))
             hy = track_y_min + lat_ratio * (track_y_max - track_y_min)
 
             bg_col, fg_col, border_col, _ = JRA_BRACKET_COLORS.get(bracket, ("#fff", "#000", "#999", ""))
@@ -1279,27 +1283,139 @@ class TrackCanvas(QWidget):
             painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
             painter.drawText(b_rect, Qt.AlignmentFlag.AlignCenter, str(num))
 
-            # 馬名 (拡大: 11pt Bold)
+            # 馬名 (10pt Boldで最後まで全文字表示)
             painter.setPen(QColor("#f8fafc" if rk == 0 else "#e2e8f0"))
-            painter.setFont(QFont("Hiragino Sans", 11, QFont.Weight.Bold))
-            painter.drawText(QRectF(sec_r_x + 44, row_y - 1, 118, 22), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, name[:7])
+            painter.setFont(QFont("Hiragino Sans", 10, QFont.Weight.Bold))
+            painter.drawText(QRectF(sec_r_x + 44, row_y - 1, 165, 22), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, name)
 
-            # 単勝オッズ (拡大: 10.5pt Bold ゴールド)
+            # 単勝オッズ (拡大: 10pt Bold ゴールド)
             if odds_val > 0:
                 painter.setPen(QColor("#fbbf24"))
                 painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-                painter.drawText(QRectF(sec_r_x + 164, row_y - 1, 56, 22), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, f"{odds_val:.1f}倍")
+                painter.drawText(QRectF(sec_r_x + 212, row_y - 1, 62, 22), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, f"{odds_val:.1f}倍")
 
             # タイム差 / 先頭からの距離 (拡大: 9.5pt)
             if rk > 0 and leader:
                 diff_m = max(0.0, leader_dist - float(h_item.get("distance_covered", 0.0)))
                 painter.setPen(QColor("#94a3b8"))
                 painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-                painter.drawText(QRectF(sec_r_x + 224, row_y - 1, 82, 22), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, f"-{diff_m:.1f}m")
+                painter.drawText(QRectF(sec_r_x + 276, row_y - 1, 90, 22), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, f"-{diff_m:.1f}m")
             elif rk == 0:
                 painter.setPen(QColor("#38bdf8"))
                 painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-                painter.drawText(QRectF(sec_r_x + 224, row_y - 1, 82, 22), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, "先頭")
+                painter.drawText(QRectF(sec_r_x + 276, row_y - 1, 90, 22), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, "先頭")
 
             row_y += 23.0
+
+        # -------------------------------------------------------------
+        # 3. ゴール後の全頭着順オーバーレイ表示 (全頭ゴール後または最終フレーム時)
+        # -------------------------------------------------------------
+        total_horses = len(horses)
+        all_finished = (total_horses > 0 and all(float(h_item.get("distance_covered", 0.0)) >= (float(self.distance) - 1.0) for h_item in horses))
+        if all_finished or (self.total_frames > 0 and self.current_frame_idx >= self.total_frames - 1):
+            try:
+                self._draw_all_horses_result_overlay(painter, w, h, horses)
+            except Exception as e:
+                import traceback
+                print(f"[ERROR in _draw_all_horses_result_overlay]: {e}\n{traceback.format_exc()}")
+
+    def _draw_all_horses_result_overlay(self, painter: QPainter, w: int, h: int, horses: List[Dict[str, Any]]) -> None:
+        """全頭ゴール後に画面中央に表示される全頭着順ボード（8頭立て全頭対応）"""
+        total_h = len(horses)
+        if total_h == 0:
+            return
+
+        board_w = min(540.0, float(w) - 40.0)
+        row_h = 28.0
+        header_h = 44.0
+        board_h = header_h + row_h * total_h + 16.0
+
+        board_x = (float(w) - board_w) / 2.0
+        board_y = max(20.0, (float(h) - 110.0 - board_h) / 2.0)
+
+        # 半透明ダークパネル
+        painter.setPen(QPen(QColor("#38bdf8"), 2))
+        painter.setBrush(QBrush(QColor(10, 15, 30, 235)))
+        painter.drawRoundedRect(QRectF(board_x, board_y, board_w, board_h), 8, 8)
+
+        # ヘッダーバー
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor(14, 165, 233, 200)))
+        painter.drawRoundedRect(QRectF(board_x + 2, board_y + 2, board_w - 4, 36), 6, 6)
+
+        painter.setPen(QColor("#ffffff"))
+        painter.setFont(QFont("Hiragino Sans", 13, QFont.Weight.Bold))
+        r_name = str(getattr(self, "race_name", "") or "レース結果")
+        painter.drawText(QRectF(board_x, board_y + 6, board_w, 28), Qt.AlignmentFlag.AlignCenter, f"🏁 確定着順 - {r_name}")
+
+        # 各馬の着順行
+        cur_y = board_y + header_h + 4.0
+
+        # 単勝オッズによる人気順の算出
+        odds_list = []
+        for h_item in horses:
+            val = float(h_item.get("odds", 0.0))
+            odds_list.append((val if val > 0 else 999.9, h_item.get("horse_id")))
+        sorted_by_odds = sorted(odds_list, key=lambda x: x[0])
+        pop_map = {hid: pop for pop, (_, hid) in enumerate(sorted_by_odds, start=1)}
+
+        for rk, h_item in enumerate(horses):
+            num = min(18, max(1, int(h_item.get("number", rk + 1))))
+            bracket = int(h_item.get("bracket", get_jra_bracket(num, total_h)))
+            name = str(h_item.get("name", f"馬{num}"))
+            odds_val = float(h_item.get("odds", 0.0))
+            pop = pop_map.get(h_item.get("horse_id"), rk + 1)
+            bg_col, fg_col, border_col, _ = JRA_BRACKET_COLORS.get(bracket, ("#fff", "#000", "#999", ""))
+
+            # 行の背景（ストライプ）
+            if rk % 2 == 1:
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(QColor(255, 255, 255, 12)))
+                painter.drawRect(QRectF(board_x + 6, cur_y - 2, board_w - 12, row_h))
+
+            # 着順
+            painter.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+            painter.setPen(QColor("#fbbf24" if rk == 0 else ("#e2e8f0" if rk < 3 else "#94a3b8")))
+            painter.drawText(QRectF(board_x + 12, cur_y, 36, row_h - 4), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter, f"{rk + 1}着")
+
+            # ゼッケン馬番
+            z_rect = QRectF(board_x + 54, cur_y + 1, 24, 22)
+            painter.setPen(QPen(QColor(border_col), 1.2))
+            painter.setBrush(QBrush(QColor(bg_col)))
+            painter.drawRoundedRect(z_rect, 3, 3)
+            painter.setPen(QColor(fg_col))
+            painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            painter.drawText(z_rect, Qt.AlignmentFlag.AlignCenter, str(num))
+
+            # 馬名（全文字最後まで表示）
+            painter.setPen(QColor("#ffffff" if rk == 0 else "#e2e8f0"))
+            painter.setFont(QFont("Hiragino Sans", 11, QFont.Weight.Bold if rk == 0 else QFont.Weight.Medium))
+            painter.drawText(QRectF(board_x + 88, cur_y, 220, row_h - 4), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, name)
+
+            # オッズ・人気 (例: 2.4倍 (1人気))
+            if odds_val > 0:
+                painter.setPen(QColor("#fbbf24"))
+                painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+                pop_str = f"{odds_val:.1f}倍 ({pop}人気)"
+            else:
+                painter.setPen(QColor("#64748b"))
+                painter.setFont(QFont("Arial", 9))
+                pop_str = "―"
+            painter.drawText(QRectF(board_x + 315, cur_y, 130, row_h - 4), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, pop_str)
+
+            # 差 / 着差 (pointSize は整数 9)
+            painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+            if rk == 0:
+                painter.setPen(QColor("#38bdf8"))
+                diff_str = "1着"
+            else:
+                lead_d = float(horses[0].get("distance_covered", 0.0))
+                my_d = float(h_item.get("distance_covered", 0.0))
+                diff_m = max(0.0, lead_d - my_d)
+                diff_str = f"-{diff_m:.1f}m"
+                painter.setPen(QColor("#94a3b8"))
+            painter.drawText(QRectF(board_x + 455, cur_y, 70, row_h - 4), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, diff_str)
+
+            cur_y += row_h
+
 

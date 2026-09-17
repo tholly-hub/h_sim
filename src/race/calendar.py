@@ -119,11 +119,45 @@ class CalendarController:
             all_trainers = self.load_all_trainers(conn=conn)
             trainer_jockey_map = self.load_trainer_jockey_map(conn=conn)
 
+            # 全馬の直近出走週を取得（中2週判定用）
+            recent_runs_cur = conn.execute(
+                """
+                SELECT r.horse_id, rc.year, rc.week
+                FROM results r
+                JOIN races rc ON r.race_id = rc.race_id
+                ORDER BY rc.year DESC, rc.week DESC
+                """
+            )
+            last_runs_map: Dict[int, Tuple[int, int]] = {}
+            for row in recent_runs_cur.fetchall():
+                h_id = row['horse_id']
+                if h_id not in last_runs_map:
+                    last_runs_map[h_id] = (row['year'], row['week'])
+
+            # 過去に重賞2着以内に入った馬のセット（3歳夏秋重賞出走資格用）
+            top2_cur = conn.execute(
+                """
+                SELECT DISTINCT r.horse_id
+                FROM results r
+                JOIN races rc ON r.race_id = rc.race_id
+                WHERE rc.grade IN ('G1', 'G2', 'G3') AND r.finish_position <= 2
+                """
+            )
+            graded_top2_set: Set[int] = {row['horse_id'] for row in top2_cur.fetchall()}
+
             busy_horse_ids: Set[int] = set()
             total_starters = 0
             race_summaries = []
 
-            for race in races:
+            # 上位グレード（G1〜3勝C）から優先して出走選定を実施
+            grade_order = {
+                RaceGrade.G1: 1, RaceGrade.G2: 2, RaceGrade.G3: 3, RaceGrade.L: 4, RaceGrade.OP: 4,
+                RaceGrade.COND_3W: 5, RaceGrade.COND_2W: 6, RaceGrade.COND_1W: 7,
+                RaceGrade.NEWCOMER: 8, RaceGrade.MAIDEN: 9,
+            }
+            sorted_races = sorted(races, key=lambda r: grade_order.get(r.grade, 10))
+
+            for race in sorted_races:
                 priority_horse_ids: List[int] = []
                 if race.grade == RaceGrade.G1:
                     priority_horse_ids = self.entry_manager.get_priority_horses_for_g1(
@@ -133,11 +167,14 @@ class CalendarController:
                 candidates = [
                     h for h in all_horses
                     if h.horse_id not in busy_horse_ids
-                    and self.entry_manager.can_enter_race(h, race)
                 ]
 
                 starters = self.entry_manager.select_starters(
-                    race, candidates, priority_horse_ids=priority_horse_ids
+                    race,
+                    candidates,
+                    priority_horse_ids=priority_horse_ids,
+                    last_runs_map=last_runs_map,
+                    graded_top2_set=graded_top2_set,
                 )
 
                 if not starters:
@@ -146,6 +183,7 @@ class CalendarController:
                 for h in starters:
                     if h.horse_id is not None:
                         busy_horse_ids.add(h.horse_id)
+                        last_runs_map[h.horse_id] = (year, week)
 
                 total_starters += len(starters)
 
@@ -178,7 +216,8 @@ class CalendarController:
                 })
 
             retired_maidens_count = 0
-            if week == 28:
+            # 未勝利馬は3歳9月末（第36週）でカット
+            if week == 36:
                 retired_maidens_count = self._process_3yo_maiden_retirement(conn, year)
 
             return {

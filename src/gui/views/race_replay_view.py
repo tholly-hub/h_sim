@@ -65,14 +65,22 @@ class RaceReplayView(QWidget):
         self.combo_filter_grade.currentIndexChanged.connect(self.load_race_list)
         sel_layout.addWidget(self.combo_filter_grade)
 
-        # 競馬場フィルター
+        # 競馬場フィルター (JRA 8場 + 地方 4場)
         sel_layout.addWidget(QLabel("競馬場:"))
         self.combo_filter_track = QComboBox()
         self.combo_filter_track.addItem("全競馬場", None)
-        self.combo_filter_track.addItem("東京競馬場 (左)", "B")
-        self.combo_filter_track.addItem("中山競馬場 (右)", "C")
-        self.combo_filter_track.addItem("中京競馬場 (左)", "A")
-        self.combo_filter_track.addItem("小倉競馬場 (右)", "D")
+        self.combo_filter_track.addItem("東京競馬場 (JRA左)", "TOKYO")
+        self.combo_filter_track.addItem("中山競馬場 (JRA右)", "NAKAYAMA")
+        self.combo_filter_track.addItem("阪神競馬場 (JRA右)", "HANSHIN")
+        self.combo_filter_track.addItem("京都競馬場 (JRA右)", "KYOTO")
+        self.combo_filter_track.addItem("中京競馬場 (JRA左)", "CHUKYO")
+        self.combo_filter_track.addItem("新潟競馬場 (JRA左)", "NIIGATA")
+        self.combo_filter_track.addItem("福島競馬場 (JRA右)", "FUKUSHIMA")
+        self.combo_filter_track.addItem("小倉競馬場 (JRA右)", "KOKURA")
+        self.combo_filter_track.addItem("大井競馬場 (地方右)", "OI")
+        self.combo_filter_track.addItem("川崎競馬場 (地方左)", "KAWASAKI")
+        self.combo_filter_track.addItem("船橋競馬場 (地方左)", "FUNABASHI")
+        self.combo_filter_track.addItem("盛岡競馬場 (地方左)", "MORIOKA")
         self.combo_filter_track.currentIndexChanged.connect(self.load_race_list)
         sel_layout.addWidget(self.combo_filter_track)
 
@@ -175,18 +183,32 @@ class RaceReplayView(QWidget):
         self.table_results = QTableWidget()
         self.table_results.setColumnCount(10)
         self.table_results.setHorizontalHeaderLabels([
-            "着順", "馬番", "馬名", "人気/オッズ", "走破タイム", "着差", "上り3F", "騎手", "厩舎", "獲得本賞金"
+            "着順", "馬番", "馬名", "オッズ/人気", "走破タイム", "着差", "上り3F", "騎手", "厩舎", "獲得本賞金"
         ])
-        self.table_results.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header = self.table_results.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table_results.setColumnWidth(0, 55)   # 着順
+        self.table_results.setColumnWidth(1, 45)   # 馬番
+        self.table_results.setColumnWidth(2, 230)  # 馬名 (全文字最後まで確実に表示)
+        self.table_results.setColumnWidth(3, 125)  # オッズ/人気
+        self.table_results.setColumnWidth(4, 75)   # 走破タイム
+        self.table_results.setColumnWidth(5, 65)   # 着差
+        self.table_results.setColumnWidth(6, 65)   # 上り3F
+        self.table_results.setColumnWidth(7, 90)   # 騎手
+        self.table_results.setColumnWidth(8, 90)   # 厩舎
+        self.table_results.setColumnWidth(9, 95)   # 獲得本賞金
+        header.setStretchLastSection(True)
         self.table_results.setAlternatingRowColors(True)
         self.table_results.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table_results.setMinimumHeight(260)   # 8頭すべてがスクロールなしで収まる高さ
         self.table_results.setStyleSheet("QTableWidget { font-size: 13px; background-color: #0d131f; }")
         result_layout.addWidget(self.table_results)
 
         # 初期状態は非表示（レース画面を最大化）
         self.result_widget.setVisible(False)
-        splitter.addWidget(self.result_widget)
-        splitter.setStretchFactor(0, 1)
+        self.splitter = splitter
+        self.splitter.addWidget(self.result_widget)
+        self.splitter.setStretchFactor(0, 1)
 
         main_layout.addWidget(splitter)
 
@@ -194,6 +216,8 @@ class RaceReplayView(QWidget):
         """結果テーブルの手動表示/非表示切り替え"""
         is_vis = not self.result_widget.isVisible()
         self.result_widget.setVisible(is_vis)
+        if is_vis:
+            self.splitter.setSizes([450, 300])
         self.btn_toggle_result.setText("📊 結果を隠す" if is_vis else "📊 結果を表示")
 
     def _on_camera_changed(self, idx: int) -> None:
@@ -270,6 +294,11 @@ class RaceReplayView(QWidget):
         if race_id is not None:
             self.current_race_id = race_id
             self._load_race_data(race_id)
+
+    def load_race_by_id(self, race_id: int) -> None:
+        """指定したrace_idのレースを直接読み込み"""
+        self.current_race_id = race_id
+        self._load_race_data(race_id)
 
     def _load_race_data(self, race_id: int) -> None:
         """レース情報およびリプレイデータの読み込みと画面反映"""
@@ -351,11 +380,11 @@ class RaceReplayView(QWidget):
             # 2. 馬名
             self.table_results.setItem(idx, 2, QTableWidgetItem(r["horse_name"]))
 
-            # 3. 人気 / オッズ
+            # 3. オッズ / 人気
             odds_val = float(r["odds"]) if ("odds" in r.keys() and r["odds"]) else 0.0
             if odds_val > 0:
                 pop_val = popularity_map.get(r["horse_id"], idx + 1)
-                odds_text = f"{pop_val}人気 ({odds_val:.1f})"
+                odds_text = f"{odds_val:.1f}倍 ({pop_val}人気)"
             else:
                 odds_text = "―"
             odds_item = QTableWidgetItem(odds_text)
@@ -462,8 +491,9 @@ class RaceReplayView(QWidget):
 
     def _on_playback_finished(self) -> None:
         self.btn_play.setText("▶ 再生")
-        # レース終了時に結果着順表を自動表示！
+        # レース終了時に結果着順表を全頭しっかり見えるサイズで自動表示！
         self.result_widget.setVisible(True)
+        self.splitter.setSizes([450, 300])
         self.btn_toggle_result.setText("📊 結果を隠す")
 
     def _on_canvas_time_updated(self, cur: float, total: float) -> None:

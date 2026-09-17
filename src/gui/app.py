@@ -1,7 +1,11 @@
 """
 PyQt6 メインウィンドウ & GUIアプリケーション起動エントリ
-- 5大メイン画面のタブ統合
-- ダッシュボード・馬情報・リーディング・推移グラフ・レースリプレイ
+- 5大メイン画面のタブ統合:
+  1. 📊 ダッシュボード (年・月・週、今週のレース、出馬表・オッズ、レース/結果ボタン[別窓]、馬詳細[別窓])
+  2. ⚙️ シミュレーション状況 (週・月・年進行、進捗、サマリー統計、ログ、DB完全初期化)
+  3. ⏱️ コースレコード一覧 (12競馬場、芝・ダート別、各距離レコードタイム・年・馬名)
+  4. 🏆 5大リーディング & 規模階層 (種牡馬・繁殖牝馬・馬主・厩舎・騎手)
+  5. 📈 能力推移 & 走破タイム (芝・ダート別、各距離別走破タイム・能力推移グラフ)
 - ダークテーマスタイルシート適用
 """
 
@@ -10,7 +14,6 @@ from __future__ import annotations
 import sys
 from typing import Optional
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -24,9 +27,9 @@ from src.db.database import Database, get_db
 from src.gui.styles import MAIN_STYLESHEET
 from src.gui.views.analytics_view import AnalyticsView
 from src.gui.views.dashboard_view import DashboardView
-from src.gui.views.horse_browser_view import HorseBrowserView
-from src.gui.views.race_replay_view import RaceReplayView
 from src.gui.views.rankings_view import RankingsView
+from src.gui.views.records_view import RecordsView
+from src.gui.views.simulation_status_view import SimulationStatusView
 
 
 class MainWindow(QMainWindow):
@@ -35,9 +38,9 @@ class MainWindow(QMainWindow):
     def __init__(self, db: Optional[Database] = None):
         super().__init__()
         self.db = db or get_db()
-        self.setWindowTitle("競馬シミュレーションエンジン - データ可視化 & 分析システム (Phase 4)")
-        self.resize(1280, 840)
-        self.setMinimumSize(1024, 700)
+        self.setWindowTitle("競馬シミュレーションエンジン - 統合データ分析・管理システム")
+        self.resize(1320, 860)
+        self.setMinimumSize(1080, 720)
 
         self._init_ui()
         self._connect_signals()
@@ -53,19 +56,19 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
 
-        # 各画面のインスタンス化
+        # 各タブ画面のインスタンス化
         self.view_dashboard = DashboardView(self.db)
-        self.view_horses = HorseBrowserView(self.db)
+        self.view_sim_status = SimulationStatusView(self.db)
+        self.view_records = RecordsView(self.db)
         self.view_rankings = RankingsView(self.db)
         self.view_analytics = AnalyticsView(self.db)
-        self.view_replay = RaceReplayView(self.db)
 
-        # タブへの追加
+        # タブへの追加（ユーザー要望に沿った新タブ体系）
         self.tabs.addTab(self.view_dashboard, "📊 ダッシュボード")
-        self.tabs.addTab(self.view_horses, "🐎 競走馬・血統表ブラウザ")
+        self.tabs.addTab(self.view_sim_status, "⚙️ シミュレーション状況")
+        self.tabs.addTab(self.view_records, "⏱️ コースレコード一覧")
         self.tabs.addTab(self.view_rankings, "🏆 5大リーディング & 規模階層")
-        self.tabs.addTab(self.view_analytics, "📈 1600mタイム・能力推移")
-        self.tabs.addTab(self.view_replay, "🎬 レース結果 & 2Dリプレイ")
+        self.tabs.addTab(self.view_analytics, "📈 能力推移 & 走破タイム")
 
         main_layout.addWidget(self.tabs)
 
@@ -75,28 +78,32 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(f"データベース接続完了: {self.db.db_path}")
 
     def _connect_signals(self) -> None:
-        """ダッシュボードでシミュレーションが進行した際に全画面を自動更新"""
+        """シミュレーション状況またはダッシュボードで進行した際に全画面を自動更新"""
         self.view_dashboard.simulation_completed.connect(self._on_simulation_completed)
+        self.view_sim_status.simulation_completed.connect(self._on_simulation_completed)
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
     def _on_simulation_completed(self) -> None:
         """シミュレーション進行完了時の全画面データ更新"""
-        self.view_horses.search_horses()
+        self.view_dashboard.refresh_dashboard()
+        self.view_sim_status.refresh_view()
+        self.view_records.refresh_records()
         self.view_rankings.refresh_data()
         self.view_analytics.refresh_charts()
-        self.view_replay.load_race_list()
         self.status_bar.showMessage("シミュレーション進行が完了し、全データを更新しました。", 5000)
 
     def _on_tab_changed(self, index: int) -> None:
         """タブ切り替え時に該当画面のデータを最新化"""
-        if index == 1:
-            self.view_horses.search_horses()
+        if index == 0:
+            self.view_dashboard.refresh_dashboard()
+        elif index == 1:
+            self.view_sim_status.refresh_view()
         elif index == 2:
-            self.view_rankings.refresh_data()
+            self.view_records.refresh_records()
         elif index == 3:
-            self.view_analytics.refresh_charts()
+            self.view_rankings.refresh_data()
         elif index == 4:
-            self.view_replay.load_race_list()
+            self.view_analytics.refresh_charts()
 
 
 def launch_gui(db_path: Optional[str] = None) -> None:

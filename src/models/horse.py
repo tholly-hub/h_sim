@@ -122,3 +122,120 @@ class Horse:
             g3_wins=row["g3_wins"] if "g3_wins" in keys else 0,
             major_wins=row["major_wins"] if "major_wins" in keys else None,
         )
+
+    @property
+    def surface_aptitude(self) -> str:
+        """
+        馬場適性 ('turf': 芝得意, 'dirt': ダート得意, 'both': 両方得意/兼用)
+        耐久力、母性活力、個体ハッシュに基づいて決定論的に算出 (芝約60%, ダート約28%, 兼用約12%)
+        """
+        seed_key = (self.horse_id or 0) * 31 + int(self.durability * 10) + int(self.maternal_vitality * 7) + hash(self.name)
+        val = abs(seed_key) % 100
+        if val < 60:
+            return "turf"
+        elif val < 88:
+            return "dirt"
+        else:
+            return "both"
+
+    @property
+    def apt_distance_min(self) -> int:
+        """最短適性距離 (m)"""
+        return self._calc_distance_range()[0]
+
+    @property
+    def apt_distance_max(self) -> int:
+        """最長適性距離 (m)"""
+        return self._calc_distance_range()[1]
+
+    @property
+    def apt_distance_range(self) -> int:
+        """適性距離レンジ幅 (m)"""
+        d_min, d_max = self._calc_distance_range()
+        return d_max - d_min
+
+    def _calc_distance_range(self) -> tuple[int, int]:
+        """
+        遺伝型(MSTN)、スタミナ、耐久力から距離適性レンジ(最小距離, 最大距離)を算出
+        狭いレンジ(幅200m: 例1000〜1200m)から広いレンジ(幅1200m: 例1200〜2400m)まで多彩に分布
+        """
+        seed = abs((self.horse_id or 0) * 17 + int(self.stamina * 13) + int(self.speed * 7))
+        flexibility = (seed % 100) / 100.0  # 0.0〜1.0 (柔軟性・レンジ幅指標)
+
+        # スタミナ・耐久力による距離シフト
+        stamina_shift = int((self.stamina - 50.0) * 10)  # -200m 〜 +200m
+
+        if self.mstn_type == GenotypeMSTN.CC:
+            # 短距離型: 基本 1000〜1400m
+            if flexibility < 0.35:
+                # 狭レンジ (幅200m): 1000〜1200m または 1200〜1400m
+                base_min = 1000 if (seed % 2 == 0) else 1200
+                return (base_min, base_min + 200)
+            elif flexibility < 0.75:
+                # 中レンジ (幅400〜600m): 1000〜1400m または 1000〜1600m
+                max_d = 1400 if (seed % 2 == 0) else 1600
+                return (1000, max_d)
+            else:
+                # 広レンジでも最大1600mまでに厳格規制（短距離馬から長距離馬が出ないよう制限）
+                return (1000, 1600)
+
+        elif self.mstn_type == GenotypeMSTN.CT:
+            # 中距離・万能型: 基本 1600〜2400m
+            if flexibility < 0.30:
+                # 狭レンジ (幅200〜400m): 1600〜1800m, 1800〜2000m, 2000〜2200m
+                centers = [1600, 1800, 2000]
+                c = centers[seed % len(centers)]
+                return (c, c + 200 if (seed % 2 == 0) else c + 400)
+            elif flexibility < 0.70:
+                # 中レンジ (幅600〜800m): 1400〜2000m, 1600〜2400m
+                return (1400, 2000) if (seed % 2 == 0) else (1600, 2400)
+            else:
+                # 広レンジ (幅1200m): 1200〜2400m (ユーザー指定例: スプリントからクラシックまで対応)
+                return (1200, 2400)
+
+        else:  # GenotypeMSTN.TT
+            # 長距離・ステイヤー型: 基本 2000〜3600m
+            if flexibility < 0.35:
+                # 狭レンジ (幅400m): 2400〜2800m または 3000〜3400m
+                base_min = 2400 if (seed % 2 == 0) else 3000
+                return (base_min, min(3600, base_min + 400))
+            elif flexibility < 0.75:
+                # 中レンジ (幅600〜800m): 2000〜2600m または 2400〜3200m
+                return (2000, 2600) if (seed % 2 == 0) else (2400, 3200)
+            else:
+                # 広レンジ (幅1400〜1600m): 1800〜3200m または 2000〜3600m
+                return (1800, 3200) if (seed % 2 == 0) else (2000, 3600)
+
+    @staticmethod
+    def determine_running_style(
+        speed: float,
+        stamina: float,
+        acceleration: float,
+        durability: float,
+    ) -> RunningStyle:
+        """
+        スピード・持続性(スタミナ/耐久力)・瞬発力などのパラメータから脚質を決定
+        - 逃げ (ESCAPE): スピード特化、前半先行力
+        - 先行 (LEADING): スピードと持続性のバランス型
+        - 差し (BETWEEN): 瞬発力・キレ味重視の中団待機
+        - 追込 (CLOSING): スタミナと直線一気の爆発力
+        """
+        # 各脚質の重視パラメータ (合計係数1.00で正規化し、能力特性を正確に判定)
+        # 逃げ: スピード重視 (前向きなトップスピードとダッシュ力)
+        escape_score = speed * 0.50 + acceleration * 0.35 + durability * 0.15
+        # 先行: スピードと持続性(スタミナ/耐久力)の均整バランス
+        leading_score = speed * 0.35 + stamina * 0.35 + durability * 0.30
+        # 差し: 瞬発力(キレ味)重視の中団待機
+        between_score = acceleration * 0.50 + speed * 0.30 + stamina * 0.20
+        # 追込: 終盤の爆発的瞬発力とスタミナ(持続性)
+        closing_score = acceleration * 0.45 + stamina * 0.40 + durability * 0.15
+
+        scores = [
+            (escape_score, RunningStyle.ESCAPE),
+            (leading_score, RunningStyle.LEADING),
+            (between_score, RunningStyle.BETWEEN),
+            (closing_score, RunningStyle.CLOSING),
+        ]
+        scores.sort(key=lambda x: x[0], reverse=True)
+        return scores[0][1]
+

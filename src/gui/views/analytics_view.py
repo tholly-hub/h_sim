@@ -42,15 +42,25 @@ class AnalyticsView(QWidget):
         ctrl_layout = QHBoxLayout(ctrl_frame)
         ctrl_layout.setContentsMargins(12, 8, 12, 8)
 
-        ctrl_layout.addWidget(QLabel("分析対象距離:"))
+        ctrl_layout.addWidget(QLabel("馬場:"))
+        self.combo_surface = QComboBox()
+        self.combo_surface.addItem("芝", "turf")
+        self.combo_surface.addItem("ダート", "dirt")
+        self.combo_surface.currentIndexChanged.connect(self.refresh_charts)
+        ctrl_layout.addWidget(self.combo_surface)
+
+        ctrl_layout.addWidget(QLabel("距離:"))
         self.combo_dist = QComboBox()
-        self.combo_dist.addItems(["1600m (芝マイル)", "1200m (芝スプリント)", "2000m (芝中距離)", "2400m (芝クラシック)"])
+        self.distances = [1000, 1200, 1400, 1600, 1700, 1800, 2000, 2200, 2400, 2500, 3000, 3200]
+        for d in self.distances:
+            self.combo_dist.addItem(f"{d}m", d)
+        self.combo_dist.setCurrentIndex(3)  # 1600m
         self.combo_dist.currentIndexChanged.connect(self.refresh_charts)
         ctrl_layout.addWidget(self.combo_dist)
 
         ctrl_layout.addStretch()
 
-        btn_reload = QPushButton("グラフ再描画")
+        btn_reload = QPushButton("🔄 グラフ再描画")
         btn_reload.clicked.connect(self.refresh_charts)
         ctrl_layout.addWidget(btn_reload)
 
@@ -65,9 +75,9 @@ class AnalyticsView(QWidget):
         time_box.setStyleSheet("background-color: #161b26; border: 1px solid #242c3d; border-radius: 8px;")
         time_layout = QVBoxLayout(time_box)
         time_layout.setContentsMargins(10, 10, 10, 10)
-        time_title = QLabel("走破タイム推移（年次・世代別）")
-        time_title.setStyleSheet("font-weight: bold; color: #38bdf8; font-size: 14px;")
-        time_layout.addWidget(time_title)
+        self.time_title = QLabel("走破タイム推移（年次・世代別）")
+        self.time_title.setStyleSheet("font-weight: bold; color: #38bdf8; font-size: 14px;")
+        time_layout.addWidget(self.time_title)
 
         self.canvas_time = MplCanvas(self, width=5.0, height=4.0)
         time_layout.addWidget(self.canvas_time)
@@ -90,8 +100,11 @@ class AnalyticsView(QWidget):
 
     def refresh_charts(self) -> None:
         """グラフデータを集計して描画"""
-        dist_map = {0: 1600, 1: 1200, 2: 2000, 3: 2400}
-        target_dist = dist_map.get(self.combo_dist.currentIndex(), 1600)
+        target_dist = self.combo_dist.currentData() or 1600
+        target_surface = self.combo_surface.currentData() or "turf"
+        surf_jp = "芝" if target_surface == "turf" else "ダート"
+
+        self.time_title.setText(f"{surf_jp} {target_dist}m 走破タイム推移（年次別）")
 
         # 1. タイム推移の集計
         with self.db.session() as conn:
@@ -104,11 +117,11 @@ class AnalyticsView(QWidget):
                        COUNT(r.result_id) as count
                 FROM results r
                 JOIN races rc ON r.race_id = rc.race_id
-                WHERE rc.distance = ? AND rc.surface = 'turf' AND r.finish_position = 1
+                WHERE rc.distance = ? AND rc.surface = ? AND r.finish_position = 1
                 GROUP BY rc.year
                 ORDER BY rc.year ASC
                 """,
-                (target_dist,),
+                (target_dist, target_surface),
             ).fetchall()
 
             # 2. 世代別能力値推移の集計 (birth_yearごと)

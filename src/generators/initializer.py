@@ -159,14 +159,15 @@ class DatabaseInitializer:
             # 晩成 (ピーク 5.0〜6.2歳)
             return GrowthType.LATE, round(random.uniform(5.0, 6.2), 1)
 
-    def _sample_running_style(self) -> RunningStyle:
-        """脚質をサンプリング"""
-        return random.choice([
-            RunningStyle.ESCAPE,
-            RunningStyle.LEADING,
-            RunningStyle.BETWEEN,
-            RunningStyle.CLOSING,
-        ])
+    def _sample_running_style(
+        self,
+        speed: float = 50.0,
+        stamina: float = 50.0,
+        accel: float = 50.0,
+        dura: float = 50.0,
+    ) -> RunningStyle:
+        """スピード、持続性(スタミナ/耐久力)、瞬発力などのパラメータから脚質を決定"""
+        return Horse.determine_running_style(speed, stamina, accel, dura)
 
     def generate_initial_breeders(self, count: int = 50) -> List[int]:
         """全8地方の代表地名に基づく50生産牧場を生成してDBへ挿入し、IDリストを返却（初期成績0デフォルト）"""
@@ -236,8 +237,8 @@ class DatabaseInitializer:
             for i in range(count_miho):
                 name = self.person_name_gen.generate_trainer_name(i)
                 spec = specialties[i % len(specialties)].value
-                age = 50 + (i % 30)
-                trainer_years = age - 49
+                age = 40 + (i % 25)  # 40〜64歳
+                trainer_years = max(1, age - 39)
                 reputation = round(random.uniform(45.0, 55.0), 1)
                 skill_level = round(50.0 + (trainer_years * 0.4) + random.uniform(-1.5, 1.5), 1)
 
@@ -258,8 +259,8 @@ class DatabaseInitializer:
             for i in range(count_ritto):
                 name = self.person_name_gen.generate_trainer_name(count_miho + i)
                 spec = specialties[(count_miho + i) % len(specialties)].value
-                age = 50 + (i % 30)
-                trainer_years = age - 49
+                age = 40 + (i % 25)  # 40〜64歳
+                trainer_years = max(1, age - 39)
                 reputation = round(random.uniform(45.0, 55.0), 1)
                 skill_level = round(50.0 + (trainer_years * 0.4) + random.uniform(-1.5, 1.5), 1)
 
@@ -281,7 +282,7 @@ class DatabaseInitializer:
     def generate_initial_jockeys(self, count_miho: int = 45, count_ritto: int = 45, trainer_ids: Optional[List[int]] = None) -> List[int]:
         """
         美浦（東）45名、栗東（西）45名（計90名、女性騎手各5名含む）の騎手を生成
-        - デビュー年齢は18歳（初期年齢18〜58歳、キャリア1〜41年）
+        - デビュー年齢は18歳（初期年齢18〜42歳、キャリア1〜25年）
         - 美浦30厩舎・栗東30厩舎に専属所属騎手を1名ずつ配備 (計60名)
         - 残り30名（美浦15名/栗東15名）は実績上位のフリー騎手または追加所属騎手として配備
         """
@@ -299,8 +300,8 @@ class DatabaseInitializer:
                     gender = "female" if i in female_indices else "male"
                     name = self.person_name_gen.generate_jockey_name(gender=gender)
                     
-                    # 18歳から58歳までの年齢分布
-                    career_years = (i % 40) + 1
+                    # 18歳から42歳までの年齢分布
+                    career_years = (i % 25) + 1
                     age = 18 + (career_years - 1)
                     debut_year = -(career_years - 1)
                     g_type = growth_types[i % len(growth_types)]
@@ -419,7 +420,7 @@ class DatabaseInitializer:
                         name, birth_year, age, breeder_id, owner_id,
                         self._sample_mstn().value,
                         speed, stamina, accel, temp, dura, vitality,
-                        growth_type.value, peak_age, self._sample_running_style().value,
+                        growth_type.value, peak_age, self._sample_running_style(speed, stamina, accel, dura).value,
                     ),
                 )
                 h_id = cursor.lastrowid
@@ -478,7 +479,7 @@ class DatabaseInitializer:
                         name, birth_year, age, breeder_id, owner_id,
                         self._sample_mstn().value,
                         speed, stamina, accel, temp, dura, vitality,
-                        growth_type.value, peak_age, self._sample_running_style().value,
+                        growth_type.value, peak_age, self._sample_running_style(speed, stamina, accel, dura).value,
                     ),
                 )
                 h_id = cursor.lastrowid
@@ -631,7 +632,7 @@ class DatabaseInitializer:
                             sire_id, dam_id,
                             self._sample_mstn().value,
                             speed, stamina, accel, temp, dura, vitality,
-                            growth_type.value, peak_age, round(current_ability, 2), self._sample_running_style().value,
+                            growth_type.value, peak_age, round(current_ability, 2), self._sample_running_style(speed, stamina, accel, dura).value,
                             starts, wins, g1_w, g2_w, g3_w, prize, c_prize,
                         ),
                     )
@@ -679,7 +680,7 @@ class DatabaseInitializer:
                             name, sex_str, breeder_id, owner_id,
                             sire_id, dam_id, self._sample_mstn().value,
                             speed, stamina, accel, temp, dura, vitality,
-                            growth_type.value, peak_age, self._sample_running_style().value,
+                            growth_type.value, peak_age, self._sample_running_style(speed, stamina, accel, dura).value,
                         ),
                     )
 

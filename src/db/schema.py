@@ -219,7 +219,7 @@ CREATE TABLE IF NOT EXISTS races (
     year INTEGER NOT NULL,
     month INTEGER NOT NULL,
     week INTEGER NOT NULL,                       -- 1〜48週
-    track_id TEXT NOT NULL CHECK (track_id IN ('A', 'B', 'C', 'D')),
+    track_id TEXT NOT NULL CHECK (track_id IN ('TOKYO', 'NAKAYAMA', 'HANSHIN', 'KYOTO', 'CHUKYO', 'NIIGATA', 'FUKUSHIMA', 'KOKURA', 'OI', 'KAWASAKI', 'FUNABASHI', 'MORIOKA', 'A', 'B', 'C', 'D')),
     name TEXT NOT NULL,
     grade TEXT NOT NULL CHECK (grade IN ('G1', 'G2', 'G3', 'L', 'OP', 'COND_3W', 'COND_2W', 'COND_1W', 'MAIDEN', 'NEWCOMER')),
     surface TEXT NOT NULL CHECK (surface IN ('turf', 'dirt')),

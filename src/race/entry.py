@@ -58,12 +58,33 @@ class RaceEntryManager:
 
         return priority_horse_ids
 
-    def can_enter_race(self, horse: Horse, race: Race) -> bool:
-        """馬がレースの出走資格（年齢・性別・クラス）を満たしているか判定"""
+    def can_enter_race(
+        self,
+        horse: Horse,
+        race: Race,
+        last_run: Optional[Tuple[int, int]] = None,
+        has_graded_top2: bool = False,
+    ) -> bool:
+        """
+        馬がレースの出走資格（年齢・性別・クラス・中2週・実績）を満たしているか判定
+        - 1レース8頭限定
+        - 最低中2週（中2週あけるため、最短3週後に出走可能）
+        - 2歳: 新馬・未勝利戦勝利後に重賞・リステッド出走可能
+        - 3歳春まで(〜20週): 1勝クラス勝利後(2勝以上)に重賞・リステッド出走可能
+        - 3歳夏〜秋(21週〜): 重賞2着以内、もしくは3勝クラス勝利馬(4勝以上)が重賞・リステッド出走可能
+        - 4歳以降: 3勝以上、または3勝クラス勝利馬のみ重賞・リステッド出走可能
+        """
         if horse.is_active != 1 or horse.is_dead == 1:
             return False
 
-        # 1. 年齢制限チェック
+        # 1. 中2週制限（前走から最低3週以上の間隔が必要）
+        if last_run is not None:
+            last_y, last_w = last_run
+            diff_weeks = (race.year - last_y) * 48 + (race.week - last_w)
+            if diff_weeks < 3:
+                return False
+
+        # 2. 年齢制限チェック
         if race.age_restriction == AgeRestriction.TWO_YO and horse.age != 2:
             return False
         if race.age_restriction == AgeRestriction.THREE_YO and horse.age != 3:
@@ -73,7 +94,7 @@ class RaceEntryManager:
         if race.age_restriction == AgeRestriction.FOUR_YO_UP and horse.age < 4:
             return False
 
-        # 2. 性別制限チェック
+        # 3. 性別制限チェック
         is_female = horse.sex in ('filly', 'mare')
         is_male = horse.sex in ('colt', 'horse', 'gelding')
         if race.sex_restriction == SexRestriction.FILLY_MARE and not is_female:
@@ -81,35 +102,78 @@ class RaceEntryManager:
         if race.sex_restriction == SexRestriction.COLT_HORSE and not is_male:
             return False
 
-        # 3. クラス条件チェック
-        c_prize = horse.condition_prize_money
+        # 4. クラス・重賞・リステッド出走資格チェック
+        wins = horse.career_wins
+        is_graded_or_listed = race.grade in (
+            RaceGrade.G1, RaceGrade.G2, RaceGrade.G3, RaceGrade.L, RaceGrade.OP
+        )
+
+        if is_graded_or_listed:
+            if horse.age == 2:
+                # 2歳: 新馬戦、未勝利戦勝利後に重賞、リステッドレースに出走可能
+                return wins >= 1
+            elif horse.age == 3:
+                if race.week <= 20:
+                    # 3歳春までは、1勝クラス勝利後(2勝以上)に重賞、リステッド出走可能
+                    return wins >= 2
+                else:
+                    # 3歳夏から秋は、重賞レース2着以内、もしくは3勝クラス勝利馬(4勝以上)が出走可能
+                    return has_graded_top2 or (wins >= 4)
+            else:
+                # 4歳以降は、いずれのケースも3勝以上、もしくは3勝クラスに勝利しなければ出走不可
+                return wins >= 3
+
+        # 条件戦・未勝利・新馬の資格判定
         if race.grade == RaceGrade.NEWCOMER:
             return horse.career_starts == 0
         elif race.grade == RaceGrade.MAIDEN:
-            return horse.career_wins == 0
+            return wins == 0
         elif race.grade == RaceGrade.COND_1W:
-            return c_prize <= 4_000_000 and horse.career_wins >= 1
+            return wins == 1
         elif race.grade == RaceGrade.COND_2W:
-            return c_prize <= 10_000_000 and horse.career_wins >= 1
+            return wins == 2
         elif race.grade == RaceGrade.COND_3W:
-            return c_prize <= 16_000_000 and horse.career_wins >= 1
+            return wins == 3
 
         return True
 
     def calculate_race_suitability(self, horse: Horse, race: Race) -> float:
-        """馬とレースの適性スコア（0.0〜100.0）を計算"""
+        """
+        馬とレースの適性スコア（0.0〜100.0）を計算
+        - 芝・ダート特性（芝得意、ダート得意、両方得意/兼用）の厳格考慮
+        - 距離適性レンジ（1000〜1200mの狭レンジから1200〜2400mの広レンジまで）の考慮
+        - クラス適合度・総合能力の加味
+        """
         score = 50.0
 
-        opt_dist = 1800
-        if horse.mstn_type == GenotypeMSTN.CC:
-            opt_dist = 1200
-        elif horse.mstn_type == GenotypeMSTN.TT:
-            opt_dist = 2600
+        # 1. 馬場適性判定 (芝得意、ダート得意、両方得意/兼用)
+        surf_apt = getattr(horse, "surface_aptitude", "turf")
+        race_surf = race.surface.value if hasattr(race.surface, "value") else str(race.surface)
+        if surf_apt == "both":
+            # 芝・ダート兼用: どちらの馬場でも高い適性
+            score += 20.0
+        elif surf_apt == race_surf:
+            # 得意馬場に完全合致
+            score += 25.0
+        else:
+            # 不適性馬場（芝専用馬のダート出走、またはダート専用馬の芝出走）: 大幅減点
+            score -= 50.0
 
-        dist_diff = abs(race.distance - opt_dist)
-        dist_penalty = (dist_diff / 200.0) * 5.0
-        score -= min(dist_penalty, 30.0)
+        # 2. 距離適性レンジ判定 (レンジ内なら大加点、レンジ外なら乖離ペナルティ)
+        min_d = getattr(horse, "apt_distance_min", 1200)
+        max_d = getattr(horse, "apt_distance_max", 2000)
 
+        if min_d <= race.distance <= max_d:
+            # 得意距離レンジ内
+            score += 30.0
+        elif race.distance < min_d:
+            diff = min_d - race.distance
+            score -= min(40.0, (diff / 100.0) * 8.0)
+        else:
+            diff = race.distance - max_d
+            score -= min(40.0, (diff / 100.0) * 8.0)
+
+        # 3. クラス適合度判定
         c_prize = horse.condition_prize_money
         if race.grade in (RaceGrade.G1, RaceGrade.G2, RaceGrade.G3):
             if c_prize >= 16_000_000:
@@ -142,28 +206,55 @@ class RaceEntryManager:
         race: Race,
         candidate_horses: List[Horse],
         priority_horse_ids: Optional[List[int]] = None,
+        last_runs_map: Optional[Dict[int, Tuple[int, int]]] = None,
+        graded_top2_set: Optional[Set[int]] = None,
     ) -> List[Horse]:
         """
-        出走馬選定（優先出走権 ＋ 収得賞金上位 ＋ フルゲート足切り）
+        出走馬選定（8頭限定、優先出走権 ＋ 適性合致馬 ＋ 収得賞金上位）
         """
         if priority_horse_ids is None:
             priority_horse_ids = []
+        if graded_top2_set is None:
+            graded_top2_set = set()
 
-        valid_candidates = [h for h in candidate_horses if self.can_enter_race(h, race)]
+        valid_candidates = []
+        for h in candidate_horses:
+            h_id = h.horse_id
+            last_run = last_runs_map.get(h_id) if (last_runs_map and h_id is not None) else None
+            has_top2 = h_id in graded_top2_set if (graded_top2_set and h_id is not None) else False
+            if self.can_enter_race(h, race, last_run=last_run, has_graded_top2=has_top2):
+                valid_candidates.append(h)
+
         if not valid_candidates:
             return []
 
         priority_horses = [h for h in valid_candidates if h.horse_id in priority_horse_ids]
         other_horses = [h for h in valid_candidates if h.horse_id not in priority_horse_ids]
 
-        random.shuffle(other_horses)
-        other_horses.sort(
-            key=lambda h: (h.condition_prize_money, h.prize_money),
+        # 適性スコアを付与し、著しく適性を欠く馬(スコア25未満)は回避
+        # 適性合致度(スコア>=50)を最優先とし、その中で収得賞金順にソート
+        scored_others = []
+        for h in other_horses:
+            suit = self.calculate_race_suitability(h, race)
+            if suit >= 25.0 or len(other_horses) < 8:  # 頭数確保のため極端な不足時は許容
+                scored_others.append((suit, h))
+
+        random.shuffle(scored_others)
+        scored_others.sort(
+            key=lambda item: (
+                item[0] >= 50.0,
+                item[1].condition_prize_money,
+                item[0],
+                item[1].prize_money,
+            ),
             reverse=True,
         )
 
-        starters = priority_horses + other_horses
-        max_limit = min(18, race.full_gate if (hasattr(race, "full_gate") and race.full_gate) else 18)
+        filtered_others = [item[1] for item in scored_others]
+        starters = priority_horses + filtered_others
+
+        # 8頭限定
+        max_limit = min(8, race.full_gate if (hasattr(race, "full_gate") and race.full_gate) else 8)
         return starters[:max_limit]
 
     def assign_jockeys(

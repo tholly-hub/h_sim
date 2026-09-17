@@ -201,6 +201,10 @@ class JockeyManager:
                 should_retire = True
                 retire_reason = "20年目重賞未勝利足切り"
 
+            # 3年目終了までは引退完全ガード（3年間現役維持）
+            if current_year <= 3:
+                should_retire = False
+
             if should_retire:
                 conn.execute(
                     """

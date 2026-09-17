@@ -59,18 +59,54 @@ class LifecycleEngine:
                     (round(rate, 2), h["horse_id"]),
                 )
 
-            # 3. 8歳末現役競走馬の引退処理 (9歳以上は現役不可)
-            retired_horses = conn.execute(
+            # 3. 現役競走馬の引退判定（最大8歳末で全頭引退 ＋ 成績不振・ピークアウト馬の引退）
+            # (1) 8歳超過馬（9歳以上は不可、即時引退）
+            # (2) 4歳〜8歳の現役馬で、ピークを過ぎて能力発揮率が低下、または長期未勝利の成績不振馬
+            active_koba = conn.execute(
                 """
-                SELECT horse_id, name, sex, breeder_id, owner_id, g1_wins, g2_wins, g3_wins,
-                       career_wins, prize_money, speed, stamina, acceleration, sire_id
+                SELECT horse_id, name, sex, age, peak_age, current_ability_rate,
+                       breeder_id, owner_id, g1_wins, g2_wins, g3_wins,
+                       career_wins, career_starts, prize_money, speed, stamina, acceleration, sire_id
                 FROM horses
-                WHERE is_active = 1 AND age > ?
-                """,
-                (self.MAX_RACING_AGE,),
+                WHERE is_active = 1 AND age >= 4
+                """
             ).fetchall()
 
-            print(f"[年進行] 2/7: 8歳末現役競走馬の引退処理（対象: {len(retired_horses)}頭、種牡馬・繁殖昇格判定）中...")
+            retired_horse_ids = set()
+            retired_horses = []
+
+            for h in active_koba:
+                age = h["age"]
+                # 8歳超過（9歳以上）は100%引退
+                if age > self.MAX_RACING_AGE:
+                    retired_horse_ids.add(h["horse_id"])
+                    retired_horses.append(h)
+                    continue
+
+                # ピークアウト・成績不振引退判定
+                peak = h["peak_age"]
+                rate = h["current_ability_rate"]
+                is_peak_out = (age >= peak + 1.5) or (rate < 0.70)
+                is_poor_record = (h["career_wins"] <= 1 and age >= 5) or (h["career_wins"] <= 2 and age >= 6)
+
+                retire_prob = 0.0
+                if age == 4 and is_poor_record:
+                    retire_prob = 0.15
+                elif age == 5:
+                    retire_prob = 0.30 if (is_peak_out or is_poor_record) else 0.10
+                elif age == 6:
+                    retire_prob = 0.45 if is_peak_out else 0.20
+                elif age == 7:
+                    retire_prob = 0.65 if is_peak_out else 0.40
+                elif age == 8:
+                    # 8歳馬は年度末で基本引退
+                    retire_prob = 0.85
+
+                if random.random() < retire_prob:
+                    retired_horse_ids.add(h["horse_id"])
+                    retired_horses.append(h)
+
+            print(f"[年進行] 2/7: 現役競走馬の引退処理（対象: {len(retired_horses)}頭、種牡馬・繁殖昇格判定）中...")
 
             new_sires_count = 0
             new_dams_count = 0
@@ -99,7 +135,7 @@ class LifecycleEngine:
                             (h_id, h["breeder_id"], p_sire_line, (random.randint(1_500_000, 6_000_000) // 100_000) * 100_000),
                         )
                         new_sires_count += 1
-                        print(f"    - 【種牡馬入り】{h['name']} (牡8歳・重賞{h['g1_wins']+h['g2_wins']+h['g3_wins']}勝) -> {p_sire_line}を継承")
+                        print(f"    - 【種牡馬入り】{h['name']} (牡{h['age']}歳・重賞{h['g1_wins']+h['g2_wins']+h['g3_wins']}勝) -> {p_sire_line}を継承")
                 elif h["sex"] in ("mare", "filly"):
                     conn.execute("UPDATE horses SET is_dam = 1 WHERE horse_id = ?", (h_id,))
                     conn.execute(
@@ -108,7 +144,7 @@ class LifecycleEngine:
                     )
                     new_dams_count += 1
 
-            print(f"    ※ 8歳現役馬 {len(retired_horses)}頭 引退完了（新種牡馬: {new_sires_count}頭 / 新繁殖牝馬: {new_dams_count}頭）")
+            print(f"    ※ 現役馬 {len(retired_horses)}頭 引退完了（新種牡馬: {new_sires_count}頭 / 新繁殖牝馬: {new_dams_count}頭）")
 
             # 4. 2歳新馬の現役デビュー・厩舎入厩（自厩舎の所属騎手を基本主戦に設定）
             debut_horses = conn.execute(
@@ -206,10 +242,13 @@ class LifecycleEngine:
                     (new_skill, t.trainer_id),
                 )
 
-            retired_trainers = conn.execute(
-                "SELECT trainer_id, name, location, age FROM trainers WHERE age >= ?",
-                (self.TRAINER_RETIRE_AGE,),
-            ).fetchall()
+            if current_year <= 3:
+                retired_trainers = []
+            else:
+                retired_trainers = conn.execute(
+                    "SELECT trainer_id, name, location, age FROM trainers WHERE age >= ?",
+                    (self.TRAINER_RETIRE_AGE,),
+                ).fetchall()
 
             existing_trainer_names: Set[str] = set(r["name"] for r in conn.execute("SELECT name FROM trainers").fetchall())
 

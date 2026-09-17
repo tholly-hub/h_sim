@@ -72,7 +72,7 @@ class Race:
     age_restriction: AgeRestriction
     sex_restriction: SexRestriction = SexRestriction.MIXED
     condition: str = 'good'            # 良馬場固定
-    full_gate: int = 18
+    full_gate: int = 8                 # 8頭限定
     is_trial: int = 0                  # 1: トライアル競走
     target_g1_name: Optional[str] = None # 対象G1名
     base_prize: int = 0                # 1着本賞金 (円)
