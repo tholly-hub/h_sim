@@ -514,250 +514,173 @@ class RaceEngine:
                 "makuri_extra_lat": 0.0,
             })
 
-        # 0.1秒単位の統合シミュレーション（全頭ゴール完了＋余韻走行まで動的に継続）
-        all_finished_time = None
-        sim_elapsed_time = 0.0
-        for s in range(1, max_sim_steps):
+        # 1. 各馬の0.1秒ごとの正確な走破距離プロファイル d(t) を生成
+        # 各馬は厳密に t = f_time の瞬間に distance（ゴール板）に到達し、ゴール通過順と確定着順が100%完全に一致
+        sim_elapsed_time = max_finish_time + 3.0
+        total_steps = int(math.ceil(sim_elapsed_time / fine_dt)) + 1
+
+        for h in sim_horses:
+            f_time = h["finish_time"]
+            style = h["style"]
+            j_skill = h["j_skill"]
+            exhaust_rem = h["exhaust_rem_dist"]
+
+            # ゴールまでのステップ数
+            goal_step = max(1, int(round(f_time / fine_dt)))
+
+            # 各ステップのペースウェイト w(s)
+            weights = []
+            for s in range(goal_step):
+                tau = min(1.0, (s * fine_dt) / f_time) if f_time > 0 else 1.0
+
+                # スタート加速ランプ (0〜8%)
+                ramp = 0.60 + 0.40 * math.sin(min(1.0, tau / 0.08) * math.pi / 2.0)
+
+                # 脚質プロファイル
+                if style == RunningStyle.ESCAPE:
+                    base = 1.08 if tau < 0.60 else (1.00 if tau < 0.75 else 0.94)
+                elif style == RunningStyle.LEADING:
+                    base = 1.03 if tau < 0.60 else (0.99 if tau < 0.75 else 0.98)
+                elif style == RunningStyle.BETWEEN:
+                    base = 0.96 if tau < 0.55 else (1.02 if tau < 0.75 else 1.12)
+                else:  # CLOSING
+                    base = 0.91 if tau < 0.55 else (1.03 if tau < 0.75 else 1.18)
+
+                # まくり補正 (3コーナー: tau 0.48〜0.68)
+                makuri_w = 0.0
+                if 0.48 <= tau <= 0.68 and style in (RunningStyle.BETWEEN, RunningStyle.CLOSING):
+                    m_ratio = (tau - 0.48) / 0.20
+                    surge_val = 0.045 if j_skill >= 60.0 else (0.095 if j_skill < 45.0 else 0.065)
+                    makuri_w = surge_val * math.sin(m_ratio * math.pi)
+
+                # 直線バテ補正 (tau 0.82〜1.0)
+                fatigue_w = 1.0
+                if exhaust_rem > 0 and tau >= 0.82:
+                    f_prog = (tau - 0.82) / 0.18
+                    fatigue_w = max(0.78, 1.0 - f_prog * 0.22)
+
+                # 微小揺らぎ
+                noise = ((h["horse_id"] * 13 + s // 10) % 7 - 3) * 0.008
+
+                w = max(0.5, ramp * (base + makuri_w + noise) * fatigue_w)
+                weights.append(w)
+
+            # 累積距離テーブルの構築 (t = 0 から t = f_time まで)
+            sum_w = sum(weights)
+            cum_w = 0.0
+            dist_profile = [0.0]
+            for w in weights:
+                cum_w += w
+                dist_profile.append(round(distance * (cum_w / sum_w), 3))
+            dist_profile[-1] = distance  # 厳密にゴール板到達！
+
+            # ゴール通過時の速度 v_goal
+            last_w = weights[-1] if weights else 1.0
+            v_goal = distance * (last_w / (sum_w * fine_dt))
+
+            # ゴール後の減速流し走行 (t > f_time)
+            min_v = 7.5
+            decay_rate = 0.35
+            cur_post_d = distance
+            cur_post_v = v_goal
+            for s in range(goal_step + 1, total_steps):
+                post_t = (s - goal_step) * fine_dt
+                cur_post_v = min_v + (v_goal - min_v) * math.exp(-decay_rate * post_t)
+                cur_post_d += cur_post_v * fine_dt
+                dist_profile.append(round(cur_post_d, 3))
+
+            h["dist_profile"] = dist_profile
+            h["goal_step"] = goal_step
+            h["fine_dists"] = [0.0]
+            h["fine_laterals"] = [round(h["init_lateral"], 2)]
+
+        # 2. 0.1秒刻みで進路取り・追い抜き・並走回避の横位置シミュレーション
+        for s in range(1, total_steps):
             t = s * fine_dt
-            sim_elapsed_time = t
 
-            # 現在の先頭馬の走破距離（騎手の位置取り・届かない判断用）
-            lead_cur_dist = max(h["cur_dist"] for h in sim_horses)
-
-            # 1. 各馬の走破距離計算（ゴール前後で完全な速度連続性を保証）
+            # 現在ステップの走破距離を適用
             for h in sim_horses:
-                f_time = h["finish_time"]
-                cur_d = h["cur_dist"]
-                p_start, p_mid, p_corner, p_spurt = h["paces"]
-                base_v = h["base_v"]
+                h["cur_dist"] = h["dist_profile"][s] if s < len(h["dist_profile"]) else h["dist_profile"][-1]
 
-                if cur_d < distance:
-                    # ゴール前の走行フェーズ
-                    prog = cur_d / distance if distance > 0 else 0.0
-                    rem_m = distance - cur_d
-                    style = h["style"]
+            # 現在の通過順位を判定
+            sorted_by_d = sorted(sim_horses, key=lambda x: x["cur_dist"], reverse=True)
+            cur_rank_map = {h_item["horse_id"]: idx + 1 for idx, h_item in enumerate(sorted_by_d)}
 
-                    # 第3コーナー付近（向正面後半〜3コーナー進入: prog 0.48〜0.68）のまくり戦術判断
-                    lead_gap = lead_cur_dist - cur_d
-                    if (0.48 <= prog < 0.68) and style in (RunningStyle.BETWEEN, RunningStyle.CLOSING):
-                        # 「このまま直線に入ったら絶対に届かない！」（先頭と10.0m以上離れている）と騎手が判断した場合
-                        if lead_gap >= 10.0 and not h["makuri_active"]:
-                            h["makuri_active"] = True
-                            j_skill = h["j_skill"]
-                            if j_skill >= 60.0:
-                                # 【上手い騎手】: 余力を残す絶妙なペースで追い上げる
-                                h["makuri_type"] = "skilled"
-                                h["makuri_surge"] = 0.045
-                                h["makuri_extra_lat"] = 1.6
-                            elif j_skill < 45.0:
-                                # 【技術の低い騎手】: 焦って無謀な上がり！急激に追いすぎ＆大外回りでスタミナを激しく浪費
-                                h["makuri_type"] = "reckless"
-                                h["makuri_surge"] = 0.095
-                                h["makuri_extra_lat"] = 3.2
-                                # 無謀な上がりの反動: 直線でのバテ発生地点を前倒し
-                                if h["exhaust_rem_dist"] == 0.0:
-                                    h["exhaust_rem_dist"] = 160.0
-                                else:
-                                    h["exhaust_rem_dist"] = min(220.0, h["exhaust_rem_dist"] + 60.0)
-                            else:
-                                # 【標準的な騎手】
-                                h["makuri_type"] = "normal"
-                                h["makuri_surge"] = 0.065
-                                h["makuri_extra_lat"] = 2.2
-
-                    if prog < 0.10:
-                        ratio = prog / 0.10
-                        v_factor = 0.70 + (p_start - 0.70) * math.sin(ratio * math.pi / 2)
-                    elif prog < 0.55:
-                        # 向正面: 各馬の折り合い・押し上げ
-                        ratio = (prog - 0.10) / 0.45
-                        surge = 0.032 * math.sin((prog - 0.25) * math.pi / 0.30) if (h["horse_id"] % 3 == 0 and prog >= 0.25) else 0.0
-                        h_seed = ((h["horse_id"] * 13 + s // 10) % 7 - 3) * 0.012
-                        v_factor = p_start + (p_mid - p_start) * ratio + h_seed + surge
-                    elif prog < 0.70:
-                        # 3コーナー〜4コーナー手前: 差し・追込の進出・まくり
-                        ratio = (prog - 0.55) / 0.15 if prog >= 0.55 else 0.0
-                        if h.get("makuri_active", False):
-                            # まくり発動中: 第3コーナーからの加速スパート
-                            m_ratio = (prog - 0.48) / 0.22
-                            m_surge = h["makuri_surge"] * math.sin(min(1.0, m_ratio) * math.pi / 2.0)
-                            v_factor = p_mid + (p_corner - p_mid) * ratio + m_surge
-                        else:
-                            surge = 0.035 * ratio if style in (RunningStyle.BETWEEN, RunningStyle.CLOSING) else 0.0
-                            v_factor = p_mid + (p_corner - p_mid) * ratio + surge
-                    else:
-                        # 最終コーナー〜直線スパート: 直線入り口でトップスピードに乗る
-                        ratio = min(1.0, (prog - 0.70) / 0.30)
-                        if style == RunningStyle.ESCAPE:
-                            # 逃げ馬: 直線入り口から粘り込みを図るスパート
-                            s_curve = math.sin(ratio * math.pi / 2.0)
-                            v_factor = p_corner + (p_spurt - p_corner) * s_curve
-                        elif style == RunningStyle.LEADING:
-                            # 先行馬: 好位から粘り強くスパート
-                            s_curve = math.sin(ratio * math.pi / 2.0)
-                            v_factor = p_corner + (p_spurt - p_corner) * s_curve
-                        else:
-                            # 差し・追込馬: 直線に入ると一気にトップスピード（1.13〜1.20倍）へ加速し、前をごぼう抜き！
-                            s_curve = math.sin(ratio * math.pi / 2.0) ** 0.65
-                            v_factor = p_corner + (p_spurt - p_corner) * s_curve
-
-                    step_v = base_v * v_factor
-
-                    # 直線で体力が尽きた馬の継続的減速（スピードが落ち続ける）
-                    if rem_m <= h["exhaust_rem_dist"]:
-                        if h["exhaust_start_dist"] is None:
-                            h["exhaust_start_dist"] = cur_d
-                        run_after_exhaust = max(0.0, cur_d - h["exhaust_start_dist"])
-                        # 体力が尽きた後は、距離が進むにつれて継続的にスピードが落ちる（最大減速率約22%に抑え自然な失速にする）
-                        fatigue_decay = max(0.78, 1.0 - (run_after_exhaust / 160.0) * 0.22)
-                        step_v = step_v * fatigue_decay
-
-                    h["cur_v"] = step_v
-                    new_d = cur_d + step_v * fine_dt
-
-                    # 残り600m（上がり3ハロン区間）通過時刻の検出
-                    if h["t_600"] is None and new_d >= distance - 600.0:
-                        if new_d > cur_d and (distance - 600.0) >= cur_d:
-                            frac = (distance - 600.0 - cur_d) / (new_d - cur_d)
-                            h["t_600"] = (s - 1) * fine_dt + frac * fine_dt
-                        else:
-                            h["t_600"] = t
-
-                    # ゴール板通過の瞬間を記録
-                    if new_d >= distance and h["goal_passed_time"] is None:
-                        h["goal_passed_time"] = t
-                        h["goal_v"] = step_v
-                else:
-                    # ゴール後の流し走行（ゴール通過時の速度から滑らかに指数減速、急加速を完全根絶）
-                    if h["goal_passed_time"] is None:
-                        h["goal_passed_time"] = t
-                        h["goal_v"] = h.get("cur_v", base_v * p_spurt)
-                    
-                    post_t = max(0.0, t - h["goal_passed_time"])
-                    init_v = h["goal_v"]
-                    min_v = 7.5  # クールダウン流し速度
-                    decay_rate = 0.35  # 減速時定数
-                    # 速度 v(t) = min_v + (init_v - min_v) * exp(-decay_rate * post_t)
-                    cur_post_v = min_v + (init_v - min_v) * math.exp(-decay_rate * post_t)
-                    h["cur_v"] = cur_post_v
-                    new_d = cur_d + cur_post_v * fine_dt
-
-                h["next_dist"] = new_d
-
-            # 各馬の現在の通過順位（先頭からの走破距離順）を判定
-            sorted_horses = sorted(sim_horses, key=lambda x: x["next_dist"], reverse=True)
-            cur_rank_map = {h_item["horse_id"]: idx + 1 for idx, h_item in enumerate(sorted_horses)}
-
-            # 2. 各馬の進路取り・前壁判定・スペース探索による暫定横移動
+            # 各馬の進路取り・前壁回避計算
             for h in sim_horses:
                 cur_lat = h["cur_lateral"]
-                cur_d = h["next_dist"]
+                cur_d = h["cur_dist"]
                 pref_lat = h["pref_lateral"]
                 rem_d = distance - cur_d
-                r_pos = cur_rank_map.get(h["horse_id"], 1)
 
                 if rem_d > 450.0:
-                    # 【道中】: スタート直後（0〜350m）は急激に内に切れ込まず、緩やかに内側へ隊列を集約
+                    # 【道中】: スタート直後（0〜350m）は緩やかに内側へ隊列を集約
                     if cur_d < 350.0:
                         prog_s = min(1.0, cur_d / 350.0)
-                        ease = prog_s * prog_s * (3.0 - 2.0 * prog_s)  # 滑らかなS字イージング
+                        ease = prog_s * prog_s * (3.0 - 2.0 * prog_s)
                         base_lat = h["init_lateral"] + (pref_lat - h["init_lateral"]) * ease
                         target_lat = base_lat
                     else:
                         target_lat = pref_lat
 
-                    # 前方の馬を検出 (0.5m < Δdist < 7.5m, 横差 |Δlat| < 1.8m)
-                    front_slow_horse = None
+                    # 前方の馬を検出
+                    front_slow = None
                     min_gap = 999.0
                     for other in sim_horses:
                         if other["horse_id"] == h["horse_id"]:
                             continue
-                        d_gap = other["next_dist"] - cur_d
+                        d_gap = other["cur_dist"] - cur_d
                         l_gap = abs(other["cur_lateral"] - cur_lat)
                         if 0.5 < d_gap < 7.5 and l_gap < 1.8:
                             if d_gap < min_gap:
                                 min_gap = d_gap
-                                front_slow_horse = other
+                                front_slow = other
 
-                    if front_slow_horse:
-                        b_lat = front_slow_horse["cur_lateral"]
-                        # 内側が空いているか (内ラチ 1.2m 以上かつ内側に馬がいない)
+                    if front_slow:
+                        b_lat = front_slow["cur_lateral"]
                         can_inside = (b_lat - 1.9 >= 1.2)
                         if can_inside:
-                            # 内側に他馬が並走していないか確認
                             for other in sim_horses:
-                                if other["horse_id"] in (h["horse_id"], front_slow_horse["horse_id"]):
+                                if other["horse_id"] in (h["horse_id"], front_slow["horse_id"]):
                                     continue
-                                if abs(other["next_dist"] - cur_d) < 4.0 and abs(other["cur_lateral"] - (b_lat - 1.9)) < 1.6:
+                                if abs(other["cur_dist"] - cur_d) < 4.0 and abs(other["cur_lateral"] - (b_lat - 1.9)) < 1.6:
                                     can_inside = False
                                     break
 
-                        if can_inside:
-                            target_lat = b_lat - 1.9  # インから追い抜き
-                        else:
-                            target_lat = b_lat + 2.0  # アウトから追い抜き
+                        target_lat = (b_lat - 1.9) if can_inside else (b_lat + 2.0)
 
-                    # まくり発動中は外目を通ってポジションを押し上げる
-                    if h.get("makuri_active", False):
-                        target_lat = min(10.0, target_lat + h.get("makuri_extra_lat", 2.2))
-
-                    # 道中並走回避（安全マージン）
-                    for other in sim_horses:
-                        if other["horse_id"] == h["horse_id"]:
-                            continue
-                        if abs(other["next_dist"] - cur_d) < 3.8 and abs(other["cur_lateral"] - cur_lat) < 1.8:
-                            if other["cur_lateral"] < cur_lat:
-                                target_lat = max(target_lat, other["cur_lateral"] + 1.9)
+                    # まくり進出中は外目を通る
+                    if (distance - cur_d) < distance * 0.50 and (distance - cur_d) > 450.0 and h["style"] in (RunningStyle.BETWEEN, RunningStyle.CLOSING):
+                        target_lat = min(10.0, target_lat + 1.8)
                 else:
                     # 【最後の直線】
-                    # ルール1: 自分の前に馬がいない場合には、左右に動かない（直進！）
-                    # ルール2: 前壁がある場合は、内側が空いていれば内側にも進路を取り、空いていなければ外へ回避して抜く！
                     front_blocker = None
                     min_block_dist = 999.0
                     for other in sim_horses:
                         if other["horse_id"] == h["horse_id"]:
                             continue
-                        d_gap = other["next_dist"] - cur_d
+                        d_gap = other["cur_dist"] - cur_d
                         l_gap = abs(other["cur_lateral"] - cur_lat)
-                        # 前方 0.5m 〜 8.5m かつ 横差 1.8m 以内の先行馬
                         if 0.5 < d_gap < 8.5 and l_gap < 1.8:
                             if d_gap < min_block_dist:
                                 min_block_dist = d_gap
                                 front_blocker = other
 
                     if front_blocker is None:
-                        # 前に馬がいない！左右に動かず現在のレーンをそのまま直進！
                         target_lat = cur_lat
                     else:
-                        # 前壁あり: 内側・外側の空きスペースを判定
                         b_lat = front_blocker["cur_lateral"]
                         can_inside = (b_lat - 2.0 >= 1.2)
                         if can_inside:
-                            # イン側に他馬がいないか確認
                             for other in sim_horses:
                                 if other["horse_id"] in (h["horse_id"], front_blocker["horse_id"]):
                                     continue
-                                if abs(other["next_dist"] - cur_d) < 4.5 and abs(other["cur_lateral"] - (b_lat - 2.0)) < 1.6:
+                                if abs(other["cur_dist"] - cur_d) < 4.5 and abs(other["cur_lateral"] - (b_lat - 2.0)) < 1.6:
                                     can_inside = False
                                     break
+                        target_lat = (b_lat - 2.0) if can_inside else min(course_width - 1.5, b_lat + 2.1)
 
-                        if can_inside:
-                            # 内側が空いているのでインを突いて内側へ進路を取る！
-                            target_lat = b_lat - 2.0
-                        else:
-                            # 内側が塞がっている場合は外側へ持ち出して追い抜く！
-                            target_lat = min(course_width - 1.5, b_lat + 2.1)
-
-                    # 直線での並走安全マージン（斜行・接触防止）
-                    for other in sim_horses:
-                        if other["horse_id"] == h["horse_id"]:
-                            continue
-                        if abs(other["next_dist"] - cur_d) < 3.8 and abs(other["cur_lateral"] - target_lat) < 1.8:
-                            if other["cur_lateral"] < target_lat:
-                                target_lat = max(target_lat, other["cur_lateral"] + 1.9)
-
-                # 横移動の更新（スムーズなレーンチェンジ）
-                # スタート直後（0〜350m）は急激な斜行を抑えるため 0.08m/ステップ（1秒で0.8m）、通常時は 0.22m/ステップ
+                # 横移動の更新
                 max_lat_delta = 0.08 if cur_d < 350.0 else 0.22
                 lat_diff = target_lat - cur_lat
                 if abs(lat_diff) <= max_lat_delta:
@@ -765,20 +688,18 @@ class RaceEngine:
                 else:
                     new_lat = cur_lat + math.copysign(max_lat_delta, lat_diff)
 
-                # 道中は適度に広がりを持たせつつ外に広がりすぎないよう上限(10.0m)（スタート集結完了後350m以降）
                 if rem_d > 450.0 and cur_d > 350.0:
                     h["temp_lateral"] = max(1.0, min(10.0, new_lat))
                 else:
                     h["temp_lateral"] = max(1.0, min(course_width - 1.2, new_lat))
 
-            # 3. 馬体同士の並走・追い抜き重なり完全防止（ペア間分離パス）
-            # 前後差 3.8m 以内で横間隔が 2.0m 未満の場合、確実に左右へ押し広げて重なりを根絶
+            # 並走・追い抜き時の重なり防止
             for _ in range(8):
                 for i in range(len(sim_horses)):
                     h_i = sim_horses[i]
                     for j in range(i + 1, len(sim_horses)):
                         h_j = sim_horses[j]
-                        d_gap = abs(h_i["next_dist"] - h_j["next_dist"])
+                        d_gap = abs(h_i["cur_dist"] - h_j["cur_dist"])
                         if d_gap < 3.8:
                             l_i = h_i["temp_lateral"]
                             l_j = h_j["temp_lateral"]
@@ -786,7 +707,6 @@ class RaceEngine:
                             min_clearance = 2.0
                             if lat_gap < min_clearance:
                                 push = (min_clearance - lat_gap) / 2.0 + 0.10
-                                # 内ラチ(1.0m)や外ラチ(course_width - 1.2m)の壁際を考慮した退避
                                 if l_i > l_j:
                                     if h_j["temp_lateral"] - push < 1.0:
                                         h_i["temp_lateral"] += push * 2.0
@@ -804,52 +724,53 @@ class RaceEngine:
                                         h_i["temp_lateral"] -= push
                                         h_j["temp_lateral"] += push
                                 else:
-                                    # 完全に同じレーンの場合
                                     if h_i["horse_id"] > h_j["horse_id"]:
                                         h_i["temp_lateral"] += push * 2.0
                                     else:
                                         h_j["temp_lateral"] += push * 2.0
 
-            # 境界クランプ & トラジェクトリ確定
+            # 確定位置の記録
             for h in sim_horses:
-                c_dist = h["next_dist"]
+                c_dist = h["cur_dist"]
                 r_dist = distance - c_dist
-                # 道中（スタート後350m以降〜直線入り口450m）は内ラチ沿い〜追い抜き幅（上限8.5m）
                 if r_dist > 450.0 and c_dist > 350.0:
                     final_lat = max(0.8, min(8.5, h["temp_lateral"]))
                 else:
                     final_lat = max(0.8, min(course_width - 1.0, h["temp_lateral"]))
                 h["cur_lateral"] = final_lat
-                h["cur_dist"] = c_dist
                 h["fine_dists"].append(round(c_dist, 2))
                 h["fine_laterals"].append(round(final_lat, 2))
 
-            # 4. 全頭がゴール板を通過したかの確認（全頭ゴール＋余韻流し走行を保証）
-            all_passed_goal = all(h["cur_dist"] >= distance for h in sim_horses)
-            if all_passed_goal:
-                if all_finished_time is None:
-                    all_finished_time = t
-                # 全頭ゴール後、さらに 3.0 秒間の流し走行（クールダウン）を行って終了
-                if t - all_finished_time >= 3.0:
-                    break
-
         total_sim_time = sim_elapsed_time
 
-        # 上がり3ハロン（ラスト600m）タイムの計算
+        # 上がり3ハロン（ラスト600m通過からゴールまで）タイムの正確な計算
         last_3f_map: Dict[int, float] = {}
         for h in sim_horses:
             hid = h["horse_id"]
             f_time = h["finish_time"]
-            t_600 = h.get("t_600")
+            d_list = h["dist_profile"]
+            
+            # 残り600m地点（distance - 600.0）を跨いだステップを線形補間
+            t_600 = None
+            t_target_d = distance - 600.0
+            if t_target_d > 0:
+                for idx_d, d_val in enumerate(d_list):
+                    if d_val >= t_target_d:
+                        if idx_d > 0 and d_val > d_list[idx_d - 1]:
+                            frac = (t_target_d - d_list[idx_d - 1]) / (d_val - d_list[idx_d - 1])
+                            t_600 = (idx_d - 1) * fine_dt + frac * fine_dt
+                        else:
+                            t_600 = idx_d * fine_dt
+                        break
+            
             if t_600 is not None and f_time > t_600:
                 l3f = round(f_time - t_600, 1)
             else:
-                # 600m以下レースや何らかのフォールバック推計
-                base_v = h["base_v"] * h["paces"][3]
-                l3f = round(600.0 / max(12.0, base_v), 1)
+                base_v = distance / f_time if f_time > 0 else 15.0
+                l3f = round(600.0 / max(10.0, base_v), 1)
             last_3f_map[hid] = l3f
 
-        # 0.1秒単位（fine_dt）の完全トラジェクトリをそのまま保存（補間歪み・速度ジャンプをゼロ化）
+        # 0.1秒単位（fine_dt）の完全トラジェクトリを保存
         replay_dt = fine_dt
         horse_trajectories = []
 

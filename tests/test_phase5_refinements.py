@@ -88,5 +88,42 @@ class TestPhase5Refinements(unittest.TestCase):
         self.assertTrue(odds[dh.horse_id] < odds[th.horse_id])
         print(f'PASS: Odds accurately reflect surface aptitude -> Dirt Horse ({odds[dh.horse_id]}x) vs Turf Horse ({odds[th.horse_id]}x)')
 
+    def test_replay_goal_crossing_order_matches_finish_time(self):
+        import json
+        engine = RaceEngine()
+        with self.db.session() as conn:
+            rows = conn.execute('SELECT * FROM horses WHERE is_active = 1 LIMIT 8').fetchall()
+            horses = [Horse.from_row(r) for r in rows]
+
+        race = Race(
+            name='日本ダービー', track_id='TOKYO', month=5, week=21, grade=RaceGrade.G1,
+            surface=RaceSurface.TURF, distance=2400, age_restriction=AgeRestriction.THREE_YO,
+            sex_restriction=SexRestriction.MIXED, full_gate=8
+        )
+
+        # 各馬の確定走破タイムをバラバラに設定
+        finish_times = {}
+        for idx, h in enumerate(horses):
+            finish_times[h.horse_id] = 145.0 + (idx * 0.35) if idx % 2 == 0 else 145.0 + ((7 - idx) * 0.40)
+
+        replay_json, _ = engine.generate_replay_data(race, finish_times, horses)
+        data = json.loads(replay_json)
+
+        goal_crossing_times = {}
+        for h_data in data['horses']:
+            hid = h_data['horse_id']
+            pos = h_data['positions']
+            dt = data['dt']
+            for step_idx, dist in enumerate(pos):
+                if dist >= 2400.0:
+                    goal_crossing_times[hid] = step_idx * dt
+                    break
+
+        expected_order = sorted(finish_times.keys(), key=lambda hid: finish_times[hid])
+        actual_order = sorted(goal_crossing_times.keys(), key=lambda hid: goal_crossing_times[hid])
+
+        self.assertEqual(expected_order, actual_order)
+        print('PASS: All finish positions match goal-crossing order 100% perfectly!')
+
 if __name__ == '__main__':
     unittest.main()

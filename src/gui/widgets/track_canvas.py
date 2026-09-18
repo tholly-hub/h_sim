@@ -224,7 +224,7 @@ class TrackCanvas(QWidget):
                                 # 追込: 4コーナー大外からのロングスパート (残り450m〜ゴール前)
                                 is_spurt = (10.0 <= rem_dist <= 450.0)
 
-                        is_finished = dist >= float(self.distance) - 0.1
+                        is_finished = (dist >= float(self.distance)) or (t >= f_time)
 
                         frame_horses.append({
                             "horse_id": h_id,
