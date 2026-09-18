@@ -72,6 +72,7 @@ LISTED_TITLES = [
     (40, 'カシオペアS', 'KYOTO', RaceSurface.TURF, 1800, AgeRestriction.THREE_YO_UP, False, None),
     (41, 'ルミエールオータムD', 'NIIGATA', RaceSurface.TURF, 1000, AgeRestriction.THREE_YO_UP, False, None),
     (42, 'オーロカップ', 'TOKYO', RaceSurface.TURF, 1400, AgeRestriction.THREE_YO_UP, False, None),
+    (43, 'カトレアステークス', 'TOKYO', RaceSurface.DIRT, 1600, AgeRestriction.TWO_YO, True, '全日本２歳優駿'),
     (43, 'アンドロメダS', 'KYOTO', RaceSurface.TURF, 2000, AgeRestriction.THREE_YO_UP, False, None),
     (44, 'キャピタルS', 'TOKYO', RaceSurface.TURF, 1600, AgeRestriction.THREE_YO_UP, False, None),
     (45, '師走ステークス', 'NAKAYAMA', RaceSurface.DIRT, 1800, AgeRestriction.THREE_YO_UP, False, None),
@@ -255,6 +256,7 @@ def generate_full_program(year: int = 1) -> List[Race]:
         # 11月
         (41, 'JBCクラシック', 'OI', RaceGrade.G1, RaceSurface.DIRT, 2000, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, 0, None, 100_000_000),
         (41, 'JBCスプリント', 'OI', RaceGrade.G1, RaceSurface.DIRT, 1200, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, 0, None, 80_000_000),
+        (41, 'JBC2歳優駿', 'MORIOKA', RaceGrade.G3, RaceSurface.DIRT, 1800, AgeRestriction.TWO_YO, SexRestriction.MIXED, 1, '全日本２歳優駿', 35_000_000),
         (41, '京王杯2歳S', 'TOKYO', RaceGrade.G2, RaceSurface.TURF, 1400, AgeRestriction.TWO_YO, SexRestriction.MIXED, 1, '朝日杯FS', 38_000_000),
         (41, 'ファンタジーS', 'KYOTO', RaceGrade.G3, RaceSurface.TURF, 1400, AgeRestriction.TWO_YO, SexRestriction.FILLY_MARE, 1, '阪神JF', 31_000_000),
         (42, 'エリザベス女王杯', 'KYOTO', RaceGrade.G1, RaceSurface.TURF, 2200, AgeRestriction.THREE_YO_UP, SexRestriction.FILLY_MARE, 0, None, 140_000_000),
@@ -265,6 +267,7 @@ def generate_full_program(year: int = 1) -> List[Race]:
         (43, '東京スポーツ杯2歳S', 'TOKYO', RaceGrade.G2, RaceSurface.TURF, 1800, AgeRestriction.TWO_YO, SexRestriction.MIXED, 1, 'ホープフルS', 38_000_000),
         (43, 'みやこS', 'KYOTO', RaceGrade.G3, RaceSurface.DIRT, 1800, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, 1, 'チャンピオンズC', 40_000_000),
         (44, 'ジャパンカップ', 'TOKYO', RaceGrade.G1, RaceSurface.TURF, 2400, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, 0, None, 500_000_000),
+        (44, '兵庫ジュニアグランプリ', 'FUNABASHI', RaceGrade.G2, RaceSurface.DIRT, 1400, AgeRestriction.TWO_YO, SexRestriction.MIXED, 1, '全日本２歳優駿', 40_000_000),
         (44, '京都2歳S', 'KYOTO', RaceGrade.G3, RaceSurface.TURF, 2000, AgeRestriction.TWO_YO, SexRestriction.MIXED, 1, 'ホープフルS', 33_000_000),
         (44, '京阪杯', 'KYOTO', RaceGrade.G3, RaceSurface.TURF, 1200, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, 0, None, 41_000_000),
         # 12月
@@ -285,8 +288,9 @@ def generate_full_program(year: int = 1) -> List[Race]:
 
     for w, name, trk, grd, surf, dist, age_r, sex_r, is_tr, tg1, bp in major_races:
         m = (w - 1) // 4 + 1
+        disp_name = f"{name} [{tg1}トライアル]" if (is_tr and tg1) else name
         races.append(Race(
-            name=name, track_id=trk, month=m, week=w, grade=grd,
+            name=disp_name, track_id=trk, month=m, week=w, grade=grd,
             surface=surf, distance=dist, age_restriction=age_r,
             sex_restriction=sex_r, full_gate=8, is_trial=is_tr,
             target_g1_name=tg1, base_prize=bp, year=year
@@ -295,12 +299,13 @@ def generate_full_program(year: int = 1) -> List[Race]:
     # 2. リステッドレース (L / OP・実在冠名付き)
     for w, name, trk, surf, dist, age_r, is_tr, tg1 in LISTED_TITLES:
         m = (w - 1) // 4 + 1
+        base_name = f"{name}(L)"
+        disp_name = f"{base_name} [{tg1}トライアル]" if (is_tr and tg1) else base_name
         races.append(Race(
-            name=f"{name}(L)", track_id=trk, month=m, week=w, grade=RaceGrade.L,
+            name=disp_name, track_id=trk, month=m, week=w, grade=RaceGrade.L,
             surface=surf, distance=dist, age_restriction=age_r,
-            sex_restriction=SexRestriction.MIXED, full_gate=8,
-            is_trial=1 if is_tr else 0, target_g1_name=tg1,
-            base_prize=25_000_000, condition_prize=10_000_000, year=year
+            sex_restriction=SexRestriction.MIXED, full_gate=8, is_trial=1 if is_tr else 0,
+            target_g1_name=tg1, base_prize=25_000_000, condition_prize=10_000_000, year=year
         ))
 
     # 3. 冠名付き3勝クラス特別 (各週2〜3レース)

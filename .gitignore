@@ -28,10 +28,14 @@ ENV/
 # Database and Generated Files
 data/*.db
 data/*.db-journal
+data/*.db-shm
+data/*.db-wal
 data/*.html
 tests/*.db
 tests/*.html
 *.db
+*.db-shm
+*.db-wal
 
 # IDE and OS
 .vscode/

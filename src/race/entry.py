@@ -24,8 +24,10 @@ class RaceEntryManager:
     ) -> List[int]:
         """
         対象G1の当年トライアル競走で優先出走権を獲得した馬のIDリストを取得
-        - 重賞トライアル: 1〜3着
-        - リステッド/オープン特別トライアル: 1着
+        - G2トライアル: 1〜3着 (最大3頭)
+        - G3トライアル: 1〜2着 (最大2頭)
+        - リステッド/オープン特別トライアル: 1着 (最大1頭)
+        - 合計最大8頭まで
         """
         query = """
         SELECT r.horse_id, rc.grade, r.finish_position
@@ -34,7 +36,7 @@ class RaceEntryManager:
         WHERE rc.year = ?
           AND rc.is_trial = 1
           AND rc.target_g1_name = ?
-        ORDER BY r.finish_position ASC
+        ORDER BY rc.week ASC, r.finish_position ASC
         """
         if conn is not None:
             cursor = conn.execute(query, (year, target_g1_name))
@@ -49,14 +51,51 @@ class RaceEntryManager:
             h_id = row['horse_id']
             grade = row['grade']
             pos = row['finish_position']
-            if grade in ('G2', 'G3') and pos <= 3:
-                if h_id not in priority_horse_ids:
-                    priority_horse_ids.append(h_id)
+            is_qualified = False
+            if grade == 'G2' and pos <= 3:
+                is_qualified = True
+            elif grade == 'G3' and pos <= 2:
+                is_qualified = True
             elif grade in ('L', 'OP') and pos == 1:
-                if h_id not in priority_horse_ids:
-                    priority_horse_ids.append(h_id)
+                is_qualified = True
+
+            if is_qualified and h_id not in priority_horse_ids:
+                priority_horse_ids.append(h_id)
+                if len(priority_horse_ids) >= 8:
+                    break
 
         return priority_horse_ids
+
+    def get_holding_priority_g1(
+        self, horse_id: int, current_year: int, current_week: int, conn: Optional[Any] = None
+    ) -> Optional[str]:
+        """
+        馬がまだ開催されていない当年G1の優先出走権を保持しているか確認
+        - 保持している場合はそのG1名を返す（本番まで他のトライアル等への出走を自重・温存）
+        """
+        query = """
+        SELECT rc.target_g1_name, MIN(g1.week) as g1_week
+        FROM results r
+        JOIN races rc ON r.race_id = rc.race_id
+        JOIN races g1 ON rc.target_g1_name = g1.name AND rc.year = g1.year
+        WHERE r.horse_id = ?
+          AND rc.year = ?
+          AND rc.is_trial = 1
+          AND (
+              (rc.grade = 'G2' AND r.finish_position <= 3) OR
+              (rc.grade = 'G3' AND r.finish_position <= 2) OR
+              (rc.grade IN ('L', 'OP') AND r.finish_position = 1)
+          )
+          AND g1.week >= ?
+        GROUP BY rc.target_g1_name
+        """
+        if conn is not None:
+            row = conn.execute(query, (horse_id, current_year, current_week)).fetchone()
+        else:
+            with self.db.session() as session_conn:
+                row = session_conn.execute(query, (horse_id, current_year, current_week)).fetchone()
+
+        return row["target_g1_name"] if row else None
 
     def can_enter_race(
         self,
@@ -64,27 +103,36 @@ class RaceEntryManager:
         race: Race,
         last_run: Optional[Tuple[int, int]] = None,
         has_graded_top2: bool = False,
+        conn: Optional[Any] = None,
     ) -> bool:
         """
-        馬がレースの出走資格（年齢・性別・クラス・中2週・実績）を満たしているか判定
+        馬がレースの出走資格（年齢・性別・クラス・中2週・実績・優先出走権温存）を満たしているか判定
         - 1レース8頭限定
         - 最低中2週（中2週あけるため、最短3週後に出走可能）
-        - 2歳: 新馬・未勝利戦勝利後に重賞・リステッド出走可能
-        - 3歳春まで(〜20週): 1勝クラス勝利後(2勝以上)に重賞・リステッド出走可能
-        - 3歳夏〜秋(21週〜): 重賞2着以内、もしくは3勝クラス勝利馬(4勝以上)が重賞・リステッド出走可能
-        - 4歳以降: 3勝以上、または3勝クラス勝利馬のみ重賞・リステッド出走可能
+        - G1トライアル優先出走権獲得馬は本番G1まで温存（他のトライアルや一般戦に出走不可）
+        - 4着以下の馬は何度でも出走可能
         """
         if horse.is_active != 1 or horse.is_dead == 1:
             return False
 
-        # 1. 中2週制限（前走から最低3週以上の間隔が必要）
+        # 1. 優先出走権保持馬の温存判定 (本番G1以外のレースへの出走をブロック)
+        if horse.horse_id is not None:
+            holding_g1 = self.get_holding_priority_g1(
+                horse.horse_id, race.year, race.week, conn=conn
+            )
+            if holding_g1:
+                # 本番の対象G1であれば出走可能、それ以外のレースは本番まで温存のため出走不可
+                if race.name != holding_g1:
+                    return False
+
+        # 2. 中2週制限（前走から最低3週以上の間隔が必要）
         if last_run is not None:
             last_y, last_w = last_run
             diff_weeks = (race.year - last_y) * 48 + (race.week - last_w)
             if diff_weeks < 3:
                 return False
 
-        # 2. 年齢制限チェック
+        # 3. 年齢制限チェック
         if race.age_restriction == AgeRestriction.TWO_YO and horse.age != 2:
             return False
         if race.age_restriction == AgeRestriction.THREE_YO and horse.age != 3:
@@ -94,7 +142,7 @@ class RaceEntryManager:
         if race.age_restriction == AgeRestriction.FOUR_YO_UP and horse.age < 4:
             return False
 
-        # 3. 性別制限チェック
+        # 4. 性別制限チェック
         is_female = horse.sex in ('filly', 'mare')
         is_male = horse.sex in ('colt', 'horse', 'gelding')
         if race.sex_restriction == SexRestriction.FILLY_MARE and not is_female:
@@ -102,7 +150,7 @@ class RaceEntryManager:
         if race.sex_restriction == SexRestriction.COLT_HORSE and not is_male:
             return False
 
-        # 4. クラス・重賞・リステッド出走資格チェック
+        # 5. クラス・重賞・リステッド出走資格チェック
         wins = horse.career_wins
         is_graded_or_listed = race.grade in (
             RaceGrade.G1, RaceGrade.G2, RaceGrade.G3, RaceGrade.L, RaceGrade.OP
@@ -208,6 +256,7 @@ class RaceEntryManager:
         priority_horse_ids: Optional[List[int]] = None,
         last_runs_map: Optional[Dict[int, Tuple[int, int]]] = None,
         graded_top2_set: Optional[Set[int]] = None,
+        conn: Optional[Any] = None,
     ) -> List[Horse]:
         """
         出走馬選定（8頭限定、優先出走権 ＋ 適性合致馬 ＋ 収得賞金上位）
@@ -222,7 +271,7 @@ class RaceEntryManager:
             h_id = h.horse_id
             last_run = last_runs_map.get(h_id) if (last_runs_map and h_id is not None) else None
             has_top2 = h_id in graded_top2_set if (graded_top2_set and h_id is not None) else False
-            if self.can_enter_race(h, race, last_run=last_run, has_graded_top2=has_top2):
+            if self.can_enter_race(h, race, last_run=last_run, has_graded_top2=has_top2, conn=conn):
                 valid_candidates.append(h)
 
         if not valid_candidates:

@@ -175,6 +175,7 @@ class CalendarController:
                     priority_horse_ids=priority_horse_ids,
                     last_runs_map=last_runs_map,
                     graded_top2_set=graded_top2_set,
+                    conn=conn,
                 )
 
                 if not starters:

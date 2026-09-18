@@ -47,10 +47,17 @@ def format_finish_time(seconds: float) -> str:
 class HorseDetailDialog(QDialog):
     """競走馬詳細ウィンドウ"""
 
-    def __init__(self, db: Database, horse_id: int, parent: Optional[QWidget] = None):
+    def __init__(
+        self,
+        db: Database,
+        horse_id: int,
+        exclude_race_id: Optional[int] = None,
+        parent: Optional[QWidget] = None,
+    ):
         super().__init__(parent)
         self.db = db
         self.horse_id = horse_id
+        self.exclude_race_id = exclude_race_id
         self.pedigree_builder = PedigreeBuilder(db)
 
         self.setWindowTitle("🐎 競走馬詳細・血統・成績")
@@ -204,17 +211,39 @@ class HorseDetailDialog(QDialog):
                 if jk:
                     jockey_name = jk["name"]
 
-            # レース履歴
-            query_results = """
-                SELECT 
-                    r.year, r.week, r.track_id, r.name AS race_name, r.grade, r.surface, r.distance, r.full_gate,
-                    res.finish_position, res.finish_time, res.last_3f, res.prize_awarded
-                FROM results res
-                JOIN races r ON res.race_id = r.race_id
-                WHERE res.horse_id = ?
-                ORDER BY r.year ASC, r.week ASC
-            """
-            results = conn.execute(query_results, (self.horse_id,)).fetchall()
+            # レース履歴（直近順・降順で表示）
+            if self.exclude_race_id:
+                query_results = """
+                    SELECT 
+                        r.year, r.week, r.track_id, r.name AS race_name, r.grade, r.surface, r.distance, r.full_gate,
+                        res.finish_position, res.finish_time, res.last_3f, res.prize_awarded
+                    FROM results res
+                    JOIN races r ON res.race_id = r.race_id
+                    WHERE res.horse_id = ? AND res.race_id != ?
+                    ORDER BY r.year DESC, r.week DESC
+                """
+                results = conn.execute(query_results, (self.horse_id, self.exclude_race_id)).fetchall()
+
+                # 除外された今走の獲得賞金を取得して生涯獲得賞金から差し引く
+                ex_row = conn.execute(
+                    "SELECT prize_awarded FROM results WHERE horse_id = ? AND race_id = ?",
+                    (self.horse_id, self.exclude_race_id)
+                ).fetchone()
+                adjusted_prize = horse.prize_money - (ex_row["prize_awarded"] if ex_row and ex_row["prize_awarded"] else 0)
+                if adjusted_prize < 0:
+                    adjusted_prize = 0
+            else:
+                query_results = """
+                    SELECT 
+                        r.year, r.week, r.track_id, r.name AS race_name, r.grade, r.surface, r.distance, r.full_gate,
+                        res.finish_position, res.finish_time, res.last_3f, res.prize_awarded
+                    FROM results res
+                    JOIN races r ON res.race_id = r.race_id
+                    WHERE res.horse_id = ?
+                    ORDER BY r.year DESC, r.week DESC
+                """
+                results = conn.execute(query_results, (self.horse_id,)).fetchall()
+                adjusted_prize = horse.prize_money
 
         # ヘッダー情報セット
         sex_map = {"colt": "牡", "filly": "牝", "horse": "牡", "mare": "牝", "gelding": "セ"}
@@ -228,12 +257,14 @@ class HorseDetailDialog(QDialog):
         self.lbl_owner.setText(f"馬主: {owner_name}")
         self.lbl_jockey.setText(f"主戦騎手: {jockey_name}")
         self.lbl_aptitude.setText(f"適性: {surf_jp} / {horse.apt_distance_min}m〜{horse.apt_distance_max}m (幅{horse.apt_distance_range}m)")
-        self.lbl_earnings.setText(f"生涯獲得賞金: {horse.prize_money // 10000:,} 万円")
+        self.lbl_earnings.setText(f"生涯獲得賞金: {adjusted_prize // 10000:,} 万円")
 
         # 1. 履歴テーブルの反映
         self.table_history.setRowCount(len(results))
         for idx, r in enumerate(results):
-            y_w = f"{r['year']}年 {((r['week']-1)%4)+1}週"
+            m_num = ((r['week'] - 1) // 4) + 1
+            w_in_m = ((r['week'] - 1) % 4) + 1
+            y_w = f"{r['year']:04d}年/{m_num:02d}月/{w_in_m}週"
             track = r["track_id"]
             r_name = r["race_name"]
             grade = r["grade"]

@@ -309,39 +309,72 @@ class RaceEngine:
         jockey_dict: Dict[int, Jockey],
         jockey_assignments: Optional[Dict[int, int]] = None,
     ) -> Dict[int, float]:
-        """出走各馬の能力値・調子・騎手技量からリアルな単勝オッズ（例: 2.4倍）を算出"""
+        """出走各馬の基礎能力・馬場適性・距離適性・調子・騎手総合力から高精度な単勝オッズを算出"""
         if not valid_starters:
             return {}
 
+        race_surf = race.surface.value if hasattr(race.surface, "value") else str(race.surface)
         scores: Dict[int, float] = {}
+
         for horse in valid_starters:
             hid = horse.horse_id
             j_id = jockey_assignments.get(hid) if jockey_assignments else getattr(horse, "jockey_id", None)
-            jockey = jockey_dict.get(j_id) if j_id else None
-            j_skill = jockey.skill if jockey else 50.0
+            jockey = jockey_dict.get(j_id) if (jockey_dict and j_id) else None
 
-            # 調子係数 (調子50で1.0、好調でプラス)
+            # 1. 基礎能力 (スピード 40%, 瞬発力 25%, スタミナ 25%)
+            eff_rate = getattr(horse, "current_ability_rate", 1.0)
+            base_ability = (
+                horse.speed * 0.40 + horse.acceleration * 0.25 + horse.stamina * 0.25
+            ) * eff_rate
+
+            # 2. 馬場適性適合度 (芝・ダート)
+            surf_apt = getattr(horse, "surface_aptitude", "turf")
+            if surf_apt == "both":
+                surf_bonus = 3.0
+            elif surf_apt == race_surf:
+                surf_bonus = 5.0
+            else:
+                surf_bonus = -25.0  # 不適性馬場は大減点
+
+            # 3. 距離適性適合度
+            min_d = getattr(horse, "apt_distance_min", 1200)
+            max_d = getattr(horse, "apt_distance_max", 2000)
+            if min_d <= race.distance <= max_d:
+                dist_bonus = 5.0
+            elif race.distance < min_d:
+                dist_bonus = -min(20.0, ((min_d - race.distance) / 200.0) * 6.0)
+            else:
+                dist_bonus = -min(20.0, ((race.distance - max_d) / 200.0) * 6.0)
+
+            # 4. 騎手総合力 (技術, 追い, 経験, フリー所属)
+            if jockey:
+                j_power = (
+                    jockey.skill * 0.50
+                    + jockey.drive * 0.30
+                    + min(jockey.experience, 100.0) * 0.20
+                )
+                j_bonus = ((j_power - 50.0) / 50.0) * 6.0
+                if getattr(jockey, "is_free", 0) == 1:
+                    j_bonus += 1.5
+            else:
+                j_bonus = 0.0
+
+            # 5. 調子係数
             cond = getattr(horse, "condition", 50.0)
-            cond_factor = 1.0 + (cond - 50.0) * 0.0025
+            cond_factor = 1.0 + (cond - 50.0) * 0.003
 
-            # 総合能力スコア（スピード 45%, 瞬発力 25%, スタミナ 20%, 騎手 10%）
-            raw_score = (
-                horse.speed * 0.45
-                + horse.acceleration * 0.25
-                + horse.stamina * 0.20
-                + j_skill * 0.10
-            ) * cond_factor
-            scores[hid] = raw_score
+            # 総合期待スコア
+            raw_score = (base_ability + surf_bonus + dist_bonus + j_bonus) * cond_factor
+            scores[hid] = max(10.0, raw_score)
 
-        # Softmax による勝率算出（適度な人気格差が出るよう温度を4.5に設定）
+        # Softmax による勝率算出（実力差が適切にオッズに反映される温度 4.2）
         max_s = max(scores.values())
-        temp = 4.5
+        temp = 4.2
         exp_scores = {hid: math.exp((s - max_s) / temp) for hid, s in scores.items()}
         sum_exp = sum(exp_scores.values())
         probs = {hid: exp_scores[hid] / sum_exp for hid in scores}
 
         # 単勝払戻率 80% (JRA控除率20%)
-        # オッズ = 0.80 / 勝率 (最低1.1倍、最高999.9倍)
         odds_map: Dict[int, float] = {}
         for hid, p in probs.items():
             if p <= 0.0001:
@@ -633,7 +666,7 @@ class RaceEngine:
                     else:
                         target_lat = pref_lat
 
-                    # 前方の馬を検出 (0.5m < Δdist < 6.0m, 横差 |Δlat| < 1.1m)
+                    # 前方の馬を検出 (0.5m < Δdist < 7.5m, 横差 |Δlat| < 1.8m)
                     front_slow_horse = None
                     min_gap = 999.0
                     for other in sim_horses:
@@ -641,40 +674,40 @@ class RaceEngine:
                             continue
                         d_gap = other["next_dist"] - cur_d
                         l_gap = abs(other["cur_lateral"] - cur_lat)
-                        if 0.5 < d_gap < 6.0 and l_gap < 1.1:
+                        if 0.5 < d_gap < 7.5 and l_gap < 1.8:
                             if d_gap < min_gap:
                                 min_gap = d_gap
                                 front_slow_horse = other
 
                     if front_slow_horse:
                         b_lat = front_slow_horse["cur_lateral"]
-                        # 内側が空いているか (内ラチ 1.0m 以上かつ内側に馬がいない)
-                        can_inside = (b_lat - 1.35 >= 1.0)
+                        # 内側が空いているか (内ラチ 1.2m 以上かつ内側に馬がいない)
+                        can_inside = (b_lat - 1.9 >= 1.2)
                         if can_inside:
                             # 内側に他馬が並走していないか確認
                             for other in sim_horses:
                                 if other["horse_id"] in (h["horse_id"], front_slow_horse["horse_id"]):
                                     continue
-                                if abs(other["next_dist"] - cur_d) < 3.0 and abs(other["cur_lateral"] - (b_lat - 1.35)) < 0.9:
+                                if abs(other["next_dist"] - cur_d) < 4.0 and abs(other["cur_lateral"] - (b_lat - 1.9)) < 1.6:
                                     can_inside = False
                                     break
 
                         if can_inside:
-                            target_lat = b_lat - 1.35  # インから追い抜き
+                            target_lat = b_lat - 1.9  # インから追い抜き
                         else:
-                            target_lat = b_lat + 1.40  # アウトから追い抜き
+                            target_lat = b_lat + 2.0  # アウトから追い抜き
 
                     # まくり発動中は外目を通ってポジションを押し上げる
                     if h.get("makuri_active", False):
-                        target_lat = min(8.5, target_lat + h.get("makuri_extra_lat", 1.8))
+                        target_lat = min(10.0, target_lat + h.get("makuri_extra_lat", 2.2))
 
                     # 道中並走回避（安全マージン）
                     for other in sim_horses:
                         if other["horse_id"] == h["horse_id"]:
                             continue
-                        if abs(other["next_dist"] - cur_d) < 2.6 and abs(other["cur_lateral"] - cur_lat) < 1.20:
+                        if abs(other["next_dist"] - cur_d) < 3.8 and abs(other["cur_lateral"] - cur_lat) < 1.8:
                             if other["cur_lateral"] < cur_lat:
-                                target_lat = max(target_lat, other["cur_lateral"] + 1.30)
+                                target_lat = max(target_lat, other["cur_lateral"] + 1.9)
                 else:
                     # 【最後の直線】
                     # ルール1: 自分の前に馬がいない場合には、左右に動かない（直進！）
@@ -686,8 +719,8 @@ class RaceEngine:
                             continue
                         d_gap = other["next_dist"] - cur_d
                         l_gap = abs(other["cur_lateral"] - cur_lat)
-                        # 前方 0.5m 〜 7.0m かつ 横差 1.30m 以内の先行馬
-                        if 0.5 < d_gap < 7.0 and l_gap < 1.30:
+                        # 前方 0.5m 〜 8.5m かつ 横差 1.8m 以内の先行馬
+                        if 0.5 < d_gap < 8.5 and l_gap < 1.8:
                             if d_gap < min_block_dist:
                                 min_block_dist = d_gap
                                 front_blocker = other
@@ -698,74 +731,74 @@ class RaceEngine:
                     else:
                         # 前壁あり: 内側・外側の空きスペースを判定
                         b_lat = front_blocker["cur_lateral"]
-                        can_inside = (b_lat - 1.50 >= 1.0)
+                        can_inside = (b_lat - 2.0 >= 1.2)
                         if can_inside:
                             # イン側に他馬がいないか確認
                             for other in sim_horses:
                                 if other["horse_id"] in (h["horse_id"], front_blocker["horse_id"]):
                                     continue
-                                if abs(other["next_dist"] - cur_d) < 3.5 and abs(other["cur_lateral"] - (b_lat - 1.50)) < 1.20:
+                                if abs(other["next_dist"] - cur_d) < 4.5 and abs(other["cur_lateral"] - (b_lat - 2.0)) < 1.6:
                                     can_inside = False
                                     break
 
                         if can_inside:
                             # 内側が空いているのでインを突いて内側へ進路を取る！
-                            target_lat = b_lat - 1.50
+                            target_lat = b_lat - 2.0
                         else:
                             # 内側が塞がっている場合は外側へ持ち出して追い抜く！
-                            target_lat = min(course_width - 1.5, b_lat + 1.65)
+                            target_lat = min(course_width - 1.5, b_lat + 2.1)
 
                     # 直線での並走安全マージン（斜行・接触防止）
                     for other in sim_horses:
                         if other["horse_id"] == h["horse_id"]:
                             continue
-                        if abs(other["next_dist"] - cur_d) < 2.5 and abs(other["cur_lateral"] - target_lat) < 1.20:
+                        if abs(other["next_dist"] - cur_d) < 3.8 and abs(other["cur_lateral"] - target_lat) < 1.8:
                             if other["cur_lateral"] < target_lat:
-                                target_lat = max(target_lat, other["cur_lateral"] + 1.30)
+                                target_lat = max(target_lat, other["cur_lateral"] + 1.9)
 
                 # 横移動の更新（スムーズなレーンチェンジ）
-                # スタート直後（0〜350m）は急激な斜行を抑えるため 0.08m/ステップ（1秒で0.8m）、通常時は 0.18m/ステップ
-                max_lat_delta = 0.08 if cur_d < 350.0 else 0.18
+                # スタート直後（0〜350m）は急激な斜行を抑えるため 0.08m/ステップ（1秒で0.8m）、通常時は 0.22m/ステップ
+                max_lat_delta = 0.08 if cur_d < 350.0 else 0.22
                 lat_diff = target_lat - cur_lat
                 if abs(lat_diff) <= max_lat_delta:
                     new_lat = target_lat
                 else:
                     new_lat = cur_lat + math.copysign(max_lat_delta, lat_diff)
 
-                # 道中は適度に広がりを持たせつつ外に広がりすぎないよう上限(8.5m)（スタート集結完了後350m以降）
+                # 道中は適度に広がりを持たせつつ外に広がりすぎないよう上限(10.0m)（スタート集結完了後350m以降）
                 if rem_d > 450.0 and cur_d > 350.0:
-                    h["temp_lateral"] = max(0.8, min(8.5, new_lat))
+                    h["temp_lateral"] = max(1.0, min(10.0, new_lat))
                 else:
-                    h["temp_lateral"] = max(0.8, min(course_width - 1.0, new_lat))
+                    h["temp_lateral"] = max(1.0, min(course_width - 1.2, new_lat))
 
             # 3. 馬体同士の並走・追い抜き重なり完全防止（ペア間分離パス）
-            # 前後差 2.6m 以内で横間隔が 1.30m 未満の場合、確実に左右へ押し広げて重なりを根絶
-            for _ in range(5):
+            # 前後差 3.8m 以内で横間隔が 2.0m 未満の場合、確実に左右へ押し広げて重なりを根絶
+            for _ in range(8):
                 for i in range(len(sim_horses)):
                     h_i = sim_horses[i]
                     for j in range(i + 1, len(sim_horses)):
                         h_j = sim_horses[j]
                         d_gap = abs(h_i["next_dist"] - h_j["next_dist"])
-                        if d_gap < 2.6:
+                        if d_gap < 3.8:
                             l_i = h_i["temp_lateral"]
                             l_j = h_j["temp_lateral"]
                             lat_gap = abs(l_i - l_j)
-                            min_clearance = 1.30
+                            min_clearance = 2.0
                             if lat_gap < min_clearance:
-                                push = (min_clearance - lat_gap) / 2.0 + 0.08
-                                # 内ラチ(0.8m)や外ラチ(course_width - 1.0m)の壁際を考慮した退避
+                                push = (min_clearance - lat_gap) / 2.0 + 0.10
+                                # 内ラチ(1.0m)や外ラチ(course_width - 1.2m)の壁際を考慮した退避
                                 if l_i > l_j:
-                                    if h_j["temp_lateral"] - push < 0.8:
+                                    if h_j["temp_lateral"] - push < 1.0:
                                         h_i["temp_lateral"] += push * 2.0
-                                    elif h_i["temp_lateral"] + push > course_width - 1.0:
+                                    elif h_i["temp_lateral"] + push > course_width - 1.2:
                                         h_j["temp_lateral"] -= push * 2.0
                                     else:
                                         h_i["temp_lateral"] += push
                                         h_j["temp_lateral"] -= push
                                 elif l_i < l_j:
-                                    if h_i["temp_lateral"] - push < 0.8:
+                                    if h_i["temp_lateral"] - push < 1.0:
                                         h_j["temp_lateral"] += push * 2.0
-                                    elif h_i["temp_lateral"] + push > course_width - 1.0:
+                                    elif h_i["temp_lateral"] + push > course_width - 1.2:
                                         h_i["temp_lateral"] -= push * 2.0
                                     else:
                                         h_i["temp_lateral"] -= push

@@ -275,6 +275,7 @@ class DashboardView(QWidget):
 
     def refresh_dashboard(self) -> None:
         """DBの最新消化週を取得し、ダッシュボードを更新"""
+        self._ensure_initial_week_run()
         with self.db.session() as conn:
             latest_y, latest_w = get_latest_completed_week(conn)
 
@@ -428,6 +429,24 @@ class DashboardView(QWidget):
                 ORDER BY res.gate_number ASC
             """, (race_id,)).fetchall()
 
+        # もしまだ未実行のレースだった場合は自動実行して結果（出馬表）を即時生成
+        if not results:
+            with self.db.session() as conn:
+                rc_info = conn.execute("SELECT year, week FROM races WHERE race_id = ?", (race_id,)).fetchone()
+            if rc_info:
+                self.cal.run_week(rc_info["year"], rc_info["week"])
+                with self.db.session() as conn:
+                    results = conn.execute("""
+                        SELECT res.*, h.name as horse_name, h.sex, h.age, h.mstn_type,
+                               j.name as jockey_name, t.name as trainer_name
+                        FROM results res
+                        JOIN horses h ON res.horse_id = h.horse_id
+                        LEFT JOIN jockeys j ON res.jockey_id = j.jockey_id
+                        LEFT JOIN trainers t ON h.trainer_id = t.trainer_id
+                        WHERE res.race_id = ?
+                        ORDER BY res.gate_number ASC
+                    """, (race_id,)).fetchall()
+
         sex_map = {"colt": "牡", "filly": "牝", "horse": "牡", "mare": "牝", "gelding": "セ"}
 
         if results:
@@ -497,12 +516,17 @@ class DashboardView(QWidget):
             self.table_entry.setRowCount(0)
 
     def _on_horse_cell_clicked(self, row: int, col: int) -> None:
-        """出走馬表のセル（特に馬名）クリックで競走馬詳細ダイアログを開く"""
+        """出走馬表のセル（特に馬名）クリックで競走馬詳細ダイアログを開く（今走結果は除外）"""
         item = self.table_entry.item(row, 2)
         if item:
             horse_id = item.data(Qt.ItemDataRole.UserRole)
             if horse_id:
-                dlg = HorseDetailDialog(self.db, horse_id, parent=self)
+                dlg = HorseDetailDialog(
+                    self.db,
+                    horse_id,
+                    exclude_race_id=self.current_selected_race_id,
+                    parent=self,
+                )
                 dlg.exec()
 
     def _open_race_view(self) -> None:
