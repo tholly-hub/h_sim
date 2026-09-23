@@ -67,7 +67,7 @@ class TestPhase2Breeding(unittest.TestCase):
         """交配・当歳馬誕生と種牡馬30頭制限の検証"""
         # Year 1 で交配を実施
         newborn_ids = self.breeding_engine.perform_annual_breeding(current_year=1)
-        self.assertGreater(len(newborn_ids), 300, "当歳馬が年間目標値近く誕生している必要があります")
+        self.assertEqual(len(newborn_ids), 600, "繁殖牝馬600頭から毎年600頭の当歳馬が誕生している必要があります")
 
         with self.db.session() as conn:
             # 1. 各種牡馬の種付け頭数が30頭以下であることの検証

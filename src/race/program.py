@@ -25,26 +25,10 @@ class RaceProgramBuilder:
     def generate_annual_program(self, year: int = 1) -> List[Race]:
         """
         年間レース一覧を生成
-        - 1年目: 2歳戦のみ（6月第21週〜第48週）
-        - 2年目: 2歳・3歳限定戦のみ（第1週〜第48週）
-        - 3年目以降: 全年齢（フル番組表）
+        全年齢・全グレードのフル番組表（年間48週）を生成
         """
         all_races = generate_full_program(year=year)
-        if year == 1:
-            # 1年目: 2歳戦のみ、かつ6月第21週以降
-            return [
-                r for r in all_races
-                if r.week >= 21 and r.age_restriction == AgeRestriction.TWO_YO
-            ]
-        elif year == 2:
-            # 2年目: 2歳および3歳戦のみ
-            return [
-                r for r in all_races
-                if r.age_restriction in (AgeRestriction.TWO_YO, AgeRestriction.THREE_YO)
-            ]
-        else:
-            # 3年目以降: フル番組表
-            return all_races
+        return all_races
 
     def register_annual_program(self, year: int = 1) -> int:
         """年間番組表をDBへ登録"""

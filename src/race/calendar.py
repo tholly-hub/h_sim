@@ -178,7 +178,7 @@ class CalendarController:
                     conn=conn,
                 )
 
-                if not starters:
+                if not starters or len(starters) < 4:
                     continue
 
                 for h in starters:
@@ -217,9 +217,29 @@ class CalendarController:
                 })
 
             retired_maidens_count = 0
+            # 3月第1週（第9週）: 当歳馬（0歳）誕生・出産処理
+            if week == 9:
+                from src.core.breeding import BreedingEngine
+                BreedingEngine(self.db).perform_spring_foaling(year, conn=conn)
+
+            # 4月第1週（第13週）: 種付け交配処理
+            if week == 13:
+                from src.core.breeding import BreedingEngine
+                BreedingEngine(self.db).perform_spring_mating(year, conn=conn)
+
             # 未勝利馬は3歳9月末（第36週）でカット
             if week == 36:
                 retired_maidens_count = self._process_3yo_maiden_retirement(conn, year)
+
+            # 100勝メモリアル記録の自動同期
+            from src.race.awards import AwardsManager
+            awards_mgr = AwardsManager(self.db, conn=conn)
+            awards_mgr.sync_all_milestones(conn=conn)
+
+            # 12月4週（第48週）終了後、年度代表馬および各部門賞を自動選出
+            annual_awards = []
+            if week == 48:
+                annual_awards = awards_mgr.determine_annual_awards(year, conn=conn)
 
             return {
                 "year": year,
@@ -227,6 +247,7 @@ class CalendarController:
                 "races_run": len(race_summaries),
                 "starters_count": total_starters,
                 "retired_maidens": retired_maidens_count,
+                "annual_awards": annual_awards,
                 "races": race_summaries,
             }
 
@@ -420,7 +441,7 @@ class CalendarController:
                     )
 
     def _process_3yo_maiden_retirement(self, conn: Any, year: int) -> int:
-        """3歳未勝利馬（第28週終了時で0勝）の引退判定"""
+        """3歳未勝利馬（第36週・9月4週終了時で0勝の未出走・未勝利馬）の引退判定"""
         cursor = conn.execute(
             """
             SELECT horse_id, sex, breeder_id
@@ -436,17 +457,11 @@ class CalendarController:
             sex = m['sex']
             breeder_id = m['breeder_id']
 
-            conn.execute("UPDATE horses SET is_active = 0 WHERE horse_id = ?", (h_id,))
+            conn.execute(
+                "UPDATE horses SET is_active = 0, retired_year = ?, trainer_id = NULL, jockey_id = NULL WHERE horse_id = ?",
+                (year, h_id),
+            )
             retired_count += 1
-
-            if sex == 'filly':
-                cur_dam = conn.execute("SELECT dam_id FROM dams WHERE horse_id = ?", (h_id,))
-                if not cur_dam.fetchone():
-                    conn.execute(
-                        "INSERT INTO dams (horse_id, breeder_id, is_active) VALUES (?, ?, 1)",
-                        (h_id, breeder_id),
-                    )
-                    conn.execute("UPDATE horses SET is_dam = 1 WHERE horse_id = ?", (h_id,))
 
         return retired_count
 

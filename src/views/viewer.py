@@ -576,7 +576,19 @@ class HorseViewer:
             sire_display = row["sire_name"] if row["sire_name"] else "不明 (スタッドブック開始前の始祖馬)"
             dam_display = row["dam_name"] if row["dam_name"] else "不明 (スタッドブック開始前の始祖馬)"
 
-            status_str = "現役競走馬" if row["is_active"] else ("種牡馬" if row["is_sire"] else ("繁殖牝馬" if row["is_dam"] else "引退"))
+            if row["is_sire"]:
+                status_str = "種牡馬"
+            elif row["is_dam"]:
+                status_str = "繁殖牝馬"
+            elif (row["age"] or 0) <= 1:
+                status_str = "入厩前"
+            elif row["is_active"]:
+                if (row["career_starts"] or 0) == 0:
+                    status_str = "未出走"
+                else:
+                    status_str = "現役競走馬"
+            else:
+                status_str = "引退"
 
             trainer_display = f"{row['trainer_name']} [{row['trainer_loc']}]" if row["trainer_name"] else "未入厩"
             jockey_display = f"{row['jockey_name']} [{row['jockey_loc']}]" if row["jockey_name"] else "未定"

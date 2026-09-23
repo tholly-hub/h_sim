@@ -18,28 +18,43 @@ class Database:
     """SQLite データベース管理クラス"""
 
     def __init__(self, db_path: Optional[Path | str] = None):
+        self.is_memory = False
+        self._keepalive_conn: Optional[sqlite3.Connection] = None
+        self._mem_uri: Optional[str] = None
+
         if db_path is None:
             self.db_path = get_config().get_db_path()
+        elif str(db_path).startswith(":memory:"):
+            self.is_memory = True
+            import uuid
+            self._mem_uri = f"file:mem_{uuid.uuid4().hex}?mode=memory&cache=shared"
+            self.db_path = ":memory:"
+            # 共有メモリが破棄されないようキープアライブ接続を保持
+            self._keepalive_conn = sqlite3.connect(self._mem_uri, uri=True)
+            self._keepalive_conn.execute("PRAGMA foreign_keys = ON;")
         else:
             self.db_path = Path(db_path).resolve()
-
-        # ディレクトリが存在しない場合は自動作成
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            # ディレクトリが存在しない場合は自動作成
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def get_connection(self) -> sqlite3.Connection:
         """
         SQLite 接続を生成して基本設定を適用
         Row オブジェクトでカラム名アクセス可能
         """
-        conn = sqlite3.connect(str(self.db_path), timeout=30.0)
+        if self.is_memory and self._mem_uri:
+            conn = sqlite3.connect(self._mem_uri, uri=True, timeout=30.0)
+        else:
+            conn = sqlite3.connect(str(self.db_path), timeout=30.0)
+            # パフォーマンス向上のための WAL モード (Write-Ahead Logging)
+            conn.execute("PRAGMA journal_mode = WAL;")
+            # 通常の同期モード (安全性と速度のバランス)
+            conn.execute("PRAGMA synchronous = NORMAL;")
+
         conn.row_factory = sqlite3.Row
         
         # 外部キー制約の有効化
         conn.execute("PRAGMA foreign_keys = ON;")
-        # パフォーマンス向上のための WAL モード (Write-Ahead Logging)
-        conn.execute("PRAGMA journal_mode = WAL;")
-        # 通常の同期モード (安全性と速度のバランス)
-        conn.execute("PRAGMA synchronous = NORMAL;")
 
         self._migrate_schema(conn)
         return conn
@@ -115,6 +130,33 @@ class Database:
                     if "skill_level" not in t_cols:
                         conn.execute("ALTER TABLE trainers ADD COLUMN skill_level REAL NOT NULL DEFAULT 50.0;")
 
+                # horsesテーブルのカラム補完
+                h_check = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='horses'"
+                ).fetchone()
+                if h_check:
+                    h_cols = [col["name"] for col in conn.execute("PRAGMA table_info(horses)").fetchall()]
+                    if "coat_color" not in h_cols:
+                        conn.execute("ALTER TABLE horses ADD COLUMN coat_color TEXT NOT NULL DEFAULT '鹿毛';")
+                    if "coat_genotype" not in h_cols:
+                        conn.execute("ALTER TABLE horses ADD COLUMN coat_genotype TEXT NOT NULL DEFAULT 'E/E A/A G/g W/w Cr/cr';")
+                    if "retired_year" not in h_cols:
+                        conn.execute("ALTER TABLE horses ADD COLUMN retired_year INTEGER;")
+                        conn.execute("CREATE INDEX IF NOT EXISTS idx_horses_retired_year ON horses(retired_year);")
+
+                # siresテーブルのカラム補完
+                s_check = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='sires'"
+                ).fetchone()
+                if s_check:
+                    s_cols = [col["name"] for col in conn.execute("PRAGMA table_info(sires)").fetchall()]
+                    if "is_foreign" not in s_cols:
+                        conn.execute("ALTER TABLE sires ADD COLUMN is_foreign INTEGER NOT NULL DEFAULT 0;")
+                    if "is_new" not in s_cols:
+                        conn.execute("ALTER TABLE sires ADD COLUMN is_new INTEGER NOT NULL DEFAULT 0;")
+                    if "consecutive_zero_win_years" not in s_cols:
+                        conn.execute("ALTER TABLE sires ADD COLUMN consecutive_zero_win_years INTEGER NOT NULL DEFAULT 0;")
+
                 # assistant_trainersテーブルの自動作成
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS assistant_trainers (
@@ -128,6 +170,7 @@ class Database:
                         is_active INTEGER NOT NULL DEFAULT 1,
                         FOREIGN KEY (jockey_id) REFERENCES jockeys(jockey_id),
                         FOREIGN KEY (trainer_id) REFERENCES trainers(trainer_id)
+
                     );
                 """)
         except Exception as e:
@@ -151,9 +194,10 @@ class Database:
         データベーススキーマ（DDL）を実行
         force_recreate が True の場合、既存テーブルを全削除して再作成
         """
-        with self.session() as conn:
+        conn = self.get_connection()
+        try:
             if force_recreate:
-                # 外部キーを一時無効化して既存の全テーブルを確実に削除
+                conn.isolation_level = None
                 conn.execute("PRAGMA foreign_keys = OFF;")
                 existing_tables = conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
@@ -162,8 +206,10 @@ class Database:
                     conn.execute(f"DROP TABLE IF EXISTS \"{t['name']}\";")
                 conn.execute("PRAGMA foreign_keys = ON;")
             
-            # スキーマ DDL スクリプトの一括実行
             conn.executescript(DDL_STATEMENTS)
+            conn.commit()
+        finally:
+            conn.close()
 
 
 _global_db_instance: Optional[Database] = None

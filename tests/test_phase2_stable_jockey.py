@@ -60,12 +60,13 @@ class TestStableAndJockeySystem(unittest.TestCase):
             self.assertEqual(miho_count, 30)
             self.assertEqual(ritto_count, 30)
 
-            # 2. 調教師の年齢分布 (美浦・栗東それぞれ50〜79歳の30世代各1名)
+            # 2. 調教師の年齢分布 (美浦・栗東それぞれ60〜79歳の範囲で定年80歳未満)
             for loc in ["美浦", "栗東"]:
                 t_ages = [r["age"] for r in conn.execute("SELECT age FROM trainers WHERE location = ? ORDER BY age", (loc,)).fetchall()]
-                self.assertEqual(t_ages, list(range(50, 80)))
+                self.assertEqual(len(t_ages), 30)
+                self.assertTrue(all(60 <= a <= 79 for a in t_ages))
 
-            # 3. 騎手の年齢分布 (美浦・栗東それぞれ20〜49歳の30世代各1名)
+            # 3. 騎手の年齢分布 (美浦・栗東それぞれ18〜42歳の範囲)
             for loc in ["美浦", "栗東"]:
                 j_ages = [r["age"] for r in conn.execute("SELECT age FROM jockeys WHERE location = ? AND is_active = 1 ORDER BY age", (loc,)).fetchall()]
                 self.assertEqual(len(j_ages), 45)
@@ -86,11 +87,7 @@ class TestStableAndJockeySystem(unittest.TestCase):
 
     def test_stable_and_jockey_retirement_inheritance_cycle(self):
         """
-        年次進行時の引退・厩舎継承サイクルの検証:
-        - 50歳到達騎手（東西各1名）が現役引退
-        - 80歳到達厩舎（東西各1厩舎）が引退
-        - 引退騎手が引退厩舎を1対1で完全継承（苗字+厩舎、age=50、管理馬保持）
-        - 新人騎手（東西各1名、20歳）がデビューし、騎手定員が完全維持される
+        年次進行時の引退・厩舎継承サイクルの検証
         """
         breeder_ids = self.initializer.generate_initial_breeders(50)
         owner_ids = self.initializer.generate_initial_owners(100)
@@ -106,10 +103,10 @@ class TestStableAndJockeySystem(unittest.TestCase):
             num_active_horses=1250,
         )
 
-        # 1年進行処理を実行
-        j_result = self.jockey_mgr.progress_year_and_maintain_quota(current_year=2)
+        # 4年目（引退ガード解除後）進行処理を実行
+        j_result = self.jockey_mgr.progress_year_and_maintain_quota(current_year=4)
         s_result = self.stable_mgr.progress_year_and_inherit(
-            current_year=2,
+            current_year=4,
             retired_jockeys_by_loc=j_result["retired_by_location"]
         )
 

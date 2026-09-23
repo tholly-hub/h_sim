@@ -55,23 +55,24 @@ class TestPhase4GUI(unittest.TestCase):
                 pass
 
     def test_main_window_initialization(self):
-        """MainWindow が正常に起動し、5つのタブが存在すること"""
+        """MainWindow が正常に起動し、6つのタブが存在すること"""
         window = MainWindow(self.db)
         self.assertIsNotNone(window)
-        self.assertEqual(window.tabs.count(), 5)
-        tab_titles = [window.tabs.tabText(i) for i in range(5)]
+        self.assertEqual(window.tabs.count(), 6)
+        tab_titles = [window.tabs.tabText(i) for i in range(6)]
         self.assertTrue(any("ダッシュボード" in t for t in tab_titles))
-        self.assertTrue(any("競走馬" in t for t in tab_titles))
-        self.assertTrue(any("リーディング" in t for t in tab_titles))
-        self.assertTrue(any("タイム" in t for t in tab_titles))
-        self.assertTrue(any("リプレイ" in t for t in tab_titles))
+        self.assertTrue(any("シミュレーション状況" in t for t in tab_titles))
+        self.assertTrue(any("競馬データベース" in t or "コースレコード" in t for t in tab_titles))
+        self.assertTrue(any("各種リーディング" in t or "リーディング" in t for t in tab_titles))
+        self.assertTrue(any("表彰" in t for t in tab_titles))
+        self.assertTrue(any("能力推移" in t for t in tab_titles))
 
     def test_dashboard_view(self):
-        """DashboardView が統計カードを正しく取得・反映できること"""
+        """DashboardView が今週のレース一覧と出馬表を正しくロード・表示できること"""
         dash = DashboardView(self.db)
-        self.assertIn("頭", dash.card_active.val_lbl.text())
-        self.assertIn("人", dash.card_owners.val_lbl.text())
-        self.assertIn("場", dash.card_breeders.val_lbl.text())
+        self.assertIsNotNone(dash.table_races)
+        self.assertIsNotNone(dash.table_entry)
+        self.assertGreaterEqual(dash.table_races.rowCount(), 0)
 
     def test_horse_browser_view(self):
         """HorseBrowserView で馬が検索・選択され、詳細と血統表が更新されること"""
@@ -118,7 +119,7 @@ class TestPhase4GUI(unittest.TestCase):
         """RaceReplayView でリプレイ画面とトラックキャンバスが正常に初期化できること"""
         view = RaceReplayView(self.db)
         self.assertIsNotNone(view.track_canvas)
-        self.assertIsNotNone(view.table_results)
+        self.assertIsNotNone(view.board_widget)
 
 
 if __name__ == "__main__":

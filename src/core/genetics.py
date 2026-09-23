@@ -8,7 +8,8 @@ from __future__ import annotations
 import random
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from src.models.horse import GenotypeMSTN, GrowthType, Horse, RunningStyle
+from src.models.horse import CoatColor, GenotypeMSTN, GrowthType, Horse, RunningStyle
+
 
 
 class GeneticsEngine:
@@ -16,7 +17,7 @@ class GeneticsEngine:
 
     HERITABILITY: float = 0.65      # 相加的遺伝率
     POPULATION_MEAN: float = 50.0   # 初期集団平均 μ
-    ENVIRONMENTAL_STD: float = 4.0  # 環境・変異標準偏差 σ_e
+    ENVIRONMENTAL_STD: float = 2.2  # 環境・変異標準偏差 σ_e（50世代で極限到達に向け適正化）
 
     # 主要系統大分類 (Major Sire Line Systems)
     MAJOR_SYSTEMS: List[str] = [
@@ -136,14 +137,14 @@ class GeneticsEngine:
         """
         育種選抜相加的遺伝モデル:
         両親の相加平均（Mid-Parent Value）を期待値として遺伝し、
-        優秀な親同士の交配により世代を超えて能力が向上・進化する。
+        優秀な親同士の交配により約50世代でおよそ極限（100.0）に到達するよう設計。
         P_child = (P_sire + P_dam) / 2.0 + 育種ドリフト + ε
         """
         mid_parent = (sire_val + dam_val) / 2.0
-        # 優秀な形質の集積・品種改良効果（0.25pt向上傾向）および遺伝的変異
-        epsilon = random.gauss(0.25, cls.ENVIRONMENTAL_STD)
+        # 優秀な形質の集積・品種改良効果（0.12pt向上傾向）および遺伝的変異
+        epsilon = random.gauss(0.12, cls.ENVIRONMENTAL_STD)
         child_val = mid_parent + epsilon
-        return round(max(10.0, min(99.0, child_val)), 1)
+        return round(max(10.0, min(100.0, child_val)), 1)
 
     @classmethod
     def calculate_maternal_vitality(cls, sire_vitality: float, dam_vitality: float) -> float:
@@ -401,3 +402,150 @@ class GeneticsEngine:
             "stamina_max_clamp": 55.0 if is_sprint_restricted else None,
             "sprint_ratio": sprint_ratio,
         }
+
+    @classmethod
+    def generate_random_coat_genotype(cls) -> Tuple[str, str]:
+        """
+        競走馬登録比率（鹿毛50%, 黒鹿毛/青鹿毛30%, 栗毛15%, 芦毛4%, その他1%）に即した初期遺伝子型および毛色名を生成
+        """
+        r = random.random()
+        if r < 0.005:  # 白毛
+            geno = "e/e a/a g/g W/w cr/cr ro/ro pt/pt"
+            return (CoatColor.WHITE.value, geno)
+        elif r < 0.045:  # 芦毛
+            g_allele = "G/G" if random.random() < 0.2 else "G/g"
+            geno = f"E/e A/a {g_allele} w/w cr/cr ro/ro pt/pt"
+            return (CoatColor.GRAY.value, geno)
+        elif r < 0.20:  # 栗毛・栃栗毛・佐河毛・月毛
+            sub_r = random.random()
+            if sub_r < 0.05:
+                geno = "e/e a/a g/g w/w Cr/cr ro/ro pt/pt"
+                return (CoatColor.PALOMINO.value, geno)  # 月毛
+            elif sub_r < 0.15:
+                geno = "e/e a/a g/g w/w cr/cr ro/ro pt/pt"
+                return (CoatColor.DARK_CHESTNUT.value, geno)  # 栃栗毛
+            elif sub_r < 0.25:
+                geno = "e/e a/a g/g w/w cr/cr ro/ro pt/pt"
+                return (CoatColor.SORREL.value, geno)  # 佐河毛
+            else:
+                geno = "e/e a/a g/g w/w cr/cr ro/ro pt/pt"
+                return (CoatColor.CHESTNUT.value, geno)  # 栗毛
+        elif r < 0.50:  # 黒鹿毛・青鹿毛・青毛・薄墨毛・河原毛
+            sub_r = random.random()
+            if sub_r < 0.05:
+                geno = "E/E A/A g/g w/w Cr/cr ro/ro pt/pt"
+                return (CoatColor.BUCKSHIN.value, geno)  # 河原毛
+            elif sub_r < 0.10:
+                geno = "E/E a/a g/g w/w Cr/cr ro/ro pt/pt"
+                return (CoatColor.GRULLO.value, geno)  # 薄墨毛
+            elif sub_r < 0.40:
+                geno = "E/E a/a g/g w/w cr/cr ro/ro pt/pt"
+                return (CoatColor.BLACK.value, geno)  # 青毛
+            elif sub_r < 0.70:
+                geno = "E/e a/a g/g w/w cr/cr ro/ro pt/pt"
+                return (CoatColor.BROWN.value, geno)  # 青鹿毛
+            else:
+                geno = "E/e A/a g/g w/w cr/cr ro/ro pt/pt"
+                return (CoatColor.DARK_BAY.value, geno)  # 黒鹿毛
+        elif r < 0.99:  # 鹿毛
+            geno = "E/E A/A g/g w/w cr/cr ro/ro pt/pt"
+            return (CoatColor.BAY.value, geno)  # 鹿毛
+        else:  # 粕毛 / 斑毛
+            if random.random() < 0.5:
+                geno = "E/E A/A g/g w/w cr/cr Ro/ro pt/pt"
+                return (CoatColor.ROAN.value, geno)  # 粕毛
+            else:
+                geno = "E/E A/A g/g w/w cr/cr ro/ro Pt/pt"
+                return (CoatColor.PINTO.value, geno)  # 斑毛
+
+    @classmethod
+    def inherit_coat_genotype(cls, sire_geno_str: str, dam_geno_str: str) -> Tuple[str, str]:
+        """
+        両親の遺伝子文字列からメンデルの法則（減数分裂と受精）に従って子馬の毛色遺伝子型と毛色（14種類）を判定
+        """
+        def parse_geno(s: str) -> Dict[str, Tuple[str, str]]:
+            genes = {}
+            for part in s.split():
+                if "/" in part:
+                    a1, a2 = part.split("/")
+                    gene_name = a1.upper()
+                    genes[gene_name] = (a1, a2)
+            return genes
+
+        sire_g = parse_geno(sire_geno_str if sire_geno_str else "E/E A/A g/g w/w cr/cr ro/ro pt/pt")
+        dam_g = parse_geno(dam_geno_str if dam_geno_str else "E/E A/A g/g w/w cr/cr ro/ro pt/pt")
+
+        loci = ["E", "A", "G", "W", "CR", "RO", "PT"]
+        child_genes = {}
+
+        for locus in loci:
+            s_pair = sire_g.get(locus, (locus.lower(), locus.lower()))
+            d_pair = dam_g.get(locus, (locus.lower(), locus.lower()))
+
+            # 各親から1つの対立遺伝子をランダム継承
+            a_sire = random.choice(s_pair)
+            a_dam = random.choice(d_pair)
+
+            # 大文字を先頭にソート
+            sorted_pair = sorted([a_sire, a_dam], key=lambda x: (x.islower(), x))
+            child_genes[locus] = (sorted_pair[0], sorted_pair[1])
+
+        # 遺伝子文字列の生成
+        geno_parts = [f"{v[0]}/{v[1]}" for v in child_genes.values()]
+        child_geno_str = " ".join(geno_parts)
+
+        # 毛色の判定 (優先度順)
+        w_pair = child_genes["W"]
+        g_pair = child_genes["G"]
+        pt_pair = child_genes["PT"]
+        ro_pair = child_genes["RO"]
+        e_pair = child_genes["E"]
+        a_pair = child_genes["A"]
+        cr_pair = child_genes["CR"]
+
+        # 1. 白毛 (W/w)
+        if "W" in w_pair:
+            return (CoatColor.WHITE.value, child_geno_str)
+
+        # 2. 芦毛 (G/G or G/g)
+        if "G" in g_pair:
+            return (CoatColor.GRAY.value, child_geno_str)
+
+        # 3. 斑毛 / 粕毛
+        if "PT" in pt_pair:
+            return (CoatColor.PINTO.value, child_geno_str)
+        if "RO" in ro_pair:
+            return (CoatColor.ROAN.value, child_geno_str)
+
+        has_E = ("E" in e_pair)
+        has_A = ("A" in a_pair)
+        has_Cr = ("Cr" in cr_pair)
+
+        if not has_E:  # e/e (栗毛ベース)
+            if has_Cr:
+                return (CoatColor.PALOMINO.value, child_geno_str)  # 月毛
+            r = random.random()
+            if r < 0.15:
+                return (CoatColor.DARK_CHESTNUT.value, child_geno_str)  # 栃栗毛
+            elif r < 0.25:
+                return (CoatColor.SORREL.value, child_geno_str)  # 佐河毛
+            else:
+                return (CoatColor.CHESTNUT.value, child_geno_str)  # 栗毛
+        else:  # E/- (黒色ベース)
+            if has_A:  # A/- (鹿毛ベース)
+                if has_Cr:
+                    return (CoatColor.BUCKSHIN.value, child_geno_str)  # 河原毛
+                r = random.random()
+                if r < 0.35:
+                    return (CoatColor.DARK_BAY.value, child_geno_str)  # 黒鹿毛
+                else:
+                    return (CoatColor.BAY.value, child_geno_str)  # 鹿毛
+            else:  # a/a (青毛ベース)
+                if has_Cr:
+                    return (CoatColor.GRULLO.value, child_geno_str)  # 薄墨毛
+                r = random.random()
+                if r < 0.50:
+                    return (CoatColor.BROWN.value, child_geno_str)  # 青鹿毛
+                else:
+                    return (CoatColor.BLACK.value, child_geno_str)  # 青毛
+

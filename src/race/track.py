@@ -7,7 +7,8 @@ JRA 8場（東京・中山・阪神・京都・中京・福島・新潟・小倉
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+
 
 
 @dataclass(frozen=True)
@@ -256,13 +257,13 @@ TRACK_CONFIGS: Dict[str, TrackInfo] = {
         straight_length=300.0,
         has_slope=True,
         slope_type='steep_slope',
-        has_turf=True,
+        has_turf=False,
         has_dirt=True,
-        description='左回り・大箱 / 直線 300.0m / 地方競馬で唯一の芝コース併設（高低差4.4m）。マイルCS南部杯や不来方賞の舞台。',
+        description='左回り・大箱 / 直線 300.0m / ダート専門（高低差4.4m）。マイルCS南部杯や不来方賞の舞台。',
         chutes={
             1000: '向正面奥引き込み線（ダート短距離）',
-            1600: '向正面奥引き込み線（マイルCS南部杯・不来方賞芝/ダートスタート）',
-            2000: 'スタンド前直線（芝・ダート中距離）',
+            1600: '向正面奥引き込み線（マイルCS南部杯・不来方賞ダートスタート）',
+            2000: 'スタンド前直線（ダート中距離）',
         },
     ),
 }
@@ -280,3 +281,57 @@ def get_track_info(track_id: str) -> TrackInfo:
     """指定ID（英字または旧コード）の競馬場情報を取得"""
     resolved_id = TRACK_ALIASES.get(track_id, track_id)
     return TRACK_CONFIGS.get(resolved_id, TRACK_CONFIGS['TOKYO'])
+
+
+def check_is_course_record(
+    conn,
+    track_id: str,
+    surface: Any,
+    distance: int,
+    finish_time: float,
+    year: int,
+    week: int,
+    race_id: int,
+) -> bool:
+    """
+    指定レースの勝ち馬タイムが、その時点でのコースレコード（初レコードまたは新記録更新）かを判定する。
+    - 過去の同条件（track_id, surface, distance）レース実績が存在しない場合は True (初レコード)
+    - 過去の同条件レコードが存在し、それを0.001秒以上更新している場合は True
+    - それ以外（同タイム・遅いタイム・無効タイム）は False
+    """
+    if finish_time is None or finish_time <= 0:
+        return False
+
+    surf_val = surface.value if hasattr(surface, "value") else str(surface).lower()
+    # '芝' -> 'turf', 'ダート' -> 'dirt' の正規化
+    if surf_val == "芝":
+        surf_val = "turf"
+    elif surf_val == "ダート":
+        surf_val = "dirt"
+
+    rec_row = conn.execute(
+        """
+        SELECT MIN(res.finish_time) as min_time
+        FROM results res
+        JOIN races r ON res.race_id = r.race_id
+        WHERE r.track_id = ? AND r.surface = ? AND r.distance = ? AND res.finish_position = 1 AND res.finish_time > 0
+          AND (
+            r.year < ?
+            OR (r.year = ? AND r.week < ?)
+            OR (r.year = ? AND r.week = ? AND r.race_id < ?)
+          )
+        """,
+        (
+            track_id, surf_val, distance,
+            year, year, week,
+            year, week, race_id,
+        ),
+    ).fetchone()
+
+    if rec_row is None or rec_row["min_time"] is None:
+        # 過去にレース実績がない場合（初開催・初レコード）
+        return True
+    
+    past_min = float(rec_row["min_time"])
+    return finish_time < past_min - 0.001
+

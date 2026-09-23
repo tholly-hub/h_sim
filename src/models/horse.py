@@ -32,6 +32,24 @@ class RunningStyle(str, Enum):
     CLOSING = "closing"    # 追込
 
 
+class CoatColor(str, Enum):
+    """馬の毛色 (日本馬事協会の命名・登録規定 14種類)"""
+    CHESTNUT = "栗毛"          # Chestnut
+    DARK_CHESTNUT = "栃栗毛"   # Dark Chestnut
+    BAY = "鹿毛"                # Bay
+    DARK_BAY = "黒鹿毛"         # Dark Bay
+    BROWN = "青鹿毛"            # Brown
+    BLACK = "青毛"              # Black
+    GRAY = "芦毛"               # Gray
+    WHITE = "白毛"              # White
+    PALOMINO = "月毛"           # Palomino
+    BUCKSHIN = "河原毛"         # Buckskin
+    ROAN = "粕毛"               # Roan
+    GRULLO = "薄墨毛"           # Grullo
+    SORREL = "佐河毛"           # Sorrel
+    PINTO = "斑毛"              # Pinto
+
+
 @dataclass
 class Horse:
     """競走馬データモデル"""
@@ -57,6 +75,10 @@ class Horse:
     peak_age: float                     # 例: 3.0, 4.5, 5.5
     current_ability_rate: float = 1.0   # 現在の能力発揮率 (成長・加齢による係数 0.0〜1.0)
     running_style: RunningStyle = RunningStyle.BETWEEN
+
+    # 毛色 (日本馬事協会 14種類 & 遺伝子型)
+    coat_color: str = "鹿毛"
+    coat_genotype: str = "E/E A/A G/g W/w Cr/cr"
 
     # 所属・血統 (デフォルト値あり)
     trainer_id: Optional[int] = None
@@ -98,23 +120,25 @@ class Horse:
             jockey_id=row["jockey_id"] if "jockey_id" in keys else None,
             sire_id=row["sire_id"],
             dam_id=row["dam_id"],
+            mstn_type=GenotypeMSTN(row["mstn_type"]),
+            speed=float(row["speed"]),
+            stamina=float(row["stamina"]),
+            acceleration=float(row["acceleration"]),
+            temperament=float(row["temperament"]),
+            durability=float(row["durability"]),
+            maternal_vitality=float(row["maternal_vitality"]),
+            growth_type=GrowthType(row["growth_type"]),
+            peak_age=float(row["peak_age"]),
+            current_ability_rate=float(row["current_ability_rate"]) if "current_ability_rate" in keys else 1.0,
+            running_style=RunningStyle(row["running_style"]) if ("running_style" in keys and row["running_style"]) else RunningStyle.BETWEEN,
+            coat_color=str(row["coat_color"]) if ("coat_color" in keys and row["coat_color"]) else "鹿毛",
+            coat_genotype=str(row["coat_genotype"]) if ("coat_genotype" in keys and row["coat_genotype"]) else "E/E A/A G/g W/w Cr/cr",
             is_active=row["is_active"],
             is_sire=row["is_sire"],
             is_dam=row["is_dam"],
             is_dead=row["is_dead"],
-            mstn_type=GenotypeMSTN(row["mstn_type"]),
-            speed=row["speed"],
-            stamina=row["stamina"],
-            acceleration=row["acceleration"],
-            temperament=row["temperament"],
-            durability=row["durability"],
-            maternal_vitality=row["maternal_vitality"],
-            growth_type=GrowthType(row["growth_type"]),
-            peak_age=row["peak_age"],
-            current_ability_rate=row["current_ability_rate"] if "current_ability_rate" in keys else 1.0,
-            running_style=RunningStyle(row["running_style"]) if "running_style" in keys else RunningStyle.BETWEEN,
             prize_money=row["prize_money"],
-            condition_prize_money=row["condition_prize_money"],
+            condition_prize_money=row["condition_prize_money"] if "condition_prize_money" in keys else 0,
             career_starts=row["career_starts"],
             career_wins=row["career_wins"],
             g1_wins=row["g1_wins"],
@@ -238,4 +262,50 @@ class Horse:
         ]
         scores.sort(key=lambda x: x[0], reverse=True)
         return scores[0][1]
+
+    @property
+    def class_name(self) -> str:
+        """競走馬の現在クラス名（オープン/3勝クラス/2勝クラス/1勝クラス/未勝利/未出走/入厩前/引退/種牡馬/繁殖牝馬）"""
+        if self.is_sire:
+            return "種牡馬"
+        if self.is_dam:
+            return "繁殖牝馬"
+        if self.age <= 1:
+            return "入厩前"
+        if not self.is_active:
+            return "引退"
+
+        g_wins = self.g1_wins + self.g2_wins + self.g3_wins
+        if self.career_starts == 0:
+            return "未出走"
+        elif self.career_wins == 0:
+            return "未勝利"
+        elif g_wins > 0 or self.career_wins >= 4 or self.condition_prize_money >= 16_000_000:
+            return "オープン"
+        elif self.career_wins == 3:
+            return "3勝クラス"
+        elif self.career_wins == 2:
+            return "2勝クラス"
+        elif self.career_wins == 1:
+            return "1勝クラス"
+        else:
+            return "未勝利"
+
+    @property
+    def status_name(self) -> str:
+        """競走馬の現在状態名（入厩前/未出走/現役/種牡馬/繁殖牝馬/引退）"""
+        if self.is_sire:
+            return "種牡馬"
+        if self.is_dam:
+            return "繁殖牝馬"
+        if self.age <= 1:
+            return "入厩前"
+        if self.is_active:
+            if self.career_starts == 0:
+                return "未出走"
+            return "現役"
+        if self.career_starts == 0 and self.trainer_id is None and self.age == 2:
+            return "入厩前"
+        return "引退"
+
 

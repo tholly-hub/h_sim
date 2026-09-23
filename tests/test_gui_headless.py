@@ -19,6 +19,7 @@ from src.gui.app import MainWindow
 from src.gui.views.dashboard_view import DashboardView
 from src.gui.views.simulation_status_view import SimulationStatusView
 from src.gui.views.records_view import RecordsView
+from src.gui.views.database_view import DatabaseView
 from src.gui.views.analytics_view import AnalyticsView
 from src.gui.views.race_dialogs import RaceViewDialog, RaceResultDialog
 from src.gui.views.horse_detail_dialog import HorseDetailDialog
@@ -41,10 +42,12 @@ def test_gui():
     assert sim_status is not None
     print("  -> SimulationStatusView OK")
     
-    print("3. RecordsView 初期化中...")
+    print("3. RecordsView & DatabaseView 初期化中...")
     records = RecordsView(db)
     assert records is not None
-    print("  -> RecordsView OK")
+    db_view = DatabaseView(db)
+    assert db_view is not None
+    print("  -> RecordsView & DatabaseView OK")
     
     print("4. AnalyticsView 初期化中...")
     analytics = AnalyticsView(db)

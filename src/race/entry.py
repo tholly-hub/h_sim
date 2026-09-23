@@ -13,8 +13,66 @@ from src.models.jockey import Jockey
 from src.models.race import AgeRestriction, Race, RaceGrade, RaceSurface, SexRestriction
 
 
+# G1レース名の表記ゆれ正規化マップ
+G1_ALIAS_MAP: Dict[str, str] = {
+    '朝日杯FS': '朝日杯フューチュリティS',
+    '朝日杯フューチュリティステークス': '朝日杯フューチュリティS',
+    '阪神JF': '阪神ジュベナイルフィリーズ',
+    'チャンピオンズC': 'チャンピオンズカップ',
+    'マイルCS': 'マイルチャンピオンシップ',
+    '全日本2歳優駿': '全日本２歳優駿',
+    '日本ダービー': '東京優駿',
+}
+
+
+def normalize_g1_name(name: Optional[str]) -> Optional[str]:
+    """G1名称の表記ゆれを公式・番組表名称に正規化"""
+    if not name:
+        return None
+    clean = name.strip()
+    return G1_ALIAS_MAP.get(clean, clean)
+
+
+def calculate_carried_weight(race: Race, horse: Horse) -> float:
+    """
+    負担重量（斤量）の算出 (kg)
+    - 2歳戦: 55.0kg (牝馬 54.0kg)
+    - 3歳戦 (春季 1〜20週): 56.0kg (G1 57.0kg)
+    - 3歳戦 (秋季 21週以降): 56.0kg / 57.0kg
+    - 4歳以上古馬戦: G1/G2 58.0kg, G3/L/OP 57.0kg
+    - 3歳以上混合戦: 3歳 56.0kg (秋57.0kg), 4歳以上 58.0kg
+    - 牝馬減量: 一律 -2.0kg
+    """
+    is_female = horse.sex in ('filly', 'mare', '牝')
+    age = horse.age
+
+    if race.age_restriction == AgeRestriction.TWO_YO or age == 2:
+        base_w = 55.0
+    elif race.age_restriction == AgeRestriction.THREE_YO:
+        if race.grade == RaceGrade.G1:
+            base_w = 57.0
+        elif race.week <= 20:
+            base_w = 56.0
+        else:
+            base_w = 57.0
+    elif race.age_restriction == AgeRestriction.THREE_YO_UP:
+        if age == 3:
+            base_w = 56.0 if race.week <= 36 else 57.0
+        else:
+            base_w = 58.0
+    else:  # FOUR_YO_UP
+        base_w = 58.0 if race.grade in (RaceGrade.G1, RaceGrade.G2) else 57.0
+
+    if is_female:
+        base_w -= 2.0
+
+    return round(base_w, 1)
+
+
 class RaceEntryManager:
     """レース出走管理クラス"""
+
+    GRAND_PRIX_RACES: Set[str] = {"宝塚記念", "有馬記念", "東京大賞典"}
 
     def __init__(self, db: Database):
         self.db = db
@@ -24,26 +82,36 @@ class RaceEntryManager:
     ) -> List[int]:
         """
         対象G1の当年トライアル競走で優先出走権を獲得した馬のIDリストを取得
-        - G2トライアル: 1〜3着 (最大3頭)
-        - G3トライアル: 1〜2着 (最大2頭)
-        - リステッド/オープン特別トライアル: 1着 (最大1頭)
+        ユーザー指定ルール:
+        - G2トライアル: 上位2頭 (1〜2着)
+        - G3トライアル: 上位1頭 (1着)
+        - リステッド/オープン特別トライアル: 上位1頭 (1着)
         - 合計最大8頭まで
         """
-        query = """
-        SELECT r.horse_id, rc.grade, r.finish_position
+        norm_target = normalize_g1_name(target_g1_name)
+        # 表記ゆれも含めてクエリ
+        possible_targets = [norm_target]
+        for k, v in G1_ALIAS_MAP.items():
+            if v == norm_target and k not in possible_targets:
+                possible_targets.append(k)
+
+        placeholders = ",".join("?" for _ in possible_targets)
+        query = f"""
+        SELECT r.horse_id, rc.grade, r.finish_position, rc.target_g1_name
         FROM results r
         JOIN races rc ON r.race_id = rc.race_id
         WHERE rc.year = ?
           AND rc.is_trial = 1
-          AND rc.target_g1_name = ?
+          AND rc.target_g1_name IN ({placeholders})
         ORDER BY rc.week ASC, r.finish_position ASC
         """
+        params = [year] + possible_targets
         if conn is not None:
-            cursor = conn.execute(query, (year, target_g1_name))
+            cursor = conn.execute(query, tuple(params))
             rows = cursor.fetchall()
         else:
             with self.db.session() as session_conn:
-                cursor = session_conn.execute(query, (year, target_g1_name))
+                cursor = session_conn.execute(query, tuple(params))
                 rows = cursor.fetchall()
 
         priority_horse_ids: List[int] = []
@@ -52,10 +120,13 @@ class RaceEntryManager:
             grade = row['grade']
             pos = row['finish_position']
             is_qualified = False
-            if grade == 'G2' and pos <= 3:
+            # G2トライアル: 上位2頭
+            if grade == 'G2' and pos <= 2:
                 is_qualified = True
-            elif grade == 'G3' and pos <= 2:
+            # G3トライアル: 上位1頭
+            elif grade == 'G3' and pos == 1:
                 is_qualified = True
+            # リステッド/オープン特別トライアル: 上位1頭
             elif grade in ('L', 'OP') and pos == 1:
                 is_qualified = True
 
@@ -71,31 +142,91 @@ class RaceEntryManager:
     ) -> Optional[str]:
         """
         馬がまだ開催されていない当年G1の優先出走権を保持しているか確認
-        - 保持している場合はそのG1名を返す（本番まで他のトライアル等への出走を自重・温存）
+        - 保持している場合は正規化された対象G1名を返す（本番まで他のトライアル等への出走を自重・温存）
         """
         query = """
-        SELECT rc.target_g1_name, MIN(g1.week) as g1_week
+        SELECT rc.target_g1_name, rc.grade, r.finish_position
         FROM results r
         JOIN races rc ON r.race_id = rc.race_id
-        JOIN races g1 ON rc.target_g1_name = g1.name AND rc.year = g1.year
         WHERE r.horse_id = ?
           AND rc.year = ?
           AND rc.is_trial = 1
-          AND (
-              (rc.grade = 'G2' AND r.finish_position <= 3) OR
-              (rc.grade = 'G3' AND r.finish_position <= 2) OR
-              (rc.grade IN ('L', 'OP') AND r.finish_position = 1)
-          )
-          AND g1.week >= ?
-        GROUP BY rc.target_g1_name
+          AND rc.target_g1_name IS NOT NULL
+        ORDER BY rc.week ASC
         """
         if conn is not None:
-            row = conn.execute(query, (horse_id, current_year, current_week)).fetchone()
+            rows = conn.execute(query, (horse_id, current_year)).fetchall()
         else:
             with self.db.session() as session_conn:
-                row = session_conn.execute(query, (horse_id, current_year, current_week)).fetchone()
+                rows = session_conn.execute(query, (horse_id, current_year)).fetchall()
 
-        return row["target_g1_name"] if row else None
+        for row in rows:
+            grade = row["grade"]
+            pos = row["finish_position"]
+            is_qual = False
+            if grade == "G2" and pos <= 2:
+                is_qual = True
+            elif grade == "G3" and pos == 1:
+                is_qual = True
+            elif grade in ("L", "OP") and pos == 1:
+                is_qual = True
+
+            if is_qual:
+                norm_g1 = normalize_g1_name(row["target_g1_name"])
+                # そのG1が今週以降に開催されるか確認
+                g1_check_query = """
+                SELECT week FROM races
+                WHERE year = ? AND (name = ? OR name LIKE ?)
+                ORDER BY week ASC LIMIT 1
+                """
+                if conn is not None:
+                    g1_row = conn.execute(g1_check_query, (current_year, norm_g1, f"{norm_g1}%")).fetchone()
+                else:
+                    with self.db.session() as s_conn:
+                        g1_row = s_conn.execute(g1_check_query, (current_year, norm_g1, f"{norm_g1}%")).fetchone()
+
+                if g1_row and g1_row["week"] >= current_week:
+                    return norm_g1
+
+        return None
+
+    def get_horse_surface_preference(self, horse_id: int, conn: Optional[Any] = None) -> str:
+        """
+        馬の過去戦績から芝・ダート専念傾向を判定 ('turf', 'dirt', 'both')
+        - 芝またはダートで勝利または重賞好走がある場合、その馬場に専念
+        """
+        query = """
+        SELECT rc.surface, r.finish_position, r.prize_awarded, rc.grade
+        FROM results r
+        JOIN races rc ON r.race_id = rc.race_id
+        WHERE r.horse_id = ?
+        ORDER BY rc.year ASC, rc.week ASC
+        """
+        if conn is not None:
+            rows = conn.execute(query, (horse_id,)).fetchall()
+        else:
+            with self.db.session() as s_conn:
+                rows = s_conn.execute(query, (horse_id,)).fetchall()
+
+        if not rows:
+            return "both"
+
+        turf_wins = sum(1 for r in rows if r["surface"] == "turf" and r["finish_position"] == 1)
+        dirt_wins = sum(1 for r in rows if r["surface"] == "dirt" and r["finish_position"] == 1)
+        turf_graded_top3 = sum(1 for r in rows if r["surface"] == "turf" and r["finish_position"] <= 3 and r["grade"] in ('G1', 'G2', 'G3'))
+        dirt_graded_top3 = sum(1 for r in rows if r["surface"] == "dirt" and r["finish_position"] <= 3 and r["grade"] in ('G1', 'G2', 'G3'))
+
+        if (turf_wins > 0 or turf_graded_top3 > 0) and dirt_wins == 0 and dirt_graded_top3 == 0:
+            return "turf"
+        if (dirt_wins > 0 or dirt_graded_top3 > 0) and turf_wins == 0 and turf_graded_top3 == 0:
+            return "dirt"
+
+        # 初勝利の馬場に専念
+        for r in rows:
+            if r["finish_position"] == 1:
+                return r["surface"]
+
+        return "both"
 
     def can_enter_race(
         self,
@@ -106,72 +237,95 @@ class RaceEntryManager:
         conn: Optional[Any] = None,
     ) -> bool:
         """
-        馬がレースの出走資格（年齢・性別・クラス・中2週・実績・優先出走権温存）を満たしているか判定
-        - 1レース8頭限定
-        - 最低中2週（中2週あけるため、最短3週後に出走可能）
-        - G1トライアル優先出走権獲得馬は本番G1まで温存（他のトライアルや一般戦に出走不可）
-        - 4着以下の馬は何度でも出走可能
+        馬がレースの出走資格（年齢・性別・クラス・中2週・実績・優先出走権温存・芝ダート専念）を満たしているか判定
         """
         if horse.is_active != 1 or horse.is_dead == 1:
             return False
 
+        is_grand_prix = any(gp in race.name for gp in self.GRAND_PRIX_RACES)
+
         # 1. 優先出走権保持馬の温存判定 (本番G1以外のレースへの出走をブロック)
-        if horse.horse_id is not None:
+        if horse.horse_id is not None and not is_grand_prix:
             holding_g1 = self.get_holding_priority_g1(
                 horse.horse_id, race.year, race.week, conn=conn
             )
             if holding_g1:
-                # 本番の対象G1であれば出走可能、それ以外のレースは本番まで温存のため出走不可
-                if race.name != holding_g1:
+                norm_race = normalize_g1_name(race.name)
+                norm_hold = normalize_g1_name(holding_g1)
+                if norm_race != norm_hold:
                     return False
 
-        # 2. 中2週制限（前走から最低3週以上の間隔が必要）
-        if last_run is not None:
+        # 2. レース間隔制限 (※グランプリ競走: 宝塚記念・有馬記念・東京大賞典はレース間隔制限免除)
+        if last_run is not None and not is_grand_prix:
             last_y, last_w = last_run
             diff_weeks = (race.year - last_y) * 48 + (race.week - last_w)
-            if diff_weeks < 3:
+            min_interval = 4 if horse.career_wins == 0 else 5
+            if diff_weeks < min_interval:
                 return False
 
-        # 3. 年齢制限チェック
-        if race.age_restriction == AgeRestriction.TWO_YO and horse.age != 2:
-            return False
-        if race.age_restriction == AgeRestriction.THREE_YO and horse.age != 3:
-            return False
-        if race.age_restriction == AgeRestriction.THREE_YO_UP and horse.age < 3:
-            return False
-        if race.age_restriction == AgeRestriction.FOUR_YO_UP and horse.age < 4:
-            return False
+        # 3. G1勝利馬の出走制限（G3・リステッド競走は原則出走不可、ただしトライアル競走は出走可能）
+        if getattr(horse, "g1_wins", 0) > 0 and race.grade in (RaceGrade.G3, RaceGrade.L):
+            if not race.is_trial:
+                return False
 
-        # 4. 性別制限チェック
-        is_female = horse.sex in ('filly', 'mare')
-        is_male = horse.sex in ('colt', 'horse', 'gelding')
-        if race.sex_restriction == SexRestriction.FILLY_MARE and not is_female:
-            return False
-        if race.sex_restriction == SexRestriction.COLT_HORSE and not is_male:
-            return False
-
-        # 5. クラス・重賞・リステッド出走資格チェック
-        wins = horse.career_wins
-        is_graded_or_listed = race.grade in (
-            RaceGrade.G1, RaceGrade.G2, RaceGrade.G3, RaceGrade.L, RaceGrade.OP
+        # 4. 芝・ダート専念ルール（重賞・リステッド・特別戦では適性と異なる馬場を回避）
+        is_graded_or_special = race.grade in (
+            RaceGrade.G1, RaceGrade.G2, RaceGrade.G3, RaceGrade.L, RaceGrade.OP, RaceGrade.COND_3W
         )
+        if is_graded_or_special and horse.horse_id is not None:
+            surf_pref = self.get_horse_surface_preference(horse.horse_id, conn=conn)
+            race_surf = "turf" if (race.surface == RaceSurface.TURF or str(race.surface).lower() in ("turf", "芝")) else "dirt"
+            if surf_pref == "turf" and race_surf == "dirt":
+                return False
+            elif surf_pref == "dirt" and race_surf == "turf":
+                return False
 
-        if is_graded_or_listed:
+        # 5. 年齢制限チェック (※有馬記念・東京大賞典は3歳馬の出走も可能)
+        if is_grand_prix and race.name in ("有馬記念", "東京大賞典"):
+            if horse.age < 3:
+                return False
+        else:
+            if race.age_restriction == AgeRestriction.TWO_YO and horse.age != 2:
+                return False
+            if race.age_restriction == AgeRestriction.THREE_YO and horse.age != 3:
+                return False
+            if race.age_restriction == AgeRestriction.THREE_YO_UP and horse.age < 3:
+                return False
+            if race.age_restriction == AgeRestriction.FOUR_YO_UP and horse.age < 4:
+                return False
+
+        # 6. 性別制限チェック
+        is_female = horse.sex in ('filly', 'mare', '牝')
+        is_male = horse.sex in ('colt', 'horse', 'gelding', '牡', '騸')
+        sex_res_val = race.sex_restriction.value if hasattr(race.sex_restriction, 'value') else str(race.sex_restriction).lower()
+        if sex_res_val in ('filly_mare', 'filly', 'mare') and not is_female:
+            return False
+        if sex_res_val in ('colt_horse', 'colt', 'horse') and not is_male:
+            return False
+
+        # 7. クラス・重賞・オープン出走資格チェック
+        wins = horse.career_wins
+        is_graded_winner = (
+            getattr(horse, "g1_wins", 0) + getattr(horse, "g2_wins", 0) + getattr(horse, "g3_wins", 0)
+        ) > 0
+        is_open_race = race.grade in (RaceGrade.G1, RaceGrade.G2, RaceGrade.G3, RaceGrade.L, RaceGrade.OP)
+
+        if is_open_race:
+            if is_graded_winner:
+                return True
             if horse.age == 2:
-                # 2歳: 新馬戦、未勝利戦勝利後に重賞、リステッドレースに出走可能
                 return wins >= 1
             elif horse.age == 3:
                 if race.week <= 20:
-                    # 3歳春までは、1勝クラス勝利後(2勝以上)に重賞、リステッド出走可能
-                    return wins >= 2
+                    return wins >= 1
                 else:
-                    # 3歳夏から秋は、重賞レース2着以内、もしくは3勝クラス勝利馬(4勝以上)が出走可能
-                    return has_graded_top2 or (wins >= 4)
+                    return wins >= 2 or has_graded_top2
             else:
-                # 4歳以降は、いずれのケースも3勝以上、もしくは3勝クラスに勝利しなければ出走不可
-                return wins >= 3
+                return wins >= 3 or getattr(horse, "is_open", False)
 
-        # 条件戦・未勝利・新馬の資格判定
+        if is_graded_winner:
+            return False
+
         if race.grade == RaceGrade.NEWCOMER:
             return horse.career_starts == 0
         elif race.grade == RaceGrade.MAIDEN:
@@ -185,67 +339,44 @@ class RaceEntryManager:
 
         return True
 
-    def calculate_race_suitability(self, horse: Horse, race: Race) -> float:
+    def calculate_race_suitability(self, horse: Horse, race: Race, conn: Optional[Any] = None) -> float:
         """
         馬とレースの適性スコア（0.0〜100.0）を計算
-        - 芝・ダート特性（芝得意、ダート得意、両方得意/兼用）の厳格考慮
-        - 距離適性レンジ（1000〜1200mの狭レンジから1200〜2400mの広レンジまで）の考慮
-        - クラス適合度・総合能力の加味
         """
         score = 50.0
 
-        # 1. 馬場適性判定 (芝得意、ダート得意、両方得意/兼用)
-        surf_apt = getattr(horse, "surface_aptitude", "turf")
-        race_surf = race.surface.value if hasattr(race.surface, "value") else str(race.surface)
-        if surf_apt == "both":
-            # 芝・ダート兼用: どちらの馬場でも高い適性
+        # 1. 馬場適性判定 (実績傾向 + モデル属性)
+        h_id = horse.horse_id
+        surf_pref = self.get_horse_surface_preference(h_id, conn=conn) if h_id else "both"
+        race_surf = "turf" if (race.surface == RaceSurface.TURF or str(race.surface).lower() in ("turf", "芝")) else "dirt"
+
+        if surf_pref == "turf":
+            score += 25.0 if race_surf == "turf" else -40.0
+        elif surf_pref == "dirt":
+            score += 25.0 if race_surf == "dirt" else -40.0
+        else:
+            score += 10.0
+
+        # 2. 距離適性判定
+        opt_dist = 1800.0
+        if horse.mstn_type == GenotypeMSTN.CC:
+            opt_dist = 1200.0
+        elif horse.mstn_type == GenotypeMSTN.TT:
+            opt_dist = 2600.0
+
+        dist_diff = abs(race.distance - opt_dist)
+        if dist_diff <= 200:
             score += 20.0
-        elif surf_apt == race_surf:
-            # 得意馬場に完全合致
-            score += 25.0
+        elif dist_diff <= 400:
+            score += 10.0
+        elif dist_diff <= 800:
+            score -= 10.0
         else:
-            # 不適性馬場（芝専用馬のダート出走、またはダート専用馬の芝出走）: 大幅減点
-            score -= 50.0
+            score -= 30.0
 
-        # 2. 距離適性レンジ判定 (レンジ内なら大加点、レンジ外なら乖離ペナルティ)
-        min_d = getattr(horse, "apt_distance_min", 1200)
-        max_d = getattr(horse, "apt_distance_max", 2000)
-
-        if min_d <= race.distance <= max_d:
-            # 得意距離レンジ内
-            score += 30.0
-        elif race.distance < min_d:
-            diff = min_d - race.distance
-            score -= min(40.0, (diff / 100.0) * 8.0)
-        else:
-            diff = race.distance - max_d
-            score -= min(40.0, (diff / 100.0) * 8.0)
-
-        # 3. クラス適合度判定
-        c_prize = horse.condition_prize_money
-        if race.grade in (RaceGrade.G1, RaceGrade.G2, RaceGrade.G3):
-            if c_prize >= 16_000_000:
-                score += 20.0
-            elif c_prize >= 10_000_000:
-                score += 10.0
-            else:
-                score -= 20.0
-        elif race.grade == RaceGrade.COND_3W:
-            if 10_000_000 < c_prize <= 16_000_000:
-                score += 25.0
-        elif race.grade == RaceGrade.COND_2W:
-            if 4_000_000 < c_prize <= 10_000_000:
-                score += 25.0
-        elif race.grade == RaceGrade.COND_1W:
-            if 0 < c_prize <= 4_000_000 and horse.career_wins >= 1:
-                score += 25.0
-        elif race.grade == RaceGrade.MAIDEN and horse.career_wins == 0:
-            score += 30.0
-        elif race.grade == RaceGrade.NEWCOMER and horse.career_starts == 0:
-            score += 35.0
-
-        overall_ability = (horse.speed + horse.acceleration + horse.stamina) / 3.0
-        score += (overall_ability - 50.0) * 0.2
+        # 3. 総合能力の加味
+        overall = (horse.speed + horse.acceleration + horse.stamina) / 3.0
+        score += (overall - 50.0) * 0.5
 
         return max(score, 0.0)
 
@@ -260,11 +391,14 @@ class RaceEntryManager:
     ) -> List[Horse]:
         """
         出走馬選定（8頭限定、優先出走権 ＋ 適性合致馬 ＋ 収得賞金上位）
+        ※ グランプリ競走（宝塚記念・有馬記念・東京大賞典）はその時点での芝・ダート成績上位8頭を最優先選出
         """
         if priority_horse_ids is None:
             priority_horse_ids = []
         if graded_top2_set is None:
             graded_top2_set = set()
+
+        is_grand_prix = any(gp in race.name for gp in self.GRAND_PRIX_RACES)
 
         valid_candidates = []
         for h in candidate_horses:
@@ -277,15 +411,26 @@ class RaceEntryManager:
         if not valid_candidates:
             return []
 
+        if is_grand_prix:
+            # グランプリ: 実績・能力最上位8頭を直接選抜
+            valid_candidates.sort(
+                key=lambda h: (
+                    (getattr(h, "g1_wins", 0) * 100 + getattr(h, "g2_wins", 0) * 30 + getattr(h, "g3_wins", 0) * 10),
+                    h.condition_prize_money,
+                    h.prize_money,
+                    (h.speed + h.stamina + h.acceleration),
+                ),
+                reverse=True,
+            )
+            return valid_candidates[:8]
+
         priority_horses = [h for h in valid_candidates if h.horse_id in priority_horse_ids]
         other_horses = [h for h in valid_candidates if h.horse_id not in priority_horse_ids]
 
-        # 適性スコアを付与し、著しく適性を欠く馬(スコア25未満)は回避
-        # 適性合致度(スコア>=50)を最優先とし、その中で収得賞金順にソート
         scored_others = []
         for h in other_horses:
-            suit = self.calculate_race_suitability(h, race)
-            if suit >= 25.0 or len(other_horses) < 8:  # 頭数確保のため極端な不足時は許容
+            suit = self.calculate_race_suitability(h, race, conn=conn)
+            if suit >= 25.0 or len(other_horses) < 8:
                 scored_others.append((suit, h))
 
         random.shuffle(scored_others)
@@ -302,7 +447,6 @@ class RaceEntryManager:
         filtered_others = [item[1] for item in scored_others]
         starters = priority_horses + filtered_others
 
-        # 8頭限定
         max_limit = min(8, race.full_gate if (hasattr(race, "full_gate") and race.full_gate) else 8)
         return starters[:max_limit]
 
@@ -315,9 +459,11 @@ class RaceEntryManager:
     ) -> Dict[int, int]:
         """
         出走馬に対する騎手アサイン
-        - 基本: 自厩舎の所属騎手
-        - 重賞(G1, G2, G3)または有力馬(能力上位): リーディング/実力上位のフリー騎手を優先起用可能
-        - バッティング解決: 有力馬から順に確定、重複時は所属騎手または空いている騎手を手配
+        - 条件戦（新馬・未勝利・1勝・2勝・3勝クラス）:
+          - まず自厩舎の所属騎手を最優先。
+          - 自厩舎所属騎手が既に同レース他馬に騎乗（バッティング）している場合や不在時は、馬の主戦騎手、または空いているフリー騎手・他騎手を割り当て。
+        - 重賞・リステッド・オープン（G1, G2, G3, L, OP）:
+          - 上位有力馬には実力上位のフリー騎手を優先起用可能。
         """
         assigned: Dict[int, int] = {}
         busy_jockeys: Set[int] = set()
@@ -328,7 +474,9 @@ class RaceEntryManager:
             reverse=True,
         )
 
-        is_graded_race = race.grade in (RaceGrade.G1, RaceGrade.G2, RaceGrade.G3)
+        is_graded_or_open = race.grade in (
+            RaceGrade.G1, RaceGrade.G2, RaceGrade.G3, RaceGrade.L, RaceGrade.OP
+        )
 
         sorted_starters = sorted(
             starters,
@@ -345,23 +493,41 @@ class RaceEntryManager:
             stable_jockey_id = trainer_jockey_map.get(t_id) if t_id else None
             chosen_jockey_id: Optional[int] = None
 
-            # 1. 重賞または有力馬（上位3頭）でフリー騎手を起用
-            is_top_contender = rank < 3 or is_graded_race
-            if is_top_contender and free_jockeys:
-                for fj in free_jockeys:
-                    if fj.jockey_id not in busy_jockeys:
-                        chosen_jockey_id = fj.jockey_id
-                        break
+            if is_graded_or_open:
+                # 重賞・オープン戦: 有力馬（上位3頭）はフリー騎手を優先起用可能
+                is_top_contender = (rank < 3)
+                if is_top_contender and free_jockeys:
+                    for fj in free_jockeys:
+                        if fj.jockey_id not in busy_jockeys:
+                            chosen_jockey_id = fj.jockey_id
+                            break
 
-            # 2. フリー騎手を使わない、または空きがない場合は自厩舎所属騎手
-            if chosen_jockey_id is None and stable_jockey_id:
-                if stable_jockey_id not in busy_jockeys:
+                # フリー騎手を使わない／空きがない場合は自厩舎騎手
+                if chosen_jockey_id is None and stable_jockey_id:
+                    if stable_jockey_id not in busy_jockeys:
+                        chosen_jockey_id = stable_jockey_id
+
+                # 馬の主戦騎手
+                if chosen_jockey_id is None and horse.jockey_id:
+                    if horse.jockey_id not in busy_jockeys:
+                        chosen_jockey_id = horse.jockey_id
+            else:
+                # 条件戦（新馬・未勝利・1〜3勝クラス）:
+                # 1. 自厩舎所属騎手を最優先
+                if stable_jockey_id and stable_jockey_id not in busy_jockeys:
                     chosen_jockey_id = stable_jockey_id
 
-            # 3. 自厩舎騎手も塞がっている場合は、馬の主戦騎手
-            if chosen_jockey_id is None and horse.jockey_id:
-                if horse.jockey_id not in busy_jockeys:
-                    chosen_jockey_id = horse.jockey_id
+                # 2. 自厩舎所属騎手がバッティングしている等の場合は、馬の主戦騎手
+                if chosen_jockey_id is None and horse.jockey_id:
+                    if horse.jockey_id not in busy_jockeys:
+                        chosen_jockey_id = horse.jockey_id
+
+                # 3. 馬の主戦騎手も不在・バッティングの場合は、フリー騎手
+                if chosen_jockey_id is None and free_jockeys:
+                    for fj in free_jockeys:
+                        if fj.jockey_id not in busy_jockeys:
+                            chosen_jockey_id = fj.jockey_id
+                            break
 
             # 4. それでも決まらない場合は、まだ空いている騎手を割り当て
             if chosen_jockey_id is None:

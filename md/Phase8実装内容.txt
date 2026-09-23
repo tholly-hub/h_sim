@@ -1,0 +1,1450 @@
+アプリ修正
+-３年目9月4週で3歳未勝利馬の引退リストが出力されない
+-４年目1月第1週に移行しない。ターミナルにエラーが出ている。
+エラーリストは以下の通り。
+
+===========================================================
+  競馬シミュレーションエンジン - GUIデータ可視化システム
+============================================================
+起動中... しばらくお待ちください。
+qt.qpa.fonts: Populating font family aliases took 167 ms. Replace uses of missing font family "-apple-system" with one that exists to avoid this cost. 
+2026-09-22 13:01:13.317 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:01:13.317 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:01:22.302 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:01:22.303 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:01:22.310 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:01:22.310 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:01:42.436 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:01:42.436 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:01:42.440 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:01:42.441 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:03:51.541 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:03:51.546 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:03:51.554 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:03:51.554 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:03:57.739 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:03:57.740 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:03:57.748 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:03:57.748 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:04:05.074 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:04:05.074 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:05:30.169 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:05:30.174 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:05:30.175 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:05:30.182 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:05:30.183 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:05:36.650 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:05:36.651 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:05:36.655 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:05:36.656 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:06:13.622 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:06:13.623 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:06:55.945 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:06:55.947 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:06:55.954 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:06:55.963 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:06:55.963 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:07:18.739 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:07:50.034 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:09:00.033 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:09:00.033 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:09:06.047 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:09:06.048 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:10:05.965 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:10:05.966 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:11:10.438 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:11:10.439 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:11:10.443 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:11:10.443 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:11:22.978 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:11:22.978 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:45:13.947 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:45:13.955 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:45:13.956 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:45:35.486 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:45:35.487 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:45:35.494 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:45:35.494 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:45:50.474 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:46:40.248 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:46:40.249 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:49:16.202 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:49:16.203 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:49:16.208 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:49:16.209 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:49:28.543 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:49:28.543 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:50:40.470 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:50:40.471 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:50:40.474 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:50:40.475 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:50:47.872 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:50:47.873 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:50:47.878 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:50:47.879 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:51:58.687 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:51:58.688 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:53:36.412 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:53:36.413 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:53:36.423 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:53:36.423 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:54:15.743 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:54:15.744 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:56:51.983 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:56:51.989 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:57:28.722 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:57:28.722 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:57:28.730 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:57:28.731 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:57:35.235 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:57:35.236 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:58:42.314 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:59:01.495 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:59:50.728 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:59:50.728 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:59:50.738 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 13:59:50.739 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:01:49.513 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:01:49.513 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:01:55.423 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:01:55.423 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:01:59.476 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:01:59.477 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:01:59.484 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:01:59.485 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:02:03.643 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:02:03.643 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:03:03.863 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:03:03.865 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:03:03.869 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:03:03.869 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:03:10.683 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:03:10.684 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:03:10.692 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:03:10.693 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:04:16.013 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:04:16.013 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+[表彰] 【2年度 JRA賞・年度代表馬選考】完了: 年度代表馬=シノノメギヨーム
+2026-09-22 14:05:36.445 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:05:36.446 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+
+==================== 【2年度 -> 3年度 年進行処理】 ====================
+[年進行] 1/7: 生存全馬の加齢（age + 1）および古馬の発揮能力推移を計算中...
+[年進行] 2/7: 現役競走馬の引退処理（対象: 0頭、種牡馬・繁殖昇格判定）中...
+    ※ 現役馬 0頭 引退完了（新種牡馬: 0頭 / 新繁殖牝馬: 0頭）
+[年進行] 3/7: 2歳新馬（600頭）の厩舎実績優先ドラフト入厩および主戦騎手配分中...
+    ※ 新馬 600頭 が厩舎実績優先ドラフトにより全60厩舎へ入厩・現役登録完了。
+[年進行] 4/7: 騎手の世代交代判定中（多段階引退・調教助手転身・フリー化・18歳新人デビュー）...
+    - 【フリー転向】荒木 文彦 (通算17勝/G1:2勝) がフリー騎手へ転向！
+    - 【フリー転向】安藤 奏太 (通算15勝/G1:3勝) がフリー騎手へ転向！
+    - 【フリー転向】原田 涼太 (通算29勝/G1:2勝) がフリー騎手へ転向！
+[年進行] 5/7: 厩舎（調教師）のスキル向上および世代交代判定（80歳定年・調教助手/有力騎手承継）...
+    - 【厩舎承継】丸山厩舎 (80歳定年引退) -> 木村厩舎 (初期スキル: 50.0) / 新調教師 木村厩舎 (60歳) が新規就任
+    - 【厩舎承継】三浦厩舎 (80歳定年引退) -> 森厩舎 (初期スキル: 50.0) / 新調教師 森厩舎 (60歳) が新規就任
+[年進行] 6/8: 生産牧場の動的収容バランス調整（最低1頭保証・あふれ移籍）中...
+[年進行] 7/8: 稼働種牡馬の種付け料を産駒成績（獲得賞金・重賞勝利数）に基づき動的改定中...
+    - 【種付け料改定】タカミセルゲイ (サイアー順位:1位/産駒G1:3勝): 1,700,000円 -> 8,900,000円 (+7,200,000円)
+    - 【種付け料改定】ハニューソフィア (サイアー順位:2位/産駒G1:0勝): 4,300,000円 -> 7,500,000円 (+3,200,000円)
+    - 【種付け料改定】オサフネミケランジェロ (サイアー順位:3位/産駒G1:2勝): 2,700,000円 -> 8,400,000円 (+5,700,000円)
+    - 【種付け料改定】ハニューブリュンヒルデ (サイアー順位:4位/産駒G1:1勝): 6,000,000円 -> 9,000,000円 (+3,000,000円)
+    - 【種付け料改定】カガミパレルモ (サイアー順位:5位/産駒G1:1勝): 2,000,000円 -> 5,700,000円 (+3,700,000円)
+    - 【種付け料改定】アオヤギピーターホフ (サイアー順位:6位/産駒G1:1勝): 2,300,000円 -> 5,700,000円 (+3,400,000円)
+    - 【種付け料改定】シライシリエージュ (サイアー順位:7位/産駒G1:0勝): 3,900,000円 -> 5,100,000円 (+1,200,000円)
+    - 【種付け料改定】タカトリアレキサンドライト (サイアー順位:8位/産駒G1:1勝): 1,700,000円 -> 4,400,000円 (+2,700,000円)
+    - 【種付け料改定】オリハラアリオスト (サイアー順位:9位/産駒G1:0勝): 3,800,000円 -> 5,300,000円 (+1,500,000円)
+    - 【種付け料改定】ヤクモドナウ (サイアー順位:10位/産駒G1:0勝): 3,500,000円 -> 4,500,000円 (+1,000,000円)
+    - 【種付け料改定】シラトリドブロブニク (サイアー順位:11位/産駒G1:1勝): 1,700,000円 -> 3,500,000円 (+1,800,000円)
+    - 【種付け料改定】コハクマーブル (サイアー順位:12位/産駒G1:1勝): 2,000,000円 -> 4,000,000円 (+2,000,000円)
+    - 【種付け料改定】シマノカエサル (サイアー順位:13位/産駒G1:0勝): 2,000,000円 -> 2,800,000円 (+800,000円)
+    - 【種付け料改定】クリハラコルシカ (サイアー順位:14位/産駒G1:1勝): 1,700,000円 -> 4,400,000円 (+2,700,000円)
+    - 【種付け料改定】デミズパーシヴァル (サイアー順位:15位/産駒G1:0勝): 1,700,000円 -> 3,000,000円 (+1,300,000円)
+    - 【種付け料改定】タナハシギザ (サイアー順位:16位/産駒G1:0勝): 2,000,000円 -> 2,500,000円 (+500,000円)
+    - 【種付け料改定】ハニューオスミウム (サイアー順位:17位/産駒G1:0勝): 2,000,000円 -> 2,300,000円 (+300,000円)
+    - 【種付け料改定】カナモリチベット (サイアー順位:18位/産駒G1:1勝): 2,000,000円 -> 4,000,000円 (+2,000,000円)
+    - 【種付け料改定】タキモトソフィア (サイアー順位:19位/産駒G1:0勝): 2,000,000円 -> 3,000,000円 (+1,000,000円)
+    - 【種付け料改定】ツキシマドニゼッティ (サイアー順位:20位/産駒G1:0勝): 2,000,000円 -> 2,300,000円 (+300,000円)
+    - 【種付け料改定】リッカカエサル (サイアー順位:21位/産駒G1:1勝): 2,000,000円 -> 4,300,000円 (+2,300,000円)
+    - 【種付け料改定】ミツオカクロエ (サイアー順位:22位/産駒G1:0勝): 2,000,000円 -> 2,300,000円 (+300,000円)
+    - 【種付け料改定】クスノキルーアン (サイアー順位:23位/産駒G1:0勝): 2,200,000円 -> 2,700,000円 (+500,000円)
+    - 【種付け料改定】ケンモチヘラクレス (サイアー順位:24位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】セリザワイゾルデ (サイアー順位:25位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】チヨノコペルニクス (サイアー順位:26位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】ホタカメッテルニヒ (サイアー順位:27位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】ミドリカカルメン (サイアー順位:28位/産駒G1:0勝): 1,700,000円 -> 2,500,000円 (+800,000円)
+    - 【種付け料改定】ハスミバッハ (サイアー順位:29位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】スワノベリル (サイアー順位:30位/産駒G1:0勝): 2,000,000円 -> 2,300,000円 (+300,000円)
+    - 【種付け料改定】クワハラヴィンセント (サイアー順位:31位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】クサカベワーズワース (サイアー順位:32位/産駒G1:0勝): 2,000,000円 -> 2,300,000円 (+300,000円)
+    - 【種付け料改定】リュウグコメット (サイアー順位:33位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】アオヤギウィンザー (サイアー順位:34位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】シラトリリスボン (サイアー順位:35位/産駒G1:0勝): 2,800,000円 -> 3,100,000円 (+300,000円)
+    - 【種付け料改定】マキハラウェストミンスター (サイアー順位:36位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】カガミヴォルテール (サイアー順位:37位/産駒G1:0勝): 2,000,000円 -> 2,300,000円 (+300,000円)
+    - 【種付け料改定】サカキウォーターフォール (サイアー順位:38位/産駒G1:0勝): 1,500,000円 -> 1,800,000円 (+300,000円)
+    - 【種付け料改定】ミネギシクロエ (サイアー順位:39位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】サオトメカラカラ (サイアー順位:40位/産駒G1:0勝): 1,700,000円 -> 2,200,000円 (+500,000円)
+    - 【種付け料改定】ミズキマルガレーテ (サイアー順位:41位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】エビナエリザベス (サイアー順位:42位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】タナハシベルヴェデーレ (サイアー順位:43位/産駒G1:0勝): 1,500,000円 -> 2,000,000円 (+500,000円)
+    - 【種付け料改定】セリザワホメロス (サイアー順位:44位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】イズミノコールリッジ (サイアー順位:45位/産駒G1:0勝): 1,700,000円 -> 2,200,000円 (+500,000円)
+    - 【種付け料改定】サカキボッカッチョ (サイアー順位:46位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】ヒビキエパメイノンダス (サイアー順位:47位/産駒G1:0勝): 1,500,000円 -> 1,800,000円 (+300,000円)
+    - 【種付け料改定】タテノトレド (サイアー順位:48位/産駒G1:0勝): 2,000,000円 -> 2,300,000円 (+300,000円)
+    - 【種付け料改定】ヒビキウィトゲンシュタイン (サイアー順位:49位/産駒G1:0勝): 1,700,000円 -> 2,500,000円 (+800,000円)
+    - 【種付け料改定】ホウショカルセドニー (サイアー順位:50位/産駒G1:0勝): 1,500,000円 -> 1,800,000円 (+300,000円)
+    - 【種付け料改定】カナモリミラノ (サイアー順位:51位/産駒G1:0勝): 1,700,000円 -> 2,000,000円 (+300,000円)
+    - 【種付け料改定】ヤクモオアシス (サイアー順位:52位/産駒G1:0勝): 1,500,000円 -> 1,800,000円 (+300,000円)
+    - 【種付け料改定】カドワキマシュー (サイアー順位:53位/産駒G1:0勝): 1,500,000円 -> 1,800,000円 (+300,000円)
+    - 【種付け料改定】アオヤギクラッスス (サイアー順位:54位/産駒G1:0勝): 1,500,000円 -> 1,800,000円 (+300,000円)
+    - 【種付け料改定】シマノショーペンハウアー (サイアー順位:60位/産駒G1:0勝): 1,500,000円 -> 1,200,000円 (-300,000円)
+[年進行] 8/8: 各種当年成績のリセット（通算成績は保持・累積）中...
+【年進行 完了】2年度から 3年度 への移行処理がすべて正常に完了しました！
+=================================================================================
+
+2026-09-22 14:06:08.587 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:06:08.587 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:06:08.590 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:06:08.592 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:06:51.650 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:06:51.651 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:06:51.659 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:06:51.659 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:06:59.072 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:06:59.073 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:05.489 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:05.489 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:05.493 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:05.494 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:14.174 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:14.175 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:40.178 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:40.180 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:40.189 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:40.189 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:47.412 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:47.413 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:47.416 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:47.418 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:54.182 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:54.183 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:54.186 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:07:54.187 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:08:01.626 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:08:01.632 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:08:39.191 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:08:39.191 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:08:44.978 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:08:44.978 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:08:44.988 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:08:44.988 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:08:49.110 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:08:49.111 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:22.104 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:22.104 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:22.110 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:22.110 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:33.483 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:33.492 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:51.095 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:51.096 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:51.104 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:51.105 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:57.490 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:57.492 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:57.495 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:09:57.495 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:10:09.546 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:10:09.547 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:11:53.180 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:11:53.181 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:11:57.677 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:11:57.679 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:12:11.004 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:12:11.008 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:12:11.009 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:12:11.016 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:12:11.026 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:12:17.547 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:12:17.547 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:12:17.552 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:12:17.554 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:12:21.876 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:12:21.880 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:16:22.751 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:17:13.223 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:17:13.230 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:17:13.240 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:17:13.240 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:18:10.085 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:18:10.086 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:19:06.734 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:19:06.735 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:20:26.145 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:20:26.146 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:21:29.810 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:21:29.811 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:21:29.815 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:21:29.816 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:21:29.824 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:21:29.824 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:22:57.139 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:22:57.142 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:23:06.241 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:23:06.242 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:23:06.246 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:23:06.247 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:24:31.799 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:24:31.800 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:24:31.809 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:24:31.809 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:25:04.548 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:25:04.557 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:25:04.562 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:25:04.562 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:25:04.569 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:25:04.569 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:27:25.855 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:27:25.866 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:27:25.875 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:27:25.875 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:28:23.773 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:28:23.776 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:28:23.777 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:28:23.781 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:28:23.782 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:29:31.750 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:29:31.750 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:30.168 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:30.168 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:38.356 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:38.357 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:38.367 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:38.369 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:43.560 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:43.560 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:48.179 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:48.180 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:48.188 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:48.189 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:54.354 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:54.357 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:59.576 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:59.577 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:59.586 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:30:59.587 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:31:11.179 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:31:11.187 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:31:11.188 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:33.840 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:33.842 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:33.845 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:33.846 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:39.680 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:39.681 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:39.690 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:39.690 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:46.575 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:46.575 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:52.821 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:52.822 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:52.833 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:57.789 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:33:57.789 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:06.305 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:06.306 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:06.309 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:12.935 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:12.937 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:18.264 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:18.265 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:25.860 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:25.868 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:25.868 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:33.100 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:33.100 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:33.107 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:33.107 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:43.158 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:43.159 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:49.144 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:34:49.144 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:16.424 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:16.429 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:16.436 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:16.437 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:20.873 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:20.874 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:24.761 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:24.762 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:24.777 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:24.778 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:30.220 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:30.221 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:35.675 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:35.684 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:40.743 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:40.744 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:47.885 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:47.886 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:52.657 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:35:52.661 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:04.941 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:04.942 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:09.911 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:09.912 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:15.153 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:15.159 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:15.161 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:15.162 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:20.718 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:20.725 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:30.533 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:30.533 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:35.760 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:35.761 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:39.793 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:39.794 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:44.203 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:44.207 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:44.208 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:44.213 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:49.004 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:49.010 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:49.017 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:49.017 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:54.239 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:36:54.247 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:01.134 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:01.135 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:05.333 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:05.334 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:05.336 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:05.338 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:10.257 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:10.258 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:10.264 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:10.265 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:19.330 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:19.331 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:24.505 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:24.514 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:24.521 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:24.522 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:29.863 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:29.865 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:35.013 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:35.013 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:35.022 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:35.033 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:38.884 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:38.884 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:38.891 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:38.892 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:43.437 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:43.438 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:43.441 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:43.443 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:47.682 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:47.682 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:47.689 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:47.689 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:52.551 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:37:52.557 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:38:07.342 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:38:07.343 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:38:07.349 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:38:07.349 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:38:12.633 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:38:12.633 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:38:17.225 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:38:17.227 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:38:17.235 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:38:17.236 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:39:22.845 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:39:22.851 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:39:29.699 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:39:29.707 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:39:29.708 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:40:18.419 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:40:18.420 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:40:18.428 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:40:18.429 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:41:19.646 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:41:19.653 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:42:19.404 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:42:19.404 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:42:19.409 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:42:19.410 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:42:25.113 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:42:25.115 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:42:25.121 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:42:25.122 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:46:16.174 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:47:08.855 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:47:08.856 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:47:18.058 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:47:18.059 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+
+==================== 【第3年度 3月 春季当歳馬誕生（出産）イベント】 ====================
+[3月出産] 全600頭（牡: 300頭、牝: 300頭）の当歳馬（0歳）が誕生し、スタッドブックへ登録されました！
+=================================================================================
+
+2026-09-22 14:47:40.725 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:47:40.727 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:49:01.342 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:49:01.343 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:49:58.343 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:49:58.344 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:49:58.354 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:50:48.381 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:50:48.381 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:51:47.328 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:51:47.329 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:51:47.336 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:51:47.337 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:53:01.698 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:53:01.709 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:53:58.752 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:53:58.753 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:53:58.758 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:53:58.759 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:55:14.296 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:55:14.296 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:55:22.001 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:55:22.002 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:55:22.011 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:55:22.019 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:55:22.020 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:56:48.419 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:56:48.420 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:56:48.432 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:56:48.432 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:57:54.895 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:59:17.861 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:59:17.861 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:59:17.864 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:59:17.866 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:59:29.340 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:59:29.340 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:59:29.344 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 14:59:29.345 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:00:43.132 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:00:43.134 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:00:43.141 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:00:43.142 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:00:52.165 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:00:52.172 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:00:52.172 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:01:49.632 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:01:49.633 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:01:49.642 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:01:49.642 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:01:55.824 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:01:55.825 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:02:01.814 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:02:01.815 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:06:01.996 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:06:01.997 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:06:02.003 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:06:02.010 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:20.128 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:20.128 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:25.061 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:25.062 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:25.066 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:25.067 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:34.438 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:34.440 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:48.822 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:48.823 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:55.212 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:55.212 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:59.039 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:59.042 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:59.043 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:07:59.047 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:03.993 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:03.999 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:04.002 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:04.004 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:07.670 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:07.671 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:07.679 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:07.680 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:11.806 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:11.807 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:11.816 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:11.817 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:15.031 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:15.032 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:15.045 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:15.045 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:19.575 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:19.575 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:31.567 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:31.568 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:31.576 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:31.577 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:37.808 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:37.813 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:37.822 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:37.822 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:42.922 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:42.923 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:47.267 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:47.268 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:52.150 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:52.159 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:55.417 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:55.418 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:55.421 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:08:55.424 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:09:04.221 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:09:04.222 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:09:04.228 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:09:04.229 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:09:46.856 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:09:46.857 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:09:46.859 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:09:46.861 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:10:32.458 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:10:32.459 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:10:32.468 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:10:32.468 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:10:43.245 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:10:43.247 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+
+==================== 【第3年度 4月 春季種付け交配イベント】 ====================
+[交配選抜] 稼働中 種牡馬 60 頭、繁殖牝馬 600 頭のマッチングを開始します。
+[4月種付け] 全600組の交配・受胎が完了しました。（翌年3月に出産予定）
+=================================================================================
+
+2026-09-22 15:11:46.581 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:11:46.581 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:13:11.284 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:13:11.284 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:13:59.335 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:13:59.336 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:13:59.341 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:13:59.341 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:14:05.024 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:14:05.024 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:06.576 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:06.585 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:06.585 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:06.593 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:13.098 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:13.100 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:13.102 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:13.104 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:18.013 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:18.014 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:24.959 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:24.960 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:28.855 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:28.855 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:28.864 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:28.864 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:37.467 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:37.470 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:37.471 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:37.480 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:46.211 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:46.213 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:46.222 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:46.224 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:53.193 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:53.195 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:53.203 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:53.204 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:56.666 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:15:56.667 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:18:07.503 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:18:07.503 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:18:07.511 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:18:07.512 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:20:08.228 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:20:08.232 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:20:08.236 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:20:08.238 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:21:22.696 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:21:22.697 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:22:21.551 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:22:21.553 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:22:21.557 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:22:21.558 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:23:50.188 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:23:50.188 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:26:11.686 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:26:11.686 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:26:11.696 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:26:11.696 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:28:02.144 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:28:02.145 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:28:02.156 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:28:02.157 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:29:12.302 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:29:12.310 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:29:12.320 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:29:12.320 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:30:10.653 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:30:10.653 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:30:10.660 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:30:10.661 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:31:08.490 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:31:08.491 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:31:20.057 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:31:20.057 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:31:20.062 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:31:20.063 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:32:55.463 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:32:55.465 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:32:55.468 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:32:55.469 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:33:09.261 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:33:09.262 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:33:09.268 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:33:09.269 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:33:57.238 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:33:57.239 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:33:57.244 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:33:57.244 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:09.648 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:09.649 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:09.654 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:09.655 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:18.614 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:18.615 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:18.628 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:18.628 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:25.263 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:25.264 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:25.271 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:25.272 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:39.626 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:39.640 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:51.150 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:34:51.156 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:35:05.989 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:35:05.989 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:35:05.998 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:35:05.999 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:36:54.163 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:36:54.165 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:36:54.168 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:36:54.170 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:46:08.790 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:46:08.791 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:46:08.794 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:46:08.795 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:46:19.471 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:46:19.471 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:48:35.173 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:48:35.174 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:19.992 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:19.992 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:31.692 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:31.692 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:31.698 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:31.699 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:42.702 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:42.702 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:42.712 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:42.712 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:50.093 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:50.093 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:50.102 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:50:50.102 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:51:55.881 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:51:55.882 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:52:09.960 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:52:09.962 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:53:52.148 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:53:52.149 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:58:31.324 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:58:31.324 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:59:24.462 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:59:24.463 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:59:24.470 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 15:59:24.470 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:00:40.564 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:00:40.565 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:00:40.571 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:00:40.571 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:01:52.181 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:01:52.182 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:01:52.192 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:01:52.192 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:02:50.506 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:02:50.506 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:03:53.903 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:03:53.905 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:06:14.135 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:06:14.135 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:07:22.773 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:07:22.774 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:07:22.781 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:07:22.782 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:07:22.793 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:07:22.793 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:09:40.166 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:09:40.173 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:09:40.174 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:09:53.651 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:09:53.656 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:09:53.660 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:09:53.663 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:13:05.913 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:13:05.915 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:13:16.667 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:13:16.668 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:13:16.683 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:13:16.683 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:13:29.146 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:13:29.147 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:13:35.635 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:13:35.637 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:00.606 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:00.608 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:07.304 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:07.305 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:07.314 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:07.315 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:27.338 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:27.348 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:37.972 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:37.974 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:50.792 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:14:50.793 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:07.833 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:07.833 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:23.098 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:23.098 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:23.116 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:23.117 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:28.947 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:28.956 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:48.580 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:48.582 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:56.062 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:56.066 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:56.071 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:15:56.072 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:01.932 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:01.933 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:01.938 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:05.852 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:05.854 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:11.036 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:11.037 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:11.043 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:11.044 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:22.901 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:22.902 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:29.131 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:29.135 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:29.142 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:29.143 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:34.770 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:34.770 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:34.774 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:34.775 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:45.531 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:45.533 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:51.936 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:51.938 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:51.944 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:51.945 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:59.609 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:16:59.611 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:17:06.989 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:17:06.995 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:17:07.003 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:17:07.003 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:17:07.011 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:17:07.012 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:17:46.776 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:17:46.778 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:19:49.964 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:19:49.964 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:22:41.281 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:22:41.281 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:22:41.291 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:22:41.291 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:22:46.966 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:22:46.967 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:22:59.429 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:22:59.437 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:22:59.438 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:25:31.209 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:25:31.210 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:25:31.216 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:25:31.216 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:27:13.283 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:27:13.284 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:27:13.291 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:27:13.291 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:33:51.165 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:33:51.166 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:36:53.868 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:36:53.869 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:37:49.819 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:37:49.820 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:40:30.064 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:40:30.069 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:43:16.434 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:43:16.435 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:46:22.104 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:46:22.105 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:46:22.109 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:46:22.109 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:47:18.739 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:47:18.745 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:48:39.336 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:48:39.337 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:48:39.343 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:48:39.344 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:50:32.599 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:50:32.599 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:50:32.607 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:50:32.608 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:51:29.560 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:51:29.561 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:53:09.590 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:53:09.590 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:57:29.107 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:57:29.107 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:57:29.115 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 16:57:29.116 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:00:22.379 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:00:22.389 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:00:22.395 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:00:22.396 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:00:38.384 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:00:38.385 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:01:50.380 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:01:50.380 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:01:50.388 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:01:50.389 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:01:50.393 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:01:50.393 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:03:06.081 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:03:06.082 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:05:13.626 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:05:13.627 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:07:25.129 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:07:25.130 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:07:25.136 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:07:25.136 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:07:47.445 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:07:47.446 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:18:54.031 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:19:36.584 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:19:36.584 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:19:36.590 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:19:36.591 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:19:41.135 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:19:41.137 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:19:41.143 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:19:41.143 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:20:31.941 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:20:31.943 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:20:31.949 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:20:31.950 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:20:42.270 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:20:42.270 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:21:52.736 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:21:52.741 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:23:27.314 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:23:27.315 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:23:34.531 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:23:34.531 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:23:34.537 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:23:34.537 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:23:57.768 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:24:38.613 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:24:38.619 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:24:38.625 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:24:38.625 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:25:46.915 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:25:46.916 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:25:46.925 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:25:46.925 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:26:03.771 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:26:03.772 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:28:33.306 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:28:33.306 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:28:39.227 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:28:39.228 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:28:42.627 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:28:42.628 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:21.965 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:21.974 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:21.975 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:21.985 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:31.865 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:31.875 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:43.371 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:43.372 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:43.381 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:43.382 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:49.538 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:30:49.538 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:31:13.815 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:32:07.308 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:32:07.308 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:33:13.989 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:33:13.990 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:33:30.328 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:33:30.330 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:33:41.413 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:33:41.413 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:33:51.521 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:33:51.528 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:33:51.529 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:35:02.193 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:35:02.193 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:36:14.252 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:36:14.262 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:37:04.465 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:37:04.466 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:37:04.475 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:37:04.476 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:37:51.293 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:37:51.301 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:37:51.302 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:37:51.312 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:38:29.124 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:38:29.126 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:38:34.925 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:38:34.926 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:38:34.931 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:38:34.932 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:39:33.729 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:39:33.731 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:39:33.737 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:39:33.745 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:40:54.119 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:40:54.127 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:40:54.136 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:40:54.136 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:20.233 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:20.242 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:20.244 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:20.246 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:27.004 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:27.005 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:27.014 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:27.015 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:36.899 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:36.900 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:36.907 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:36.907 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:43.782 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:43.787 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:43.790 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 17:43:43.792 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:24:21.908 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:24:21.909 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:26:24.036 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:26:24.038 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:08.714 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:08.715 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:08.719 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:08.720 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:18.050 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:18.050 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:25.796 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:25.801 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:33.798 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:33.799 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:33.806 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:27:33.816 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:05.371 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:05.372 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:05.380 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:05.380 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:13.345 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:13.346 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:13.353 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:13.354 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:20.357 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:20.358 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:33.122 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:33.129 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:33.136 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:33.137 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:47.961 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:47.964 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:47.966 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:29:47.970 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:30:05.077 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:30:05.087 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:30:05.087 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:30:56.100 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:30:56.101 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:33:02.257 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:33:02.257 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:33:02.265 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:33:02.265 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:33:11.069 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:33:11.069 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:33:11.078 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:33:11.078 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:34:13.965 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:34:13.965 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:34:13.973 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:34:13.973 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:36:06.722 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:36:06.722 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:37:19.375 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:37:19.384 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:38:53.738 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:38:53.739 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:38:53.746 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:38:53.747 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:39:51.121 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:39:51.122 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:39:51.130 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:39:51.131 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:39:59.153 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:39:59.155 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:39:59.158 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:39:59.158 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:40:51.887 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:40:51.889 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:40:58.844 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:40:58.848 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:40:58.849 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:40:58.854 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:42:20.783 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:42:20.784 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:42:20.789 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:42:20.789 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:43:38.868 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:43:38.869 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+[表彰] 【3年度 JRA賞・年度代表馬選考】完了: 年度代表馬=コハクアントニオ
+2026-09-22 18:44:08.758 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:45:04.549 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:45:04.550 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:45:04.558 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:45:04.559 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:45:10.119 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:45:10.119 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:45:10.127 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:45:10.127 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:46:23.442 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:46:23.443 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:33.330 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:33.332 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:33.337 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:33.338 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:43.044 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:43.044 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:43.050 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:43.050 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:57.183 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:57.184 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:57.188 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:47:57.189 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:49:08.496 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:49:08.497 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:49:08.507 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:49:08.508 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:49:13.755 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+
+==================== 【3年度 -> 4年度 年進行処理】 ====================
+[年進行] 1/7: 生存全馬の加齢（age + 1）および古馬の発揮能力推移を計算中...
+[年進行] 2/7: 現役競走馬の引退処理（対象: 44頭、種牡馬・繁殖昇格判定）中...
+    - 【種牡馬入り】マキハラサンモリッツ (牡5歳・G1:0勝/重賞:1勝・獲得賞金:120,680,000円) -> 初年度種付け料: 2,000,000円 (シマノカエサル系)
+    - 【種牡馬入り】チシマショーペンハウアー (牡5歳・G1:0勝/重賞:0勝・獲得賞金:65,650,000円) -> 初年度種付け料: 1,000,000円 (ハスミバッハ系)
+    - 【種牡馬入り】シノノメギヨーム (牡5歳・G1:3勝/重賞:4勝・獲得賞金:872,050,000円) -> 初年度種付け料: 12,300,000円 (タカミセルゲイ系)
+    - 【種牡馬入り】ハスミアトラス (牡5歳・G1:0勝/重賞:0勝・獲得賞金:162,185,000円) -> 初年度種付け料: 1,400,000円 (タカトリアレキサンドライト系)
+    - 【種牡馬入り】クサカベスモーキークォーツ (牡5歳・G1:2勝/重賞:2勝・獲得賞金:361,730,000円) -> 初年度種付け料: 7,700,000円 (カナモリチベット系)
+    - 【種牡馬入り】ヒムロスラ (牡5歳・G1:0勝/重賞:0勝・獲得賞金:100,280,000円) -> 初年度種付け料: 1,400,000円 (サカキボッカッチョ系)
+?? [GUIエラー捕捉] 未捕捉の例外が発生しました:
+Traceback (most recent call last):
+  File "/Users/takashihorimatsu/Library/CloudStorage/GoogleDrive-thorimatsu@gmail.com/マイドライブ/h_sim/src/gui/views/dashboard_view.py", line 750, in _advance_to_next_week
+    self.life.advance_year(current_year=latest_y)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/takashihorimatsu/Library/CloudStorage/GoogleDrive-thorimatsu@gmail.com/マイドライブ/h_sim/src/core/lifecycle.py", line 208, in advance_year
+    if h.get("career_wins", 0) >= 1:
+       ^^^^^
+AttributeError: 'sqlite3.Row' object has no attribute 'get'
+
+2026-09-22 18:50:43.416 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:50:43.417 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:51:49.952 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:51:49.953 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:53:15.063 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:53:15.063 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:53:15.066 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:53:15.070 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:53:30.563 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:53:30.563 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:53:38.731 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:53:38.731 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:58:41.949 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:58:41.950 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:58:41.958 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:58:41.959 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:58:55.355 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:58:55.356 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:58:55.359 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:58:55.361 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:14.060 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:14.061 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:14.065 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:14.066 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:21.694 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:21.694 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:21.700 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:21.706 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:29.874 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:29.875 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:29.878 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:35.074 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:35.075 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:35.080 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:35.082 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:41.198 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:41.199 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:41.204 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:41.204 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:47.641 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:47.641 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:47.646 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:47.647 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:55.010 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:55.012 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:55.016 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 18:59:55.017 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:06.095 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:06.097 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:15.916 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:15.917 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:15.925 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:15.926 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:21.909 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:21.909 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:30.140 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:30.141 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:30.148 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:30.148 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:36.585 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:36.586 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:36.593 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:36.594 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:52.161 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:52.169 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:52.175 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:52.176 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:58.296 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:58.298 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:00:58.306 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:08.557 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:08.557 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:14.893 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:14.894 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:14.904 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:14.905 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:24.234 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:24.235 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:30.020 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:30.021 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:30.026 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-09-22 19:01:30.027 Python[1444:15121] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+
+
+
+Phase8実装内容
+#フリー騎手の条件
+-通算250勝以上、異なる馬でのG1勝利10頭以上
+
+#レース参加条件
+-3歳馬は基本的に3冠クラシック出馬を基本ベースとして考えます。
+-3冠クラシックとは、牡馬は皐月賞、日本ダービー、菊花賞、牝馬は桜花賞、オークス、秋華賞です。
+-ただし、NHKマイル勝利馬や、マイル以下の距離適性の馬については、3歳7月以降はマイル以下のレースを主戦場とすることも考えます。
+- リステッド競走、重賞では、基本的に適正距離に応じたレース出馬を考えます。
+-リステッドレース、重賞では、例えばマイルまでの適性しかない馬が長距離レースに出ることは、基本的にはありません。
+-また、ダート適性が高い馬が芝のリステッドレース、重賞レースに出たり、またその逆も基本的にはありません。
+
+#負担重量の導入
+-レースによって馬の負担重量を以下のように変えてください。
+--１.2歳戦 定量
+---9月までは牡馬、牝馬ともに55kgの負担
+---10-12月、牡馬55kg,牝馬54kg
+--2.3歳戦　定量、G 1、トライアルレース
+---牡馬57kg 牝馬55kg
+--3.3歳、古馬混合戦　定量、G 1
+---古馬　牡馬58kg,牝馬56kg
+---3歳　牡馬56kg,牝馬54kg
+--4.3歳、古馬混合戦、G2　別定戦
+---G1馬　59kg
+---G2馬　58kg
+---それ以外　57kg
+---牝馬は上記該当重量から-2kg  
+---3歳馬は上記該当重量から-2kg
+--5.ハンデ戦、3歳、古馬混合戦　G3
+---55kgを平均値とし、馬の成績を数値化し、１kg単位で斤量を割り振る。
+---重量幅は、最大でも60kgから48kgの範囲とする。
+--6.条件レース
+---定量戦とする。
+--7.斤量によるタイムパラメータ
+---1kgあたり0.2秒のタイム差が生じるようパラメータを調整してください。
+
+#成長曲線
+-牡馬は牝馬と比べて能力値が少し高くなるよう設定してください。目安は斤量２kg差で同タイムとなる程度です。
+-基本的に牝馬は牡馬よりも成長曲線が早く、牡馬は古馬になってから活躍するケースが多い傾向としてください。
+
+#種牡馬・牝馬の系統図表示（サイアーライン・ファミリーラインの可視化、タブを新設）
+-牡馬系（サイアーライン確立・零細化保護・子系統分化）
+-牝馬系（ファミリーナンバー・牝系名門化）のルール確立
+
+#騎手、調教師の引退
+-騎手、調教師の引退は、12月4週終了時点で判定する。
+-定年を迎えた調教師は、引退した所属騎手（調教助手）、もしくはフリーで引退した騎手に厩舎を譲渡する。
+-譲渡された厩舎は、譲渡された人の名前で新たな名前の厩舎が誕生する。
+
+#種牡馬、繁殖牝馬の引退
+-基本は零細化を保護しつつも成績不良な種牡馬、繁殖牝馬は引退となる。
+-種牡馬の引退: 25歳定年、または年度別の勝ち馬が一定以下（例：3年連続で勝利馬なし）になった場合に引退
+-繁殖牝馬の引退: 20歳定年、または年度別の勝ち馬が一定以下（例：3年連続で勝利馬なし）となった場合に引退
+-現役として活躍している種牡馬は最低でも3頭の種付けを行う。
+-現役として活躍している繁殖牝馬は毎年種付けを行う。
+
+#種牡馬になる条件
+-優先１：後述するG1主要レース路線を制覇している
+-優先２：上記でない場合、G1レース３勝以上
+-これらの馬は、オープン馬に限り種牡馬になれる
+-それ以外の馬については、重賞勝利数や3着内率、勝率、種牡馬としての希少性などを考慮し、ランク付けを行い、その年、種牡馬を引退する馬を補充する形で種牡馬として認定される。
+-新種牡馬については、各種リストで表示される種牡馬名の前に緑字で新をつける。
+
+#海外種牡馬の導入
+-シミュレーション開始4年目から、３年に１頭海外から種牡馬が持ち込まれる
+-種牡馬の距離適性や馬場特性はランダムとする。
+-それ以外のパラメータは、以下の方法で決定する。
+--導入時の全種牡馬の能力値を評価し、上位30%以上の能力を有するものとする。
+--なお、能力値は全種牡馬を上回るものでも良いが、最大でも1.1倍の範囲内とする。
+-海外種牡馬については、各種リストで表示される種牡馬名の前に赤字で外とつける
+
+#競走馬の引退
+-3歳9月4週終了時点で未勝利馬は引退
+-4歳12月4週終了時点で１勝馬は引退
+-5歳12月4週終了時点で牝馬は引退、牡馬条件馬は引退
+-オープン馬は4歳以降、毎年12月4週時点で成長曲線が一定数を下回っており、かつ近走の成績不振が続いている場合は引退
+-7歳12月4週終了時点で全馬引退
+-毎年12月4週終了時点で引退する牡馬のうちオープン馬については、重賞勝利数や3着内率、勝率、種牡馬血統としての希少性などを考慮し、数値化する。この数値に応じてランク付けを行なう。ランク付けは以下の順序で行う。
+--優先度１の馬
+--優先度２の馬
+--数値順
+-毎年12月4週終了時点で引退する牝馬については、G1勝利数、重賞勝利数や3着内率、勝率、繁殖牝馬血統としての希少性などを考慮し、ランク付けを行なう。このランキングに応じて繁殖牝馬を決定する。
+
+#馬の入れ替え、繁殖などのスケジュール
+## 3月1週：
+-前年度交配した馬が誕生する
+-引退する種牡馬が決定（a）
+-新たに導入される海外種牡馬が決定(b)
+-優先度１の馬は必ず種牡馬となれる
+-優先度２以降のランク付けされた馬は、引退する種牡馬数に応じて種牡馬が決定(c)
+- aと(b+c)の値に大きな差がつかないよう配慮する。
+-引退する繁殖牝馬が決定
+-新たに導入される繁殖牝馬が決定
+##4月1週
+-新しい種牡馬リスト、繁殖牝馬リストに応じて交配
+##9月4週
+-3歳馬のうち未勝利馬は引退
+##12月4週
+-競走馬の引退決定
+-顕彰馬、年度代表馬など表彰馬の決定
+-種牡馬、繁殖牝馬の評価を行い、引退条件に当てはまる馬が引退
+#UIなどの変更
+## ダッシュボード
+-レースを見るボタンは、次の週に進むボタンの前に配置
+-週の切り替えは、年の切り替え、週の切り替えの２つのプルダウンメニューを実装する
+-[2行目：今週の開催レース一覧…]の文字列から[2行目]の文字を削除
+-レース表示の色分け
+--新馬戦：黄緑
+--未勝利戦：明るい灰色
+--条件戦：水色
+--リステッド：黄色
+--G3:緑
+--G2:青
+--G1:赤
+-[3行目:出走馬表　オッズ・・・]の文字列から[3行目]の文字を削除
+-レース名は、上記色分けに応じて表示
+-出走馬表から適正を削除、斤量を実装
+
+#シミュレーション状況
+-タブ位置は一番最後に移動
+
+#競馬データベース
+##年度代表馬・各部門賞
+-表彰タブを新設しそこに移動
+##主要レース路線タブを新設
+-主要レース路線の勝利馬を年度ごとに並べる
+-主要レース路線はタブ表示する。
+-主要レース路線内の各レースは横並びで並べる
+-主要レール路線
+--3歳牡馬３冠：皐月賞、日本ダービー、菊花賞
+--3歳牝馬３冠：桜花賞、オークス、秋華賞
+--3歳ダート３冠：羽田盃、東京ダービー、ジャパンダートクラシック
+--古馬短距離２冠：高松宮記念、スプリーターズステークス
+--古馬マイル２冠：安田記念、マイルCS
+--古馬中距離２冠：大阪杯、天皇賞秋
+--古馬長距離２冠：天皇賞春、ジャパンカップ
+--古馬牝馬２冠：ヴィクトリアマイル、エリザベス女王杯
+--グランプリ２冠：宝塚記念、有馬記念
+--古馬ダートスプリント：JBCスプリント
+--古馬ダートマイル３冠：フェブラリーS、かしわ記念、マイルCS南部杯
+--古馬ダート中距離３冠：川崎記念、JBCクラシック、チャンピオンズカップ
+--古馬ダートグランプリ：東京大賞典
+##種牡馬リストタブの新設
+-種牡馬リストを表示(現役、全世代)
+-種牡馬名、サイヤーライン、父馬、母馬、生産頭数、勝ち馬数、重賞成績（G1-G2-G3）
+を表示
+-種牡馬をクリックすると生産馬リストを表示
+-リストは通算成績順に表示
+##繁殖牝馬リストタブの新設
+-繁殖牝馬リストを表示(現役、全世代)
+-繁殖牝馬名、サイヤーライン、父馬、母馬、生産頭数、勝ち馬数、重賞成績（G1-G2-G3）を表示
+-繁殖牝馬をクリックすると、生産馬リストを表示
+-リストは通算成績順に表示
+
+##顕彰・殿堂・メモリアル
+-表彰タブに移動
+-グランプリレースである宝塚記念、有馬記念、東京大賞典は、レース間隔に伴わず、その時点での芝、ダートの成績上位８頭からなるレースとします。有馬記念、東京大賞典は３歳馬の出馬も可能とします。
+
+#表彰
+##年度代表馬・各部門賞
+-表彰内にタブを設けて表示[年度代表馬]と表示
+##各部門賞
+-毎年の最多勝騎手、最多勝調教師、最多勝馬主、最多勝生産牧場、最多勝新人騎手、最多勝新人調教師を表示
+-年度代表馬のフォーマットと同様の配置、内容とする。
+##顕彰・殿堂・メモリアル
+-表彰内にタブを設けて表示
+
+#各種リーディング
+##生産牧場・馬主の規模階層（動的変化）タブは、シミュレーション状況タブに移動
+##騎手リーディング
+-年齢の後に年数を記載
+-新人騎手は名前の前に緑字で新と記載
+##調教師リーディング
+-年齢の後に年数を記載
+-新人調教師は名前の前に緑字で新と記載
+-持ち馬数をクリックすると、入厩馬リスト（何戦何勝、勝利重賞レース）が表示される
+-勝ち馬数をクリックすると、上記リストの中の勝ち馬リストが表示される
+##馬主リーディング
+-持ち馬数をクリックすると持ち馬リスト（何戦何勝、勝利重賞レース）が表示される
+-勝ち馬数をクリックすると上記リストのうちの勝ち馬リストが表示される
+##生産牧場リーディング
+-種牡馬をクリックすると種牡馬リスト（リスト内の種牡馬をクリックすると生産馬、何戦何勝、勝利重賞レース）が表示される。
+-繁殖牝馬をクリックすると繁殖牝馬リスト（リスト内の繁殖牝馬をクリックすると生産馬、何戦何勝、勝利重賞レース）が表示される。
+-生産頭数をクリックすると生産馬リスト（リスト内の生産馬をクリックすると生産馬、何戦何勝、勝利重賞レース）が表示される。
+-勝ち馬数をクリックすると、上位リストの中の勝ち馬リストが表示される
+##サイヤーリーディング
+-新種牡馬には、種牡馬名の前に緑字で新と表示
+-海外種牡馬には、種牡馬名の前に赤字で外と表示
+
+

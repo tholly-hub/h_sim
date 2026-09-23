@@ -14,6 +14,7 @@ import random
 from typing import List, Tuple
 
 from src.db.database import Database
+from src.core.genetics import GeneticsEngine
 from src.generators.name_generator import (
     DEFAULT_OWNER_PREFIXES,
     DEFAULT_OWNER_PROFILES,
@@ -118,7 +119,7 @@ MAJOR_G2_NAMES = [
     "阪神大賞典", "目黒記念", "神戸新聞杯", "ローズS", "弥生賞", "青葉賞"
 ]
 MAJOR_G3_NAMES = [
-    "鳴尾記念", "エプソムC", "函館記念", "新潟記念", "京成杯",
+    "鳴尾記念", "エプソムC", "小倉記念", "新潟記念", "京成杯",
     "共同通信杯", "きさらぎ賞", "シンザン記念", "武蔵野S", "根岸S"
 ]
 
@@ -227,7 +228,7 @@ class DatabaseInitializer:
     def generate_initial_trainers(self, count_miho: int = 30, count_ritto: int = 30) -> List[int]:
         """
         美浦（東）30厩舎、栗東（西）30厩舎（計60厩舎）を生成
-        50歳〜80歳定年の均等分布、調教師歴1〜30年、スキルレベル初期値（初期成績0デフォルト）
+        60歳〜79歳の年齢分布、調教師歴1〜20年、定年80歳ルールを遵守
         """
         trainer_ids = []
         specialties = list(TrainerSpecialty)
@@ -237,8 +238,8 @@ class DatabaseInitializer:
             for i in range(count_miho):
                 name = self.person_name_gen.generate_trainer_name(i)
                 spec = specialties[i % len(specialties)].value
-                age = 40 + (i % 25)  # 40〜64歳
-                trainer_years = max(1, age - 39)
+                age = 60 + (i % 20)  # 60〜79歳
+                trainer_years = max(1, age - 59)
                 reputation = round(random.uniform(45.0, 55.0), 1)
                 skill_level = round(50.0 + (trainer_years * 0.4) + random.uniform(-1.5, 1.5), 1)
 
@@ -259,8 +260,8 @@ class DatabaseInitializer:
             for i in range(count_ritto):
                 name = self.person_name_gen.generate_trainer_name(count_miho + i)
                 spec = specialties[(count_miho + i) % len(specialties)].value
-                age = 40 + (i % 25)  # 40〜64歳
-                trainer_years = max(1, age - 39)
+                age = 60 + (i % 20)  # 60〜79歳
+                trainer_years = max(1, age - 59)
                 reputation = round(random.uniform(45.0, 55.0), 1)
                 skill_level = round(50.0 + (trainer_years * 0.4) + random.uniform(-1.5, 1.5), 1)
 
@@ -282,9 +283,8 @@ class DatabaseInitializer:
     def generate_initial_jockeys(self, count_miho: int = 45, count_ritto: int = 45, trainer_ids: Optional[List[int]] = None) -> List[int]:
         """
         美浦（東）45名、栗東（西）45名（計90名、女性騎手各5名含む）の騎手を生成
+        - 初年度は全員が専属所属騎手（is_free = 0）として美浦・栗東の厩舎に配属
         - デビュー年齢は18歳（初期年齢18〜42歳、キャリア1〜25年）
-        - 美浦30厩舎・栗東30厩舎に専属所属騎手を1名ずつ配備 (計60名)
-        - 残り30名（美浦15名/栗東15名）は実績上位のフリー騎手または追加所属騎手として配備
         """
         jockey_ids = []
         growth_types = ["early", "standard", "standard", "late", "persistent"]
@@ -306,13 +306,9 @@ class DatabaseInitializer:
                     debut_year = -(career_years - 1)
                     g_type = growth_types[i % len(growth_types)]
 
-                    # 所属厩舎の決定: 最初の30名は各厩舎に1名ずつ専属所属、残り15名はフリー騎手
-                    if i < len(t_ids):
-                        t_id = t_ids[i]
-                        is_free = 0
-                    else:
-                        t_id = None
-                        is_free = 1
+                    # 全員所属騎手（30厩舎に1〜2名ずつ均等配属）
+                    t_id = t_ids[i % len(t_ids)] if t_ids else None
+                    is_free = 0
 
                     # 年齢とピークに応じた基礎能力
                     peak = 36 if g_type == "early" else (43 if g_type == "late" else 40)
@@ -360,15 +356,16 @@ class DatabaseInitializer:
         jockey_ids: Optional[List[int]] = None,
         num_sires: int = 60,
         num_dams: int = 600,
-        num_active_horses: int = 1250,
-        with_careers: bool = False,
-        include_yearlings: bool = False,
+        num_active_horses: int = 600,
+        with_careers: bool = True,
+        include_yearlings: bool = True,
     ) -> None:
         """
         初期繁殖群（種牡馬・繁殖牝馬）および初期現役競走馬群を生成
         - 初期種牡馬・初期繁殖牝馬は始祖馬のため、sire_id=NULL, dam_id=NULL、戦績はすべてゼロ（未出走）
-        - 初期現役馬は初期種牡馬・初期繁殖牝馬を父母とし、全頭未出走（0戦0勝、獲得賞金0）
-        - 全60厩舎に現役馬を均等入厩（各20〜21頭）、上位騎手を有力馬の主戦騎手として優先配分
+        - 初期現役馬は初期種牡馬・初期繁殖牝馬を父母とし、初年度は2歳馬600頭（牡300頭・牝300頭、全頭未出走）
+        - 翌年デビュー用の1歳幼駒600頭（牡300頭・牝300頭）を初期生成
+        - 全60厩舎に現役馬を均等入厩（各10頭）、上位騎手を有力馬の主戦騎手として優先配分
         """
         with self.db.session() as conn:
             # 既存馬名の読み込み（重複防止）
@@ -380,6 +377,7 @@ class DatabaseInitializer:
             # 全50牧場に均等に配分（60頭の場合: 50場に各1頭、10場に各2頭）
             print(f"-> 初期種牡馬 {num_sires} 頭を生成中...")
             sire_horse_ids = []
+            sire_genotypes = {}
             for i in range(num_sires):
                 owner_id = random.choice(owner_ids)
                 breeder_id = breeder_ids[i % len(breeder_ids)]
@@ -398,18 +396,20 @@ class DatabaseInitializer:
                 age = random.randint(6, 14)
                 birth_year = -(age - 1)  # シミュレーション開始時1年目想定
 
+                coat_color, coat_genotype = GeneticsEngine.generate_random_coat_genotype()
+
                 cursor = conn.execute(
                     """
                     INSERT INTO horses (
                         name, sex, birth_year, age, breeder_id, owner_id,
-                        sire_id, dam_id,
+                        sire_id, dam_id, coat_color, coat_genotype,
                         is_active, is_sire, is_dam, mstn_type,
                         speed, stamina, acceleration, temperament, durability, maternal_vitality,
                         growth_type, peak_age, current_ability_rate, running_style,
                         career_starts, career_wins, g1_wins, g2_wins, g3_wins, major_wins, prize_money, condition_prize_money
                     ) VALUES (
                         ?, 'horse', ?, ?, ?, ?,
-                        NULL, NULL,
+                        NULL, NULL, ?, ?,
                         0, 1, 0, ?,
                         ?, ?, ?, ?, ?, ?,
                         ?, ?, 0.8, ?,
@@ -418,6 +418,7 @@ class DatabaseInitializer:
                     """,
                     (
                         name, birth_year, age, breeder_id, owner_id,
+                        coat_color, coat_genotype,
                         self._sample_mstn().value,
                         speed, stamina, accel, temp, dura, vitality,
                         growth_type.value, peak_age, self._sample_running_style(speed, stamina, accel, dura).value,
@@ -425,6 +426,7 @@ class DatabaseInitializer:
                 )
                 h_id = cursor.lastrowid
                 sire_horse_ids.append(h_id)
+                sire_genotypes[h_id] = coat_genotype
 
                 # sires テーブルに登録 (初期状態は自身の馬名を冠した系統の始祖とする)
                 sire_line = f"{name}系"
@@ -433,12 +435,13 @@ class DatabaseInitializer:
                     INSERT INTO sires (horse_id, breeder_id, sire_line, max_coverings, stud_fee, is_active)
                     VALUES (?, ?, ?, 30, ?, 1)
                     """,
-                    (h_id, breeder_id, sire_line, (random.randint(1_000_000, 5_000_000) // 100_000) * 100_000),
+                    (h_id, breeder_id, sire_line, 2_000_000),
                 )
 
             # 2. 初期繁殖牝馬の生成 (num_dams頭: 年齢5〜18歳、引退扱い、is_dam=1)
             print(f"-> 初期繁殖牝馬 {num_dams} 頭を生成中...")
             dam_horse_ids = []
+            dam_genotypes = {}
             for i in range(num_dams):
                 # 50牧場に均等に繋養牝馬を配分
                 breeder_id = breeder_ids[i % len(breeder_ids)]
@@ -454,21 +457,23 @@ class DatabaseInitializer:
                 dura = self._sample_normal(mean=50.0, std=8.0)
                 vitality = self._sample_normal(mean=52.0, std=7.0)
 
-                age = random.randint(5, 16)
+                age = random.randint(5, 18)
                 birth_year = -(age - 1)
+
+                coat_color, coat_genotype = GeneticsEngine.generate_random_coat_genotype()
 
                 cursor = conn.execute(
                     """
                     INSERT INTO horses (
                         name, sex, birth_year, age, breeder_id, owner_id,
-                        sire_id, dam_id,
+                        sire_id, dam_id, coat_color, coat_genotype,
                         is_active, is_sire, is_dam, mstn_type,
                         speed, stamina, acceleration, temperament, durability, maternal_vitality,
                         growth_type, peak_age, current_ability_rate, running_style,
                         career_starts, career_wins, g1_wins, g2_wins, g3_wins, major_wins, prize_money, condition_prize_money
                     ) VALUES (
                         ?, 'mare', ?, ?, ?, ?,
-                        NULL, NULL,
+                        NULL, NULL, ?, ?,
                         0, 0, 1, ?,
                         ?, ?, ?, ?, ?, ?,
                         ?, ?, 0.8, ?,
@@ -477,6 +482,7 @@ class DatabaseInitializer:
                     """,
                     (
                         name, birth_year, age, breeder_id, owner_id,
+                        coat_color, coat_genotype,
                         self._sample_mstn().value,
                         speed, stamina, accel, temp, dura, vitality,
                         growth_type.value, peak_age, self._sample_running_style(speed, stamina, accel, dura).value,
@@ -484,6 +490,7 @@ class DatabaseInitializer:
                 )
                 h_id = cursor.lastrowid
                 dam_horse_ids.append(h_id)
+                dam_genotypes[h_id] = coat_genotype
 
                 # dams テーブルに登録
                 conn.execute(
@@ -494,161 +501,95 @@ class DatabaseInitializer:
                     (h_id, breeder_id),
                 )
 
-            # 3. 初期現役競走馬の生成 (約1250頭: 2歳〜6歳、すべて未出走)
-            print(f"-> 初期現役競走馬 {num_active_horses} 頭を生成中（未出走デフォルト）...")
-            age_distribution = [
-                (2, 350),
-                (3, 350),
-                (4, 250),
-                (5, 180),
-                (6, 120),
-            ]
-
+            # 3. 初期現役競走馬の生成 (初年度は2歳馬のみ600頭：牡300頭・牝300頭、すべて未出走)
+            print(f"-> 初期現役競走馬（2歳馬のみ） {num_active_horses} 頭を生成中（未出走）...")
             active_horse_records = []
-            active_idx = 0
-            for age, count in age_distribution:
-                for _ in range(count):
-                    owner_id = random.choice(owner_ids)
-                    breeder_id = random.choice(breeder_ids)
-                    sex_str = "colt" if random.random() < 0.5 else "filly"
-                    if age >= 4:
-                        sex_str = "horse" if sex_str == "colt" else "mare"
+            half_active = num_active_horses // 2
+            for i in range(num_active_horses):
+                owner_id = random.choice(owner_ids)
+                breeder_id = random.choice(breeder_ids)
+                sex_str = "colt" if i < half_active else "filly"
 
-                    prefix_row = conn.execute("SELECT prefix FROM owners WHERE owner_id = ?", (owner_id,)).fetchone()
-                    name = self.name_gen.generate_name(prefix_row["prefix"], sex=sex_str)
+                prefix_row = conn.execute("SELECT prefix FROM owners WHERE owner_id = ?", (owner_id,)).fetchone()
+                name = self.name_gen.generate_name(prefix_row["prefix"], sex=sex_str)
 
-                    growth_type, peak_age = self._sample_growth()
-                    speed = self._sample_normal(mean=50.0, std=8.0)
-                    stamina = self._sample_normal(mean=50.0, std=8.0)
-                    accel = self._sample_normal(mean=50.0, std=8.0)
-                    temp = self._sample_normal(mean=50.0, std=8.0)
-                    dura = self._sample_normal(mean=50.0, std=8.0)
-                    vitality = self._sample_normal(mean=50.0, std=8.0)
+                growth_type, peak_age = self._sample_growth()
+                speed = self._sample_normal(mean=50.0, std=8.0)
+                stamina = self._sample_normal(mean=50.0, std=8.0)
+                accel = self._sample_normal(mean=50.0, std=8.0)
+                temp = self._sample_normal(mean=50.0, std=8.0)
+                dura = self._sample_normal(mean=50.0, std=8.0)
+                vitality = self._sample_normal(mean=50.0, std=8.0)
 
-                    # 現在の成長係数
-                    if age < peak_age:
-                        current_ability = max(0.6, 1.0 - 0.2 * (peak_age - age))
-                    else:
-                        current_ability = max(0.6, 1.0 - 0.08 * (age - peak_age))
+                # 現在の成長係数 (2歳馬: 0.6〜0.8)
+                current_ability = max(0.6, 1.0 - 0.2 * (peak_age - 2))
+                birth_year = -1  # 1年目開始時の2歳馬 (生年 = -1年)
 
-                    birth_year = -(age - 1)
+                # 初年度2歳馬は全員未出走（0戦0勝、獲得賞金0）
+                starts = 0
+                wins = 0
+                g1_w = 0
+                g2_w = 0
+                g3_w = 0
+                prize = 0
+                c_prize = 0
 
-                    # 初期クラス・出走実績の配分（with_careers=True時のみリアルな分布を付与）
-                    starts = 0
-                    wins = 0
-                    g1_w = 0
-                    g2_w = 0
-                    g3_w = 0
-                    prize = 0
-                    c_prize = 0
+                # 父母を初期種牡馬・初期繁殖牝馬から均等に割り当て（各繁殖牝馬1頭、種牡馬均等かつ厩舎分散）
+                dam_id = dam_horse_ids[i % len(dam_horse_ids)]
+                sire_id = sire_horse_ids[(i * 7 + (i // len(trainer_ids))) % len(sire_horse_ids)] if trainer_ids else sire_horse_ids[i % len(sire_horse_ids)]
 
-                    if with_careers:
-                        if age == 2:
-                            starts = 0
-                            wins = 0
-                        elif age == 3:
-                            overall = speed + stamina + accel
-                            if overall >= 168.0:
-                                starts = random.randint(4, 7)
-                                wins = random.randint(3, 4)
-                                c_prize = 16_000_000
-                                prize = random.randint(30_000_000, 60_000_000)
-                                if random.random() < 0.5:
-                                    g3_w = 1
-                            elif overall >= 153.0:
-                                starts = random.randint(4, 6)
-                                wins = 2
-                                c_prize = 10_000_000
-                                prize = random.randint(18_000_000, 28_000_000)
-                            elif overall >= 138.0:
-                                starts = random.randint(3, 5)
-                                wins = 1
-                                c_prize = 4_000_000
-                                prize = random.randint(8_000_000, 14_000_000)
-                            else:
-                                starts = random.randint(1, 4)
-                                wins = 0
-                                c_prize = 0
-                                prize = random.randint(500_000, 2_500_000)
-                        else:
-                            overall = speed + stamina + accel
-                            if overall >= 168.0:
-                                starts = random.randint(12, 22)
-                                wins = random.randint(4, 7)
-                                c_prize = random.randint(24_000_000, 48_000_000)
-                                prize = random.randint(60_000_000, 180_000_000)
-                                if random.random() < 0.4:
-                                    g3_w = random.randint(1, 2)
-                                if random.random() < 0.2:
-                                    g2_w = 1
-                                if random.random() < 0.08:
-                                    g1_w = 1
-                            elif overall >= 156.0:
-                                starts = random.randint(10, 18)
-                                wins = 3
-                                c_prize = 15_000_000
-                                prize = random.randint(35_000_000, 55_000_000)
-                            elif overall >= 143.0:
-                                starts = random.randint(8, 15)
-                                wins = 2
-                                c_prize = 9_000_000
-                                prize = random.randint(20_000_000, 32_000_000)
-                            else:
-                                starts = random.randint(6, 12)
-                                wins = 1
-                                c_prize = 4_000_000
-                                prize = random.randint(9_000_000, 15_000_000)
+                coat_color, coat_genotype = GeneticsEngine.inherit_coat_genotype(
+                    sire_genotypes.get(sire_id, ""),
+                    dam_genotypes.get(dam_id, "")
+                )
 
-                    # 父母を初期種牡馬・初期繁殖牝馬から割り当て
-                    sire_id = sire_horse_ids[active_idx % len(sire_horse_ids)]
-                    dam_id = dam_horse_ids[active_idx % len(dam_horse_ids)]
+                # 厩舎の均等入厩 (60厩舎に均等配分: 各10頭)
+                trainer_id = None
+                if trainer_ids:
+                    trainer_id = trainer_ids[i % len(trainer_ids)]
 
-                    # 厩舎の均等入厩 (60厩舎に均等)
-                    trainer_id = None
-                    if trainer_ids:
-                        trainer_id = trainer_ids[active_idx % len(trainer_ids)]
-                    active_idx += 1
-
-                    cursor = conn.execute(
-                        """
-                        INSERT INTO horses (
-                            name, sex, birth_year, age, breeder_id, owner_id, trainer_id,
-                            sire_id, dam_id,
-                            is_active, is_sire, is_dam, mstn_type,
-                            speed, stamina, acceleration, temperament, durability, maternal_vitality,
-                            growth_type, peak_age, current_ability_rate, running_style,
-                            career_starts, career_wins, g1_wins, g2_wins, g3_wins, major_wins, prize_money, condition_prize_money
-                        ) VALUES (
-                            ?, ?, ?, ?, ?, ?, ?,
-                            ?, ?,
-                            1, 0, 0, ?,
-                            ?, ?, ?, ?, ?, ?,
-                            ?, ?, ?, ?,
-                            ?, ?, ?, ?, ?, '', ?, ?
-                        )
-                        """,
-                        (
-                            name, sex_str, birth_year, age, breeder_id, owner_id, trainer_id,
-                            sire_id, dam_id,
-                            self._sample_mstn().value,
-                            speed, stamina, accel, temp, dura, vitality,
-                            growth_type.value, peak_age, round(current_ability, 2), self._sample_running_style(speed, stamina, accel, dura).value,
-                            starts, wins, g1_w, g2_w, g3_w, prize, c_prize,
-                        ),
+                cursor = conn.execute(
+                    """
+                    INSERT INTO horses (
+                        name, sex, birth_year, age, breeder_id, owner_id, trainer_id,
+                        sire_id, dam_id, coat_color, coat_genotype,
+                        is_active, is_sire, is_dam, mstn_type,
+                        speed, stamina, acceleration, temperament, durability, maternal_vitality,
+                        growth_type, peak_age, current_ability_rate, running_style,
+                        career_starts, career_wins, g1_wins, g2_wins, g3_wins, major_wins, prize_money, condition_prize_money
+                    ) VALUES (
+                        ?, ?, ?, 2, ?, ?, ?,
+                        ?, ?, ?, ?,
+                        1, 0, 0, ?,
+                        ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?, '', ?, ?
                     )
-                    h_id = cursor.lastrowid
-                    active_horse_records.append({
-                        "horse_id": h_id,
-                        "overall_ability": speed + stamina + accel,
-                    })
+                    """,
+                    (
+                        name, sex_str, birth_year, breeder_id, owner_id, trainer_id,
+                        sire_id, dam_id, coat_color, coat_genotype,
+                        self._sample_mstn().value,
+                        speed, stamina, accel, temp, dura, vitality,
+                        growth_type.value, peak_age, round(current_ability, 2), self._sample_running_style(speed, stamina, accel, dura).value,
+                        starts, wins, g1_w, g2_w, g3_w, prize, c_prize,
+                    ),
+                )
+                h_id = cursor.lastrowid
+                active_horse_records.append({
+                    "horse_id": h_id,
+                    "overall_ability": speed + stamina + accel,
+                })
 
-            # 3-2. 初期1歳幼駒の生成（翌年2歳デビュー用：350頭、is_active=0）
+            # 3-2. 初期1歳幼駒の生成（翌年2歳デビュー用：600頭、牡300頭・牝300頭、is_active=0）
             if include_yearlings:
-                print("-> 初期1歳幼駒 350 頭を生成中（翌年2歳デビュー用）...")
-                for i in range(350):
+                yearling_count = num_active_horses
+                half_yearling = yearling_count // 2
+                print(f"-> 初期1歳幼駒 {yearling_count} 頭を生成中（翌年2歳デビュー用：牡{half_yearling}頭・牝{half_yearling}頭）...")
+                for i in range(yearling_count):
                     owner_id = random.choice(owner_ids)
                     breeder_id = random.choice(breeder_ids)
-                    sex_str = "colt" if random.random() < 0.5 else "filly"
+                    sex_str = "colt" if i < half_yearling else "filly"
                     prefix_row = conn.execute("SELECT prefix FROM owners WHERE owner_id = ?", (owner_id,)).fetchone()
                     name = self.name_gen.generate_name(prefix_row["prefix"], sex=sex_str)
                     growth_type, peak_age = self._sample_growth()
@@ -658,19 +599,23 @@ class DatabaseInitializer:
                     temp = self._sample_normal(mean=50.0, std=8.0)
                     dura = self._sample_normal(mean=50.0, std=8.0)
                     vitality = self._sample_normal(mean=50.0, std=8.0)
-                    sire_id = sire_horse_ids[i % len(sire_horse_ids)]
                     dam_id = dam_horse_ids[i % len(dam_horse_ids)]
+                    sire_id = sire_horse_ids[(i * 11 + (i // 60) + 13) % len(sire_horse_ids)]
+                    coat_color, coat_genotype = GeneticsEngine.inherit_coat_genotype(
+                        sire_genotypes.get(sire_id, ""),
+                        dam_genotypes.get(dam_id, "")
+                    )
                     conn.execute(
                         """
                         INSERT INTO horses (
                             name, sex, birth_year, age, breeder_id, owner_id, trainer_id,
-                            sire_id, dam_id, is_active, is_sire, is_dam, mstn_type,
+                            sire_id, dam_id, coat_color, coat_genotype, is_active, is_sire, is_dam, mstn_type,
                             speed, stamina, acceleration, temperament, durability, maternal_vitality,
                             growth_type, peak_age, current_ability_rate, running_style,
                             career_starts, career_wins, g1_wins, g2_wins, g3_wins, major_wins, prize_money, condition_prize_money
                         ) VALUES (
                             ?, ?, 0, 1, ?, ?, NULL,
-                            ?, ?, 0, 0, 0, ?,
+                            ?, ?, ?, ?, 0, 0, 0, ?,
                             ?, ?, ?, ?, ?, ?,
                             ?, ?, 0.3, ?,
                             0, 0, 0, 0, 0, '', 0, 0
@@ -678,7 +623,55 @@ class DatabaseInitializer:
                         """,
                         (
                             name, sex_str, breeder_id, owner_id,
-                            sire_id, dam_id, self._sample_mstn().value,
+                            sire_id, dam_id, coat_color, coat_genotype, self._sample_mstn().value,
+                            speed, stamina, accel, temp, dura, vitality,
+                            growth_type.value, peak_age, self._sample_running_style(speed, stamina, accel, dura).value,
+                        ),
+                    )
+
+            # 3-3. 初期0歳当歳馬の生成（翌々年2歳デビュー用：600頭、牡300頭・牝300頭、is_active=0）
+            if include_yearlings:
+                foal_count = num_active_horses
+                half_foal = foal_count // 2
+                print(f"-> 初期0歳当歳馬 {foal_count} 頭を生成中（翌々年2歳デビュー用：牡{half_foal}頭・牝{half_foal}頭）...")
+                for i in range(foal_count):
+                    owner_id = random.choice(owner_ids)
+                    breeder_id = random.choice(breeder_ids)
+                    sex_str = "colt" if i < half_foal else "filly"
+                    prefix_row = conn.execute("SELECT prefix FROM owners WHERE owner_id = ?", (owner_id,)).fetchone()
+                    name = self.name_gen.generate_name(prefix_row["prefix"], sex=sex_str)
+                    growth_type, peak_age = self._sample_growth()
+                    speed = self._sample_normal(mean=50.0, std=8.0)
+                    stamina = self._sample_normal(mean=50.0, std=8.0)
+                    accel = self._sample_normal(mean=50.0, std=8.0)
+                    temp = self._sample_normal(mean=50.0, std=8.0)
+                    dura = self._sample_normal(mean=50.0, std=8.0)
+                    vitality = self._sample_normal(mean=50.0, std=8.0)
+                    dam_id = dam_horse_ids[i % len(dam_horse_ids)]
+                    sire_id = sire_horse_ids[(i * 13 + (i // 60) + 29) % len(sire_horse_ids)]
+                    coat_color, coat_genotype = GeneticsEngine.inherit_coat_genotype(
+                        sire_genotypes.get(sire_id, ""),
+                        dam_genotypes.get(dam_id, "")
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO horses (
+                            name, sex, birth_year, age, breeder_id, owner_id, trainer_id,
+                            sire_id, dam_id, coat_color, coat_genotype, is_active, is_sire, is_dam, mstn_type,
+                            speed, stamina, acceleration, temperament, durability, maternal_vitality,
+                            growth_type, peak_age, current_ability_rate, running_style,
+                            career_starts, career_wins, g1_wins, g2_wins, g3_wins, major_wins, prize_money, condition_prize_money
+                        ) VALUES (
+                            ?, ?, 1, 0, ?, ?, NULL,
+                            ?, ?, ?, ?, 0, 0, 0, ?,
+                            ?, ?, ?, ?, ?, ?,
+                            ?, ?, 0.2, ?,
+                            0, 0, 0, 0, 0, '', 0, 0
+                        )
+                        """,
+                        (
+                            name, sex_str, breeder_id, owner_id,
+                            sire_id, dam_id, coat_color, coat_genotype, self._sample_mstn().value,
                             speed, stamina, accel, temp, dura, vitality,
                             growth_type.value, peak_age, self._sample_running_style(speed, stamina, accel, dura).value,
                         ),
@@ -688,33 +681,23 @@ class DatabaseInitializer:
             # 4. 主戦騎手の配分 (自厩舎の所属騎手を基本とし、有力馬には有力フリー騎手も配分可能)
             if jockey_ids:
                 print("-> 現役馬への主戦騎手を割り当て中...")
-                # 厩舎ごとの所属騎手マップ
-                stable_jockey_map: Dict[int, int] = {}
-                j_rows = conn.execute("SELECT jockey_id, trainer_id, is_free FROM jockeys WHERE is_active = 1").fetchall()
+                # 厩舎ごとの所属騎手リストマップ
+                stable_jockeys_map: Dict[int, List[int]] = {}
+                j_rows = conn.execute("SELECT jockey_id, trainer_id FROM jockeys WHERE is_active = 1").fetchall()
                 for jr in j_rows:
                     if jr["trainer_id"] is not None:
-                        stable_jockey_map[jr["trainer_id"]] = jr["jockey_id"]
+                        stable_jockeys_map.setdefault(jr["trainer_id"], []).append(jr["jockey_id"])
 
-                # フリー騎手および実力上位騎手
-                free_jockeys = [jr["jockey_id"] for jr in j_rows if jr["is_free"] == 1]
-
-                # 馬の能力上位20%は有力馬として扱い、フリー騎手も積極的に起用可能
                 active_horse_records.sort(key=lambda x: x["overall_ability"], reverse=True)
-                top_cutoff = len(active_horse_records) // 5
 
                 for idx, h_rec in enumerate(active_horse_records):
                     h_row = conn.execute("SELECT trainer_id FROM horses WHERE horse_id = ?", (h_rec["horse_id"],)).fetchone()
                     t_id = h_row["trainer_id"] if h_row else None
                     
                     assigned_j_id = None
-                    if idx < top_cutoff and free_jockeys and (idx % 2 == 0):
-                        # 有力馬の一部はフリー騎手を主戦に
-                        assigned_j_id = free_jockeys[idx % len(free_jockeys)]
-                    elif t_id and t_id in stable_jockey_map:
-                        # 基本は自厩舎の所属騎手
-                        assigned_j_id = stable_jockey_map[t_id]
-                    elif free_jockeys:
-                        assigned_j_id = free_jockeys[idx % len(free_jockeys)]
+                    if t_id and t_id in stable_jockeys_map and stable_jockeys_map[t_id]:
+                        j_list = stable_jockeys_map[t_id]
+                        assigned_j_id = j_list[idx % len(j_list)]
                     else:
                         assigned_j_id = jockey_ids[idx % len(jockey_ids)]
 
@@ -726,8 +709,8 @@ class DatabaseInitializer:
     def initialize_all(
         self,
         force_recreate: bool = True,
-        with_careers: bool = False,
-        include_yearlings: bool = False,
+        with_careers: bool = True,
+        include_yearlings: bool = True,
     ) -> None:
         """スキーマ初期化から初期データ投入までを一括実行"""
         print("=== データベース初期化を開始 ===")
@@ -750,7 +733,7 @@ class DatabaseInitializer:
         jockey_ids = self.generate_initial_jockeys(count_miho=45, count_ritto=45, trainer_ids=trainer_ids)
         print(f"[OK] 騎手 {len(jockey_ids)} 名を登録完了")
 
-        print("-> 初期個体群（種牡馬60頭、繁殖牝馬600頭、現役馬1250頭）生成中...")
+        print("-> 初期個体群（種牡馬60頭、繁殖牝馬600頭、現役馬600頭・2歳馬のみ）生成中...")
         self.generate_initial_population(
             breeder_ids=breeder_ids,
             owner_ids=owner_ids,
@@ -758,7 +741,7 @@ class DatabaseInitializer:
             jockey_ids=jockey_ids,
             num_sires=60,
             num_dams=600,
-            num_active_horses=1250,
+            num_active_horses=600,
             with_careers=with_careers,
             include_yearlings=include_yearlings,
         )

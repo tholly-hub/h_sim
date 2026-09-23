@@ -107,7 +107,7 @@ class TestPhase1(unittest.TestCase):
             self.assertEqual(dams_count, 600, "繁殖牝馬数が600頭ではありません")
 
             active_horses = conn.execute("SELECT COUNT(*) FROM horses WHERE is_active = 1").fetchone()[0]
-            self.assertEqual(active_horses, 1250, "現役競走馬数が1250頭ではありません")
+            self.assertEqual(active_horses, 600, "現役競走馬数が600頭（2歳馬のみ）ではありません")
 
             # 4. 馬名の重複チェック
             horses = conn.execute("SELECT name FROM horses").fetchall()
@@ -138,22 +138,27 @@ class TestPhase1(unittest.TestCase):
             self.assertTrue(48.0 <= stats[2] <= 55.0, f"速度の平均値が外れています: {stats[2]}")
 
             # 6. ミオスタチン遺伝子型の検証 (C/C, C/T, T/T のみ)
-            mstn_types = conn.execute("SELECT DISTINCT mstn_type FROM horses").fetchall()
+            mstn_types = conn.execute("SELECT DISTINCT m_type FROM (SELECT DISTINCT mstn_type as m_type FROM horses) WHERE m_type IS NOT NULL").fetchall()
             valid_mstn = {"C/C", "C/T", "T/T"}
             for m in mstn_types:
-                self.assertIn(m["mstn_type"], valid_mstn)
+                self.assertIn(m["m_type"], valid_mstn)
 
-            # 7. 初期競走馬の戦績デフォルト検証（全頭未出走）
+            # 7. 初期競走馬の戦績配分検証（初年度は2歳馬600頭のみで全頭未出走）
+            two_yo_count = conn.execute(
+                "SELECT COUNT(*) FROM horses WHERE is_active = 1 AND age = 2"
+            ).fetchone()[0]
+            self.assertEqual(two_yo_count, 600, "初期現役馬は全頭2歳馬（600頭）である必要があります")
+
             active_horses_with_record = conn.execute(
                 "SELECT COUNT(*) FROM horses WHERE is_active = 1 AND career_starts > 0"
             ).fetchone()[0]
-            self.assertEqual(active_horses_with_record, 0, "初期現役馬は全頭未出走（career_starts=0）である必要があります")
+            self.assertEqual(active_horses_with_record, 0, "初年度初期現役馬は全頭未出走（career_starts=0）である必要があります")
 
-            # 8. 初期現役馬（1250頭）の父母連結検証、初期種牡馬・繁殖牝馬の始祖検証
+            # 8. 初期現役馬（600頭）＋1歳幼駒（600頭）＋0歳当歳馬（600頭）の父母連結検証、初期種牡馬・繁殖牝馬の始祖検証
             known_pedigree_count = conn.execute(
                 "SELECT COUNT(*) FROM horses WHERE sire_id IS NOT NULL AND dam_id IS NOT NULL"
             ).fetchone()[0]
-            self.assertEqual(known_pedigree_count, 1250, "初期現役馬1250頭の父母が正常に連結されている必要があります")
+            self.assertEqual(known_pedigree_count, 1800, "初期現役馬600頭＋1歳幼駒600頭＋0歳当歳馬600頭の父母が正常に連結されている必要があります")
 
             founder_count = conn.execute(
                 "SELECT COUNT(*) FROM horses WHERE sire_id IS NULL AND dam_id IS NULL"
@@ -170,7 +175,7 @@ class TestPhase1(unittest.TestCase):
         viewer = HorseViewer(db)
         # リスト取得のテスト
         active_count = viewer.list_active_horses(limit=10, offset=0)
-        self.assertEqual(active_count, 1250)
+        self.assertEqual(active_count, 600)
 
         sire_count = viewer.list_sires()
         self.assertEqual(sire_count, 60)

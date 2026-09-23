@@ -148,6 +148,7 @@ CREATE TABLE IF NOT EXISTS horses (
     is_sire INTEGER NOT NULL DEFAULT 0,          -- 1:種牡馬供用中
     is_dam INTEGER NOT NULL DEFAULT 0,           -- 1:繁殖牝馬供用中
     is_dead INTEGER NOT NULL DEFAULT 0,          -- 1:死亡・登録抹消 (※死亡ロジックは完全不使用)
+    retired_year INTEGER,                        -- 引退年度 (3歳未勝利引退または古馬引退年度)
 
     -- 遺伝特性 (3層構造)
     -- 1) 離散遺伝子 (ミオスタチン / MSTN)
@@ -168,6 +169,11 @@ CREATE TABLE IF NOT EXISTS horses (
     peak_age REAL NOT NULL,                      -- 能力ピーク年齢 (例: 3.0, 4.5, 5.5)
     current_ability_rate REAL NOT NULL DEFAULT 1.0, -- 現在の成長・加齢係数 (0.0〜1.0)
     running_style TEXT NOT NULL CHECK (running_style IN ('escape', 'leading', 'between', 'closing')),
+    
+    -- 毛色 (日本馬事協会 14種類 & 遺伝子型)
+    coat_color TEXT NOT NULL DEFAULT '鹿毛',
+    coat_genotype TEXT NOT NULL DEFAULT 'E/E A/A G/g W/w Cr/cr',
+
 
     -- 競走成績
     prize_money INTEGER NOT NULL DEFAULT 0,           -- 生涯総賞金 (円)
@@ -198,6 +204,9 @@ CREATE TABLE IF NOT EXISTS sires (
     max_coverings INTEGER NOT NULL DEFAULT 30,   -- 年間最大種付け頭数上限 (30頭)
     stud_fee INTEGER NOT NULL DEFAULT 1000000,   -- 種付け料 (円)
     is_active INTEGER NOT NULL DEFAULT 1,
+    is_foreign INTEGER NOT NULL DEFAULT 0,       -- 1: 海外種牡馬 [外]
+    is_new INTEGER NOT NULL DEFAULT 0,           -- 1: 新種牡馬 [新]
+    consecutive_zero_win_years INTEGER NOT NULL DEFAULT 0, -- 連続0勝年数 (3年で引退)
     FOREIGN KEY (horse_id) REFERENCES horses(horse_id),
     FOREIGN KEY (breeder_id) REFERENCES breeders(breeder_id)
 );
@@ -257,6 +266,49 @@ CREATE TABLE IF NOT EXISTS results (
     FOREIGN KEY (trainer_id) REFERENCES trainers(trainer_id)
 );
 
+-- 8. 年度代表馬・各部門賞テーブル (Annual Awards)
+CREATE TABLE IF NOT EXISTS annual_awards (
+    award_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    category_jp TEXT NOT NULL,
+    horse_id INTEGER NOT NULL,
+    horse_name TEXT NOT NULL,
+    sex TEXT,
+    age INTEGER,
+    g1_wins INTEGER DEFAULT 0,
+    g2_wins INTEGER DEFAULT 0,
+    g3_wins INTEGER DEFAULT 0,
+    year_prize INTEGER DEFAULT 0,
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(year, category)
+);
+CREATE INDEX IF NOT EXISTS idx_awards_year ON annual_awards(year);
+
+-- 9. 交配記録テーブル (Matings)
+CREATE TABLE IF NOT EXISTS matings (
+    mating_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mating_year INTEGER NOT NULL,
+    dam_id INTEGER NOT NULL,
+    sire_id INTEGER NOT NULL,
+    is_nicks INTEGER NOT NULL DEFAULT 0,
+    nicks_speed_bonus REAL NOT NULL DEFAULT 0.0,
+    nicks_accel_bonus REAL NOT NULL DEFAULT 0.0,
+    nicks_vitality_bonus REAL NOT NULL DEFAULT 0.0,
+    inbreeding_speed_bonus REAL NOT NULL DEFAULT 0.0,
+    inbreeding_accel_bonus REAL NOT NULL DEFAULT 0.0,
+    inbreeding_temp_penalty REAL NOT NULL DEFAULT 0.0,
+    inbreeding_dura_penalty REAL NOT NULL DEFAULT 0.0,
+    inbreeding_pct REAL NOT NULL DEFAULT 0.0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sire_id) REFERENCES horses(horse_id),
+    FOREIGN KEY (dam_id) REFERENCES horses(horse_id)
+);
+CREATE INDEX IF NOT EXISTS idx_matings_year ON matings(mating_year);
+CREATE INDEX IF NOT EXISTS idx_matings_sire ON matings(sire_id);
+CREATE INDEX IF NOT EXISTS idx_matings_dam ON matings(dam_id);
+
 -- インデックス作成 (検索・参照の高速化)
 CREATE INDEX IF NOT EXISTS idx_horses_name ON horses(name);
 CREATE INDEX IF NOT EXISTS idx_horses_owner ON horses(owner_id);
@@ -264,6 +316,7 @@ CREATE INDEX IF NOT EXISTS idx_horses_breeder ON horses(breeder_id);
 CREATE INDEX IF NOT EXISTS idx_horses_trainer ON horses(trainer_id);
 CREATE INDEX IF NOT EXISTS idx_horses_jockey ON horses(jockey_id);
 CREATE INDEX IF NOT EXISTS idx_horses_active ON horses(is_active);
+CREATE INDEX IF NOT EXISTS idx_horses_retired_year ON horses(retired_year);
 CREATE INDEX IF NOT EXISTS idx_horses_sire ON horses(sire_id);
 CREATE INDEX IF NOT EXISTS idx_horses_dam ON horses(dam_id);
 CREATE INDEX IF NOT EXISTS idx_sires_horse ON sires(horse_id);

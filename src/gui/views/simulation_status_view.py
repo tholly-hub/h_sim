@@ -74,6 +74,49 @@ def get_current_sim_status(conn) -> tuple[int, int]:
         return last_year, last_week + 1
 
 
+def advance_one_week_core(
+    cal: CalendarController,
+    life: LifecycleEngine,
+    db: Database,
+    log_callback=None,
+) -> tuple[int, int, dict]:
+    """
+    シミュレーションを確実に1週進めるコア関数。
+    最新消化週が48週以上の場合は、まず年度更新（advance_year: 全頭加齢・引退昇格・新馬入厩・世代交代）を行い、
+    その後に次年度第1週（1月第1週）のレースを実行する。
+    それ以外の場合は次週のレースを実行する。
+    戻り値: (実行した年, 実行した週, レース実行結果辞書)
+    """
+    with db.session() as conn:
+        row = conn.execute("""
+            SELECT rc.year, rc.week
+            FROM results r
+            JOIN races rc ON r.race_id = rc.race_id
+            ORDER BY rc.year DESC, rc.week DESC
+            LIMIT 1
+        """).fetchone()
+
+        if not row:
+            latest_y, latest_w = 1, 20  # まだ1件もなければ1年目21週へ
+        else:
+            latest_y, latest_w = row["year"], row["week"]
+
+    if latest_w >= 48:
+        if log_callback:
+            log_callback(f"★ 第{latest_y}年度末の年度更新処理（全頭加齢・引退昇格・新馬入厩・世代交代）を実行します...")
+        life.advance_year(current_year=latest_y)
+        if log_callback:
+            log_callback(f"★ 第{latest_y + 1}年度が開幕しました！")
+        target_y = latest_y + 1
+        target_w = 1
+    else:
+        target_y = latest_y
+        target_w = latest_w + 1
+
+    res = cal.run_week(target_y, target_w)
+    return target_y, target_w, res
+
+
 class SimulationWorker(QThread):
     """バックグラウンドでシミュレーション進行を実行するワーカー"""
 
@@ -92,49 +135,42 @@ class SimulationWorker(QThread):
             cal = CalendarController(self.db)
             life = LifecycleEngine(self.db)
 
-            with self.db.session() as conn:
-                cur_year, cur_week = get_current_sim_status(conn)
-
             if self.mode == "week":
-                self.step_progress.emit(0, 1, f"{cur_year}年 第{cur_week}週 シミュレーション中...")
-                if cur_week <= 48:
-                    res = cal.run_week(cur_year, cur_week)
-                    self.log_emitted.emit(f"第{cur_week}週 レース完了 (開催: {res.get('races_run', 0)}レース, 出走: {res.get('starters_count', 0)}頭)")
-                else:
-                    self.log_emitted.emit(f"{cur_year}年度末の年度更新処理を実行します。")
-                    life.advance_year(current_year=cur_year)
-                self.step_progress.emit(1, 1, "完了")
+                self.step_progress.emit(0, 1, "1週進行中...")
+                y, w, res = advance_one_week_core(
+                    cal, life, self.db, log_callback=lambda msg: self.log_emitted.emit(msg)
+                )
+                self.log_emitted.emit(
+                    f"{y}年 第{w}週 レース完了 (開催: {res.get('races_run', 0)}レース, 出走: {res.get('starters_count', 0)}頭)"
+                )
+                self.step_progress.emit(1, 1, "1週進行完了")
 
             elif self.mode == "month":
-                for w_idx in range(4):
-                    with self.db.session() as conn:
-                        y, w = get_current_sim_status(conn)
-                    self.step_progress.emit(w_idx, 4, f"{y}年 第{w}週 進行中...")
-                    if w <= 48:
-                        cal.run_week(y, w)
-                        self.log_emitted.emit(f"{y}年 第{w}週 完了")
-                    else:
-                        life.advance_year(current_year=y)
-                        self.log_emitted.emit(f"★ {y+1}年度への年度更新が完了しました！")
-                self.step_progress.emit(4, 4, "完了")
+                # 1ヶ月 = 4週分進行
+                total_steps = 4
+                for step_idx in range(total_steps):
+                    self.step_progress.emit(step_idx, total_steps, f"1ヶ月進行中 ({step_idx + 1}/{total_steps}週)...")
+                    y, w, res = advance_one_week_core(
+                        cal, life, self.db, log_callback=lambda msg: self.log_emitted.emit(msg)
+                    )
+                    self.log_emitted.emit(
+                        f"{y}年 第{w}週 完了 (開催: {res.get('races_run', 0)}レース, 出走: {res.get('starters_count', 0)}頭)"
+                    )
+                self.step_progress.emit(total_steps, total_steps, "1ヶ月進行完了")
 
             elif self.mode == "year":
-                total_weeks_to_run = 49 - cur_week
-                step = 0
-                while True:
-                    with self.db.session() as conn:
-                        y, w = get_current_sim_status(conn)
-                    if y > cur_year:
-                        break
-                    self.step_progress.emit(step, max(1, total_weeks_to_run), f"{y}年 第{w}週 進行中...")
-                    if w <= 48:
-                        cal.run_week(y, w)
-                    else:
-                        life.advance_year(current_year=y)
-                        self.log_emitted.emit(f"★ {cur_year}年度が終了し、{cur_year+1}年度へ更新されました！")
-                        break
-                    step += 1
-                self.step_progress.emit(100, 100, "1年間シミュレーション完了")
+                # 1年間 = 48週分進行
+                total_steps = 48
+                for step_idx in range(total_steps):
+                    self.step_progress.emit(step_idx, total_steps, f"1年間進行中 ({step_idx + 1}/{total_steps}週)...")
+                    y, w, res = advance_one_week_core(
+                        cal, life, self.db, log_callback=lambda msg: self.log_emitted.emit(msg)
+                    )
+                    if w % 4 == 0 or w == 1:
+                        self.log_emitted.emit(
+                            f"{y}年 第{w}週 完了 (開催: {res.get('races_run', 0)}レース, 出走: {res.get('starters_count', 0)}頭)"
+                        )
+                self.step_progress.emit(total_steps, total_steps, "1年間シミュレーション完了")
 
             self.finished_simulation.emit(True, f"シミュレーション進行（{self.mode}）が完了しました。")
         except Exception as e:

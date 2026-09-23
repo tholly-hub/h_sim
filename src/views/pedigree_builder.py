@@ -20,10 +20,10 @@ class PedigreeBuilder:
     def __init__(self, db: Database):
         self.db = db
 
-    def get_ancestors_tree(self, horse_id: int, depth: int = 5) -> Dict[str, Any]:
+    def get_ancestors_tree(self, horse_id: int, depth: int = 5, conn: Optional[Any] = None) -> Dict[str, Any]:
         """指定馬を起点として5代前までの祖先ツリー（最大62頭）を再帰的に取得"""
-        with self.db.session() as conn:
-            row = conn.execute(
+        def _fetch(c: Any) -> Dict[str, Any]:
+            row = c.execute(
                 """
                 SELECT h.*, 
                        o.name as owner_name, 
@@ -91,11 +91,16 @@ class PedigreeBuilder:
 
             if depth > 1:
                 if row["sire_id"]:
-                    node["sire"] = self.get_ancestors_tree(row["sire_id"], depth - 1)
+                    node["sire"] = self.get_ancestors_tree(row["sire_id"], depth - 1, conn=c)
                 if row["dam_id"]:
-                    node["dam"] = self.get_ancestors_tree(row["dam_id"], depth - 1)
+                    node["dam"] = self.get_ancestors_tree(row["dam_id"], depth - 1, conn=c)
 
             return node
+
+        if conn is not None:
+            return _fetch(conn)
+        with self.db.session() as session_conn:
+            return _fetch(session_conn)
 
     def build_html(self, horse_id: int, output_path: Optional[str] = None) -> str:
         """5代血統表のインタラクティブHTMLを生成してファイルに保存"""

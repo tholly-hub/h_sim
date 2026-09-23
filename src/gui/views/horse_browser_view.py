@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -96,7 +97,7 @@ class HorseBrowserView(QWidget):
         # 区分フィルター
         filter_layout.addWidget(QLabel("区分:"))
         self.combo_status = QComboBox()
-        self.combo_status.addItems(["現役競走馬", "種牡馬", "繁殖牝馬", "当歳・1歳馬", "引退馬", "全競走馬"])
+        self.combo_status.addItems(["全競走馬", "現役競走馬", "未出走馬 (2歳以上)", "当歳・1歳馬 (入厩前)", "種牡馬", "繁殖牝馬", "引退馬"])
         self.combo_status.currentIndexChanged.connect(self.search_horses)
         filter_layout.addWidget(self.combo_status)
 
@@ -136,9 +137,9 @@ class HorseBrowserView(QWidget):
         left_layout.setContentsMargins(0, 0, 0, 0)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(11)
+        self.table.setColumnCount(12)
         self.table.setHorizontalHeaderLabels([
-            "ID", "馬名", "性齢", "MSTN", "脚質", "速度", "持久", "瞬発", "戦績", "重賞勝", "獲得賞金"
+            "ID", "馬名", "性齢", "状態", "MSTN", "脚質", "速度", "持久", "瞬発", "戦績", "重賞勝", "獲得賞金"
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -225,7 +226,7 @@ class HorseBrowserView(QWidget):
             SELECT h.horse_id, h.name, h.sex, h.age, h.mstn_type, h.running_style,
                    h.speed, h.stamina, h.acceleration,
                    h.career_starts, h.career_wins, h.g1_wins, h.g2_wins, h.g3_wins,
-                   h.prize_money,
+                   h.prize_money, h.is_active, h.is_sire, h.is_dam,
                    o.name as owner_name, b.name as breeder_name
             FROM horses h
             LEFT JOIN owners o ON h.owner_id = o.owner_id
@@ -234,16 +235,18 @@ class HorseBrowserView(QWidget):
         """
         params = []
 
-        if status_idx == 0:  # 現役
+        if status_idx == 1:  # 現役競走馬
             query += " AND h.is_active = 1"
-        elif status_idx == 1:  # 種牡馬
+        elif status_idx == 2:  # 未出走馬 (2歳以上)
+            query += " AND h.is_active = 1 AND h.career_starts = 0 AND h.age >= 2"
+        elif status_idx == 3:  # 当歳・1歳馬 (入厩前)
+            query += " AND h.age <= 1 AND h.is_sire = 0 AND h.is_dam = 0"
+        elif status_idx == 4:  # 種牡馬
             query += " AND h.is_sire = 1"
-        elif status_idx == 2:  # 繁殖牝馬
+        elif status_idx == 5:  # 繁殖牝馬
             query += " AND h.is_dam = 1"
-        elif status_idx == 3:  # 当歳・1歳
-            query += " AND h.age < 2 AND h.is_active = 0 AND h.is_sire = 0 AND h.is_dam = 0"
-        elif status_idx == 4:  # 引退馬
-            query += " AND h.age >= 2 AND h.is_active = 0 AND h.is_sire = 0 AND h.is_dam = 0"
+        elif status_idx == 6:  # 引退馬
+            query += " AND h.is_active = 0 AND h.is_sire = 0 AND h.is_dam = 0 AND h.age >= 2"
 
         if sex_idx == 1:
             query += " AND h.sex IN ('colt', 'horse')"
@@ -273,20 +276,46 @@ class HorseBrowserView(QWidget):
         for row_idx, r in enumerate(rows):
             sex_str = f"{sex_map.get(r['sex'], r['sex'])}{r['age']}"
             style_str = style_map.get(r['running_style'], "-")
-            rec_str = f"{r['career_starts']}戦{r['career_wins']}勝"
+            starts = r["career_starts"] or 0
+            wins = r["career_wins"] or 0
+            rec_str = f"{starts}戦{wins}勝"
             graded_str = f"{r['g1_wins']}/{r['g2_wins']}/{r['g3_wins']}"
+
+            if r["is_sire"]:
+                status_str = "種牡馬"
+                status_col = "#facc15"
+            elif r["is_dam"]:
+                status_str = "繁殖牝馬"
+                status_col = "#f472b6"
+            elif r["age"] <= 1:
+                status_str = "入厩前"
+                status_col = "#38bdf8"
+            elif r["is_active"]:
+                if starts == 0:
+                    status_str = "未出走"
+                    status_col = "#34d399"
+                else:
+                    status_str = "現役"
+                    status_col = "#22c55e"
+            else:
+                status_str = "引退"
+                status_col = "#94a3b8"
+
+            status_item = QTableWidgetItem(status_str)
+            status_item.setForeground(QColor(status_col))
 
             self.table.setItem(row_idx, 0, QTableWidgetItem(str(r["horse_id"])))
             self.table.setItem(row_idx, 1, QTableWidgetItem(r["name"]))
             self.table.setItem(row_idx, 2, QTableWidgetItem(sex_str))
-            self.table.setItem(row_idx, 3, QTableWidgetItem(r["mstn_type"]))
-            self.table.setItem(row_idx, 4, QTableWidgetItem(style_str))
-            self.table.setItem(row_idx, 5, QTableWidgetItem(f"{r['speed']:.1f}"))
-            self.table.setItem(row_idx, 6, QTableWidgetItem(f"{r['stamina']:.1f}"))
-            self.table.setItem(row_idx, 7, QTableWidgetItem(f"{r['acceleration']:.1f}"))
-            self.table.setItem(row_idx, 8, QTableWidgetItem(rec_str))
-            self.table.setItem(row_idx, 9, QTableWidgetItem(graded_str))
-            self.table.setItem(row_idx, 10, QTableWidgetItem(f"{r['prize_money']:,}円"))
+            self.table.setItem(row_idx, 3, status_item)
+            self.table.setItem(row_idx, 4, QTableWidgetItem(r["mstn_type"]))
+            self.table.setItem(row_idx, 5, QTableWidgetItem(style_str))
+            self.table.setItem(row_idx, 6, QTableWidgetItem(f"{r['speed']:.1f}"))
+            self.table.setItem(row_idx, 7, QTableWidgetItem(f"{r['stamina']:.1f}"))
+            self.table.setItem(row_idx, 8, QTableWidgetItem(f"{r['acceleration']:.1f}"))
+            self.table.setItem(row_idx, 9, QTableWidgetItem(rec_str))
+            self.table.setItem(row_idx, 10, QTableWidgetItem(graded_str))
+            self.table.setItem(row_idx, 11, QTableWidgetItem(f"{r['prize_money']:,}円"))
 
         self.lbl_count.setText(f"表示中: {len(rows)} 頭 (上限100頭)")
         if rows:
@@ -326,9 +355,21 @@ class HorseBrowserView(QWidget):
         growth_map = {"early": "早熟", "normal": "普通", "late": "晩成"}
         style_map = {"escape": "逃げ", "leading": "先行", "between": "差し", "closing": "追込"}
 
+        starts = r["career_starts"] or 0
+        if r["is_sire"]:
+            st_label = "種牡馬"
+        elif r["is_dam"]:
+            st_label = "繁殖牝馬"
+        elif r["age"] <= 1:
+            st_label = "入厩前"
+        elif r["is_active"]:
+            st_label = "未出走" if starts == 0 else "現役"
+        else:
+            st_label = "引退"
+
         self.lbl_d_name.setText(f"{r['name']} (ID: {r['horse_id']})")
         self.lbl_d_profile.setText(
-            f"{sex_map.get(r['sex'], r['sex'])} {r['age']}歳 / MSTN: {r['mstn_type']} / "
+            f"{sex_map.get(r['sex'], r['sex'])}{r['age']}歳・【{st_label}】 / MSTN: {r['mstn_type']} / "
             f"成長: {growth_map.get(r['growth_type'], r['growth_type'])} / 脚質: {style_map.get(r['running_style'], '-')}"
         )
         self.lbl_d_owner_breeder.setText(f"馬主: {r['owner_name'] or '―'} / 生産: {r['breeder_name'] or '―'}")
