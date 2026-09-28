@@ -71,10 +71,13 @@ class RankingHistoryDialog(QDialog):
             }
             QTableWidget {
                 background-color: #1e293b;
+                alternate-background-color: #111827;
                 color: #f8fafc;
                 gridline-color: #334155;
                 border: 1px solid #334155;
                 border-radius: 6px;
+                selection-background-color: #2563eb;
+                selection-color: #ffffff;
             }
             QHeaderView::section {
                 background-color: #0f172a;
@@ -105,7 +108,7 @@ class RankingHistoryDialog(QDialog):
 
         # ヘッダー
         cat_title = CATEGORY_TITLES.get(self.category, "リーディング")
-        header_lbl = QLabel(f"🏆 {self.entity_name} ({cat_title}) 年度別リーディング順位推移")
+        header_lbl = QLabel(f"🏆 {self.entity_name} ({cat_title}) 年度別リーディング順位推移 (前年度まで)")
         header_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #38bdf8;")
         layout.addWidget(header_lbl)
 

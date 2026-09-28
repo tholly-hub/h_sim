@@ -200,15 +200,16 @@ class BreederTransferManager:
         from_breeder_id: int,
         to_breeder_id: int,
         reason: str,
+        conn: Optional[Any] = None,
     ) -> TransferRecord:
         """
         馬（種牡馬または繁殖牝馬）を指定牧場へ移籍させる。
         """
-        with self.db.session() as conn:
+        def _exec(db_conn):
             # 馬名・牧場名の取得
-            horse_row = conn.execute("SELECT name FROM horses WHERE horse_id = ?", (horse_id,)).fetchone()
-            from_row = conn.execute("SELECT name FROM breeders WHERE breeder_id = ?", (from_breeder_id,)).fetchone()
-            to_row = conn.execute("SELECT name FROM breeders WHERE breeder_id = ?", (to_breeder_id,)).fetchone()
+            horse_row = db_conn.execute("SELECT name FROM horses WHERE horse_id = ?", (horse_id,)).fetchone()
+            from_row = db_conn.execute("SELECT name FROM breeders WHERE breeder_id = ?", (from_breeder_id,)).fetchone()
+            to_row = db_conn.execute("SELECT name FROM breeders WHERE breeder_id = ?", (to_breeder_id,)).fetchone()
 
             horse_name = horse_row["name"] if horse_row else f"ID:{horse_id}"
             from_name = from_row["name"] if from_row else f"Breeder:{from_breeder_id}"
@@ -216,21 +217,28 @@ class BreederTransferManager:
 
             # テーブル更新
             if horse_type == "sire":
-                conn.execute(
+                db_conn.execute(
                     "UPDATE sires SET breeder_id = ? WHERE horse_id = ?",
                     (to_breeder_id, horse_id),
                 )
             elif horse_type == "dam":
-                conn.execute(
+                db_conn.execute(
                     "UPDATE dams SET breeder_id = ? WHERE horse_id = ?",
                     (to_breeder_id, horse_id),
                 )
 
             # horses テーブルの breeder_id （現在の繋養地）も更新
-            conn.execute(
+            db_conn.execute(
                 "UPDATE horses SET breeder_id = ? WHERE horse_id = ?",
                 (to_breeder_id, horse_id),
             )
+            return horse_name, from_name, to_name
+
+        if conn is not None:
+            horse_name, from_name, to_name = _exec(conn)
+        else:
+            with self.db.session() as s_conn:
+                horse_name, from_name, to_name = _exec(s_conn)
 
         return TransferRecord(
             horse_id=horse_id,
@@ -361,6 +369,7 @@ class BreederTransferManager:
                                 from_breeder_id=donor_breeder_id,
                                 to_breeder_id=breeder_id,
                                 reason="rescue",
+                                conn=conn,
                             )
                             records.append(rec)
                             donor_found = True

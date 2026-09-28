@@ -26,7 +26,9 @@ from PyQt6.QtWidgets import (
 )
 
 from src.db.database import Database
+from src.gui.styles import get_generation_color
 from src.gui.views.horse_detail_dialog import HorseDetailDialog
+from src.race.awards import AwardsManager
 from src.race.rankings import RankingManager
 
 
@@ -57,10 +59,13 @@ class UnvictoryRetirementDialog(QDialog):
             QDialog { background-color: #0f172a; color: #f8fafc; }
             QTableWidget {
                 background-color: #1e293b;
+                alternate-background-color: #111827;
                 gridline-color: #334155;
                 color: #f1f5f9;
                 border: 1px solid #334155;
                 border-radius: 6px;
+                selection-background-color: #0284c7;
+                selection-color: #ffffff;
             }
             QHeaderView::section {
                 background-color: #334155;
@@ -136,7 +141,7 @@ class UnvictoryRetirementDialog(QDialog):
         with self.db.session() as conn:
             # 当年（self.year）に3歳で未勝利引退となった馬を抽出
             sql = """
-                SELECT h.horse_id, h.name, h.sex, h.age, h.coat_color,
+                SELECT h.horse_id, h.name, h.sex, h.age, h.coat_color, h.generation,
                        s.name AS sire_name, d.name AS dam_name
                 FROM horses h
                 LEFT JOIN horses s ON h.sire_id = s.horse_id
@@ -165,8 +170,10 @@ class UnvictoryRetirementDialog(QDialog):
 
                 sex_str = SEX_MAP.get(r["sex"], "牡")
 
+                gen = r.get("generation", 1) or 1
+                name_col = get_generation_color(gen)
                 item_name = QTableWidgetItem(r["name"])
-                item_name.setForeground(QColor("#38bdf8"))
+                item_name.setForeground(QColor(name_col))
                 item_name.setFont(QFont("Hiragino Sans", 10, QFont.Weight.Bold))
 
                 self.table.setItem(r_idx, 0, item_name)
@@ -192,8 +199,9 @@ class YearEndAwardsDialog(QDialog):
         self.year = year  # 前年（表彰対象年）
         self.next_year = year + 1  # 開幕する新年度
         self.rank_mgr = RankingManager(db)
+        self.awards_mgr = AwardsManager(db)
 
-        self.setWindowTitle(f"🏆 {self.next_year}年 1月第1週 JRA表彰式 & 新シーズン開幕総合発表")
+        self.setWindowTitle(f"🏆 {self.next_year}年 1月第1週 表彰式 & 新シーズン開幕総合発表")
         self.resize(1050, 750)
         self._init_ui()
         self._load_awards_and_data()
@@ -218,10 +226,13 @@ class YearEndAwardsDialog(QDialog):
             }
             QTableWidget {
                 background-color: #0f172a;
+                alternate-background-color: #1a2333;
                 gridline-color: #334155;
                 color: #f1f5f9;
                 border: 1px solid #334155;
                 border-radius: 6px;
+                selection-background-color: #0284c7;
+                selection-color: #ffffff;
             }
             QHeaderView::section {
                 background-color: #1e293b;
@@ -249,7 +260,7 @@ class YearEndAwardsDialog(QDialog):
         hdr_frame.setStyleSheet("background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px;")
         h_box = QHBoxLayout(hdr_frame)
 
-        lbl_title = QLabel(f"🌟 {self.year}年度 JRA賞表彰式 & {self.next_year}年度 新シーズン体制（引退・新規発表）")
+        lbl_title = QLabel(f"🌟 {self.year}年度 表彰式 & {self.next_year}年度 新シーズン体制（引退・新規発表）")
         lbl_title.setFont(QFont("Hiragino Sans", 15, QFont.Weight.Bold))
         lbl_title.setStyleSheet("color: #f59e0b;")
         h_box.addWidget(lbl_title)
@@ -297,6 +308,16 @@ class YearEndAwardsDialog(QDialog):
         ft_layout.addWidget(btn_close)
 
         layout.addLayout(ft_layout)
+
+    def _adjust_table_height(self, table: QTableWidget, max_extra: int = 6) -> None:
+        """テーブルの縦スクロールバーを無効化し、全行を表示できる高さに自動調整"""
+        table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        h = table.horizontalHeader().height()
+        for i in range(table.rowCount()):
+            h += table.rowHeight(i)
+        table.setFixedHeight(max(h + max_extra, 50))
 
     # ------------------------------------------------------------------------
     # タブ初期化
@@ -441,56 +462,76 @@ class YearEndAwardsDialog(QDialog):
     # データ読み込み処理
     # ------------------------------------------------------------------------
     def _load_awards_and_data(self) -> None:
+        # 1〜3. 表彰馬・功労馬・関係者表彰
         with self.db.session() as conn:
             # 1. 表彰馬
             awards_rows = conn.execute(
-                "SELECT * FROM annual_awards WHERE year = ?", (self.year,)
+                "SELECT * FROM annual_awards WHERE year = ? ORDER BY award_id ASC", (self.year,)
             ).fetchall()
+
+            category_name_map = {
+                "horse_of_the_year": "年度代表馬",
+                "best_turf_horse": "最優秀芝馬",
+                "best_dirt_horse": "最優秀ダート馬",
+                "best_intermediate_long": "最優秀中長距離馬",
+                "best_sprinter_miler": "最優秀マイル・短距離馬",
+                "best_older_female": "最優秀古馬牝馬",
+                "best_2yo_colt": "最優秀2歳牡馬",
+                "best_2yo_filly": "最優秀2歳牝馬",
+            }
 
             self.award_horse_ids = []
             self.tbl_awards.setRowCount(len(awards_rows))
             for idx, a in enumerate(awards_rows):
-                cat = a["category"]
+                cat = a["category_jp"] if ("category_jp" in a.keys() and a["category_jp"]) else category_name_map.get(a["category"], a["category"])
                 h_id = a["horse_id"]
                 h_name = a["horse_name"]
                 self.award_horse_ids.append(h_id)
 
                 # 馬情報
-                h_row = conn.execute("SELECT sex, age, major_wins FROM horses WHERE horse_id = ?", (h_id,)).fetchone()
+                h_row = conn.execute("SELECT sex, age, major_wins, generation FROM horses WHERE horse_id = ?", (h_id,)).fetchone()
                 sex_age = f"{SEX_MAP.get(h_row['sex'], '牡') if h_row else ''}{h_row['age'] if h_row else ''}歳"
                 major = h_row["major_wins"] if (h_row and h_row["major_wins"]) else "-"
+                gen = h_row["generation"] if (h_row and "generation" in h_row.keys()) else 1
 
                 self.tbl_awards.setItem(idx, 0, QTableWidgetItem(cat))
                 item_h = QTableWidgetItem(h_name)
-                item_h.setForeground(QColor("#38bdf8"))
+                item_h.setForeground(QColor(get_generation_color(gen)))
                 item_h.setFont(QFont("Hiragino Sans", 10, QFont.Weight.Bold))
                 self.tbl_awards.setItem(idx, 1, item_h)
                 self.tbl_awards.setItem(idx, 2, QTableWidgetItem(sex_age))
                 self.tbl_awards.setItem(idx, 3, QTableWidgetItem(major))
 
+            self._adjust_table_height(self.tbl_awards)
+
             # 2. 功労馬・顕彰馬
-            hall_rows = conn.execute("""
-                SELECT h.horse_id, h.name, h.g1_wins, h.career_starts, h.career_wins
-                FROM horses h
-                WHERE h.g1_wins >= 3 OR (h.age >= 10 AND h.g1_wins >= 1)
-                ORDER BY h.g1_wins DESC, h.prize_money DESC
-                LIMIT 10
-            """).fetchall()
+            hall_rows = self.awards_mgr.get_hall_and_merit_horses()
 
             self.hall_horse_ids = []
-            self.tbl_hall_horses.setRowCount(len(hall_rows))
-            for idx, h in enumerate(hall_rows):
+            self.tbl_hall_horses.setRowCount(min(15, len(hall_rows)))
+            for idx, h in enumerate(hall_rows[:15]):
                 self.hall_horse_ids.append(h["horse_id"])
-                lbl_type = "🏆 殿堂・顕彰馬" if h["g1_wins"] >= 5 else "🎖 功労馬"
-                reason = "G1通算5勝以上殿堂入り" if h["g1_wins"] >= 5 else "名馬・長寿功労"
+                lbl_type = h.get("award_type_label", "🎖 功労馬")
+                is_hall = (h.get("award_type") == "hall")
+                reason = h.get("reason", "名馬・功労表彰")
+                h_gen = h.get("generation", 1) or 1
 
-                self.tbl_hall_horses.setItem(idx, 0, QTableWidgetItem(lbl_type))
-                item_h = QTableWidgetItem(h["name"])
-                item_h.setForeground(QColor("#facc15"))
+                item_type = QTableWidgetItem(lbl_type)
+                item_type.setForeground(QColor("#facc15") if is_hall else QColor("#34d399"))
+                f_t = item_type.font()
+                f_t.setBold(True)
+                item_type.setFont(f_t)
+                self.tbl_hall_horses.setItem(idx, 0, item_type)
+
+                item_h = QTableWidgetItem(h["horse_name"])
+                item_h.setForeground(QColor(get_generation_color(h_gen)))
                 item_h.setFont(QFont("Hiragino Sans", 10, QFont.Weight.Bold))
                 self.tbl_hall_horses.setItem(idx, 1, item_h)
+
                 self.tbl_hall_horses.setItem(idx, 2, QTableWidgetItem(f"{h['career_starts']}戦{h['career_wins']}勝 (G1:{h['g1_wins']}勝)"))
                 self.tbl_hall_horses.setItem(idx, 3, QTableWidgetItem(reason))
+
+            self._adjust_table_height(self.tbl_hall_horses)
 
             # 3. 関係者表彰 (特別功労・殿堂)
             # 騎手: 500勝+G1 20勝(特別功労), 1000勝+G1 30勝(殿堂)
@@ -517,42 +558,50 @@ class YearEndAwardsDialog(QDialog):
                 self.tbl_people_awards.setItem(idx, 2, QTableWidgetItem(rec))
                 self.tbl_people_awards.setItem(idx, 3, QTableWidgetItem(crt))
 
-            # 4. リーディングTOP5
-            rank_funcs = {
-                "jockey": self.rank_mgr.get_jockey_rankings,
-                "trainer": self.rank_mgr.get_trainer_rankings,
-                "owner": self.rank_mgr.get_owner_rankings,
-                "breeder": self.rank_mgr.get_breeder_rankings,
-            }
-            for cat_key, fetch_fn in rank_funcs.items():
-                tbl: QTableWidget = getattr(self, f"tbl_lead_{cat_key}")
+            self._adjust_table_height(self.tbl_people_awards)
+
+        # 4. リーディングTOP5 (セッション外で安全に取得)
+        rank_funcs = {
+            "jockey": self.rank_mgr.get_jockey_rankings,
+            "trainer": self.rank_mgr.get_trainer_rankings,
+            "owner": self.rank_mgr.get_owner_rankings,
+            "breeder": self.rank_mgr.get_breeder_rankings,
+        }
+        for cat_key, fetch_fn in rank_funcs.items():
+            tbl: QTableWidget = getattr(self, f"tbl_lead_{cat_key}")
+            try:
                 rank_list = fetch_fn(is_career=False, limit=5)
-                tbl.setRowCount(len(rank_list))
-                for r_idx, r in enumerate(rank_list):
-                    rank_str = f"第{r_idx + 1}位"
-                    name_str = r.get("name", "-")
-                    w1 = r.get("win_1", 0)
-                    w2 = r.get("win_2", 0)
-                    w3 = r.get("win_3", 0)
-                    unp = r.get("win_out", 0)
-                    rec_str = f"{w1}-{w2}-{w3}-{unp}"
+            except Exception:
+                rank_list = []
+            tbl.setRowCount(len(rank_list))
+            for r_idx, r in enumerate(rank_list):
+                rank_str = f"第{r_idx + 1}位"
+                name_str = r.get("name", "-")
+                w1 = r.get("win_1", 0)
+                w2 = r.get("win_2", 0)
+                w3 = r.get("win_3", 0)
+                unp = r.get("win_out", 0)
+                rec_str = f"{w1}-{w2}-{w3}-{unp}"
 
-                    starts = w1 + w2 + w3 + unp
-                    win_rate = (w1 / starts * 100) if starts > 0 else 0.0
-                    top2_rate = ((w1 + w2) / starts * 100) if starts > 0 else 0.0
-                    rate_str = f"{win_rate:.1f}% / {top2_rate:.1f}%"
-                    rep_list = r.get("representative_horses", [])
-                    major_str = ", ".join(rep_list) if rep_list else "-"
+                starts = w1 + w2 + w3 + unp
+                win_rate = (w1 / starts * 100) if starts > 0 else 0.0
+                top2_rate = ((w1 + w2) / starts * 100) if starts > 0 else 0.0
+                rate_str = f"{win_rate:.1f}% / {top2_rate:.1f}%"
+                rep_list = r.get("representative_horses", [])
+                major_str = ", ".join(rep_list) if rep_list else "-"
 
-                    tbl.setItem(r_idx, 0, QTableWidgetItem(rank_str))
-                    tbl.setItem(r_idx, 1, QTableWidgetItem(name_str))
-                    tbl.setItem(r_idx, 2, QTableWidgetItem(rec_str))
-                    tbl.setItem(r_idx, 3, QTableWidgetItem(rate_str))
-                    tbl.setItem(r_idx, 4, QTableWidgetItem(major_str))
+                tbl.setItem(r_idx, 0, QTableWidgetItem(rank_str))
+                tbl.setItem(r_idx, 1, QTableWidgetItem(name_str))
+                tbl.setItem(r_idx, 2, QTableWidgetItem(rec_str))
+                tbl.setItem(r_idx, 3, QTableWidgetItem(rate_str))
+                tbl.setItem(r_idx, 4, QTableWidgetItem(major_str))
+            self._adjust_table_height(tbl)
 
+        # 5〜7. 引退馬・種牡馬・繁殖牝馬
+        with self.db.session() as conn:
             # 5. 本年引退競走馬一覧
             retire_rows = conn.execute("""
-                SELECT h.horse_id, h.name, h.sex, h.age, h.career_starts, h.career_wins, h.g1_wins, h.g2_wins, h.g3_wins, h.major_wins,
+                SELECT h.horse_id, h.name, h.sex, h.age, h.career_starts, h.career_wins, h.g1_wins, h.g2_wins, h.g3_wins, h.major_wins, h.generation,
                        s.name AS sire_name, d.name AS dam_name
                 FROM horses h
                 LEFT JOIN horses s ON h.sire_id = s.horse_id
@@ -569,8 +618,10 @@ class YearEndAwardsDialog(QDialog):
                 rec_str = f"{r['career_starts']}戦{r['career_wins']}勝"
                 major = r["major_wins"] or ("重賞未勝利" if (r["g1_wins"] + r["g2_wins"] + r["g3_wins"] == 0) else "-")
 
+                h_gen = r.get("generation", 1) or 1
+                name_col = get_generation_color(h_gen)
                 item_h = QTableWidgetItem(r["name"])
-                item_h.setForeground(QColor("#38bdf8"))
+                item_h.setForeground(QColor(name_col))
                 item_h.setFont(QFont("Hiragino Sans", 10, QFont.Weight.Bold))
 
                 self.tbl_retire_horses.setItem(idx, 0, item_h)
@@ -583,7 +634,7 @@ class YearEndAwardsDialog(QDialog):
             # 6. 種牡馬 (引退 & 新種牡馬)
             # 引退種牡馬
             r_sire_rows = conn.execute("""
-                SELECT h.name, s.sire_line, h.career_starts, h.career_wins,
+                SELECT h.name, s.sire_line, s.generation AS s_gen, h.generation AS h_gen, h.career_starts, h.career_wins,
                        ps.name AS sire_name, pd.name AS dam_name,
                        (SELECT COUNT(*) FROM horses WHERE sire_id = h.horse_id) AS progeny_cnt,
                        (SELECT COUNT(*) FROM horses WHERE sire_id = h.horse_id AND career_wins > 0) AS winner_cnt
@@ -596,17 +647,24 @@ class YearEndAwardsDialog(QDialog):
 
             self.tbl_retire_sires.setRowCount(len(r_sire_rows))
             for idx, r in enumerate(r_sire_rows):
-                self.tbl_retire_sires.setItem(idx, 0, QTableWidgetItem(r["name"]))
+                s_gen = r.get("s_gen") or r.get("h_gen") or 1
+                s_col = get_generation_color(s_gen, is_breeding=True)
+                item_s = QTableWidgetItem(r["name"])
+                item_s.setForeground(QColor(s_col))
+                item_s.setFont(QFont("Hiragino Sans", 10, QFont.Weight.Bold))
+
+                self.tbl_retire_sires.setItem(idx, 0, item_s)
                 self.tbl_retire_sires.setItem(idx, 1, QTableWidgetItem(r["sire_line"] or "-"))
                 self.tbl_retire_sires.setItem(idx, 2, QTableWidgetItem(r["sire_name"] or "-"))
                 self.tbl_retire_sires.setItem(idx, 3, QTableWidgetItem(r["dam_name"] or "-"))
                 self.tbl_retire_sires.setItem(idx, 4, QTableWidgetItem(f"{r['career_starts']}戦{r['career_wins']}勝"))
                 self.tbl_retire_sires.setItem(idx, 5, QTableWidgetItem(f"{r['progeny_cnt']}頭"))
                 self.tbl_retire_sires.setItem(idx, 6, QTableWidgetItem(f"{r['winner_cnt']}頭"))
+            self._adjust_table_height(self.tbl_retire_sires)
 
             # 新種牡馬 (当年に現役引退して種牡馬入りした馬)
             n_sire_rows = conn.execute("""
-                SELECT h.name, s.sire_line, s.stud_fee, h.career_starts, h.career_wins, h.major_wins,
+                SELECT h.name, s.sire_line, s.stud_fee, s.generation AS s_gen, h.generation AS h_gen, h.career_starts, h.career_wins, h.major_wins,
                        ps.name AS sire_name, pd.name AS dam_name
                 FROM sires s
                 JOIN horses h ON s.horse_id = h.horse_id
@@ -618,18 +676,25 @@ class YearEndAwardsDialog(QDialog):
 
             self.tbl_new_sires.setRowCount(len(n_sire_rows))
             for idx, r in enumerate(n_sire_rows):
-                self.tbl_new_sires.setItem(idx, 0, QTableWidgetItem(r["name"]))
+                s_gen = r.get("s_gen") or r.get("h_gen") or 1
+                s_col = get_generation_color(s_gen, is_breeding=True)
+                item_s = QTableWidgetItem(r["name"])
+                item_s.setForeground(QColor(s_col))
+                item_s.setFont(QFont("Hiragino Sans", 10, QFont.Weight.Bold))
+
+                self.tbl_new_sires.setItem(idx, 0, item_s)
                 self.tbl_new_sires.setItem(idx, 1, QTableWidgetItem(r["sire_line"] or "-"))
                 self.tbl_new_sires.setItem(idx, 2, QTableWidgetItem(r["sire_name"] or "-"))
                 self.tbl_new_sires.setItem(idx, 3, QTableWidgetItem(r["dam_name"] or "-"))
                 self.tbl_new_sires.setItem(idx, 4, QTableWidgetItem(f"{r['career_starts']}戦{r['career_wins']}勝"))
                 self.tbl_new_sires.setItem(idx, 5, QTableWidgetItem(r["major_wins"] or "-"))
                 self.tbl_new_sires.setItem(idx, 6, QTableWidgetItem(f"{r['stud_fee'] // 10000:,}万円"))
+            self._adjust_table_height(self.tbl_new_sires)
 
             # 7. 繁殖牝馬 (引退 & 新繁殖)
             # 引退繁殖牝馬
             r_dam_rows = conn.execute("""
-                SELECT h.name, h.career_starts, h.career_wins,
+                SELECT h.name, d.generation AS d_gen, h.generation AS h_gen, h.career_starts, h.career_wins,
                        ps.name AS sire_name, pd.name AS dam_name,
                        (SELECT COUNT(*) FROM horses WHERE dam_id = h.horse_id) AS progeny_cnt,
                        (SELECT COUNT(*) FROM horses WHERE dam_id = h.horse_id AND career_wins > 0) AS winner_cnt
@@ -642,17 +707,24 @@ class YearEndAwardsDialog(QDialog):
 
             self.tbl_retire_dams.setRowCount(len(r_dam_rows))
             for idx, r in enumerate(r_dam_rows):
-                self.tbl_retire_dams.setItem(idx, 0, QTableWidgetItem(r["name"]))
+                d_gen = r.get("d_gen") or r.get("h_gen") or 1
+                d_col = get_generation_color(d_gen, is_breeding=True)
+                item_d = QTableWidgetItem(r["name"])
+                item_d.setForeground(QColor(d_col))
+                item_d.setFont(QFont("Hiragino Sans", 10, QFont.Weight.Bold))
+
+                self.tbl_retire_dams.setItem(idx, 0, item_d)
                 self.tbl_retire_dams.setItem(idx, 1, QTableWidgetItem(r["sire_name"] or "-"))
                 self.tbl_retire_dams.setItem(idx, 2, QTableWidgetItem(r["sire_name"] or "-"))
                 self.tbl_retire_dams.setItem(idx, 3, QTableWidgetItem(r["dam_name"] or "-"))
                 self.tbl_retire_dams.setItem(idx, 4, QTableWidgetItem(f"{r['career_starts']}戦{r['career_wins']}勝"))
                 self.tbl_retire_dams.setItem(idx, 5, QTableWidgetItem(f"{r['progeny_cnt']}頭"))
                 self.tbl_retire_dams.setItem(idx, 6, QTableWidgetItem(f"{r['winner_cnt']}頭"))
+            self._adjust_table_height(self.tbl_retire_dams)
 
             # 新繁殖牝馬 (当年に現役引退して繁殖牝馬入りした馬)
             n_dam_rows = conn.execute("""
-                SELECT h.name, h.career_starts, h.career_wins, h.major_wins,
+                SELECT h.name, d.generation AS d_gen, h.generation AS h_gen, h.career_starts, h.career_wins, h.major_wins,
                        ps.name AS sire_name, pd.name AS dam_name, b.name AS breeder_name
                 FROM dams d
                 JOIN horses h ON d.horse_id = h.horse_id
@@ -665,12 +737,19 @@ class YearEndAwardsDialog(QDialog):
 
             self.tbl_new_dams.setRowCount(len(n_dam_rows))
             for idx, r in enumerate(n_dam_rows):
-                self.tbl_new_dams.setItem(idx, 0, QTableWidgetItem(r["name"]))
+                d_gen = r.get("d_gen") or r.get("h_gen") or 1
+                d_col = get_generation_color(d_gen, is_breeding=True)
+                item_d = QTableWidgetItem(r["name"])
+                item_d.setForeground(QColor(d_col))
+                item_d.setFont(QFont("Hiragino Sans", 10, QFont.Weight.Bold))
+
+                self.tbl_new_dams.setItem(idx, 0, item_d)
                 self.tbl_new_dams.setItem(idx, 1, QTableWidgetItem(r["sire_name"] or "-"))
                 self.tbl_new_dams.setItem(idx, 2, QTableWidgetItem(r["dam_name"] or "-"))
                 self.tbl_new_dams.setItem(idx, 3, QTableWidgetItem(f"{r['career_starts']}戦{r['career_wins']}勝"))
                 self.tbl_new_dams.setItem(idx, 4, QTableWidgetItem(r["major_wins"] or "-"))
                 self.tbl_new_dams.setItem(idx, 5, QTableWidgetItem(r["breeder_name"] or "-"))
+            self._adjust_table_height(self.tbl_new_dams)
 
     # ------------------------------------------------------------------------
     # クリックイベント
@@ -713,10 +792,13 @@ class SpringFoalingDialog(QDialog):
             QDialog { background-color: #0f172a; color: #f8fafc; }
             QTableWidget {
                 background-color: #1e293b;
+                alternate-background-color: #111827;
                 gridline-color: #334155;
                 color: #f1f5f9;
                 border: 1px solid #334155;
                 border-radius: 6px;
+                selection-background-color: #0284c7;
+                selection-color: #ffffff;
             }
             QHeaderView::section {
                 background-color: #334155;
@@ -855,10 +937,13 @@ class SpringBreedingDialog(QDialog):
             QDialog { background-color: #0f172a; color: #f8fafc; }
             QTableWidget {
                 background-color: #1e293b;
+                alternate-background-color: #111827;
                 gridline-color: #334155;
                 color: #f1f5f9;
                 border: 1px solid #334155;
                 border-radius: 6px;
+                selection-background-color: #0284c7;
+                selection-color: #ffffff;
             }
             QHeaderView::section {
                 background-color: #334155;

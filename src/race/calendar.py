@@ -38,15 +38,15 @@ class CalendarController:
 
         if conn is not None:
             c = conn.execute(check_query, (year,)).fetchone()[0]
-            if c == 0:
-                self.program_builder.register_annual_program(year=year)
+            if c == 0 and year >= 3:
+                self.program_builder.register_annual_program(year=year, conn=conn)
             cursor = conn.execute(query, (year, week))
             rows = cursor.fetchall()
         else:
             with self.db.session() as session_conn:
                 c = session_conn.execute(check_query, (year,)).fetchone()[0]
-                if c == 0:
-                    self.program_builder.register_annual_program(year=year)
+                if c == 0 and year >= 3:
+                    self.program_builder.register_annual_program(year=year, conn=session_conn)
                 cursor = session_conn.execute(query, (year, week))
                 rows = cursor.fetchall()
         return [Race.from_row(r) for r in rows]
@@ -87,8 +87,8 @@ class CalendarController:
                 rows = cursor.fetchall()
         return [Trainer.from_row(r) for r in rows]
 
-    def load_trainer_jockey_map(self, conn: Optional[Any] = None) -> Dict[int, int]:
-        """調教師ID -> 所属騎手ID のマッピングを取得"""
+    def load_trainer_jockey_map(self, conn: Optional[Any] = None) -> Dict[int, List[int]]:
+        """調教師ID -> 所属騎手IDリスト（通常各厩舎2名）のマッピングを取得"""
         query = "SELECT trainer_id, jockey_id FROM jockeys WHERE trainer_id IS NOT NULL AND is_active = 1"
         if conn is not None:
             cursor = conn.execute(query)
@@ -97,21 +97,69 @@ class CalendarController:
             with self.db.session() as session_conn:
                 cursor = session_conn.execute(query)
                 rows = cursor.fetchall()
-        return {r['trainer_id']: r['jockey_id'] for r in rows}
+        mapping: Dict[int, List[int]] = {}
+        for r in rows:
+            t_id = r['trainer_id']
+            j_id = r['jockey_id']
+            if t_id not in mapping:
+                mapping[t_id] = []
+            mapping[t_id].append(j_id)
+        return mapping
 
     def run_week(self, year: int, week: int) -> Dict[str, Any]:
         """
         指定週のレースを一括実行し、結果を保存・更新
         """
         with self.db.session() as conn:
+            # システム進行状況テーブルの更新
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO system_status (key, value_int) VALUES ('current_year', ?), ('current_week', ?)
+                    ON CONFLICT(key) DO UPDATE SET value_int = excluded.value_int, updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (year, week),
+                )
+            except Exception:
+                pass
+
             races = self.get_races_for_week(year, week, conn=conn)
+
+            # 季節イベント処理
+            # 3月第1週（第9週）: 当歳馬（0歳）誕生・出産処理
+            if week == 9:
+                from src.core.breeding import BreedingEngine
+                BreedingEngine(self.db).perform_spring_foaling(year, conn=conn)
+
+            # 4月第1週（第13週）: 種付け交配処理
+            if week == 13:
+                from src.core.breeding import BreedingEngine
+                BreedingEngine(self.db).perform_spring_mating(year, conn=conn)
+
+            retired_maidens_count = 0
+            # 未勝利馬は3歳9月末（第36週）でカット
+            if week == 36:
+                retired_maidens_count = self._process_3yo_maiden_retirement(conn, year)
+
+            # 100勝メモリアル記録の自動同期
+            from src.race.awards import AwardsManager
+            awards_mgr = AwardsManager(self.db, conn=conn)
+            awards_mgr.sync_all_milestones(conn=conn)
+
+            # 12月4週（第48週）終了後、年度代表馬および各部門賞を自動選出
+            annual_awards = []
+            if week == 48:
+                annual_awards = awards_mgr.determine_annual_awards(year, conn=conn)
+
             if not races:
                 return {
                     "year": year,
                     "week": week,
                     "races_run": 0,
                     "starters_count": 0,
-                    "message": f"第{week}週のレース番組はありません。",
+                    "retired_maidens": retired_maidens_count,
+                    "annual_awards": annual_awards,
+                    "message": f"第{year}年 第{week}週のレース番組はありません（育成期間または非開催週）。",
                 }
 
             all_horses = self.load_active_horses(conn=conn)
@@ -216,31 +264,6 @@ class CalendarController:
                     "winning_time": results[0].finish_time if results else 0.0,
                 })
 
-            retired_maidens_count = 0
-            # 3月第1週（第9週）: 当歳馬（0歳）誕生・出産処理
-            if week == 9:
-                from src.core.breeding import BreedingEngine
-                BreedingEngine(self.db).perform_spring_foaling(year, conn=conn)
-
-            # 4月第1週（第13週）: 種付け交配処理
-            if week == 13:
-                from src.core.breeding import BreedingEngine
-                BreedingEngine(self.db).perform_spring_mating(year, conn=conn)
-
-            # 未勝利馬は3歳9月末（第36週）でカット
-            if week == 36:
-                retired_maidens_count = self._process_3yo_maiden_retirement(conn, year)
-
-            # 100勝メモリアル記録の自動同期
-            from src.race.awards import AwardsManager
-            awards_mgr = AwardsManager(self.db, conn=conn)
-            awards_mgr.sync_all_milestones(conn=conn)
-
-            # 12月4週（第48週）終了後、年度代表馬および各部門賞を自動選出
-            annual_awards = []
-            if week == 48:
-                annual_awards = awards_mgr.determine_annual_awards(year, conn=conn)
-
             return {
                 "year": year,
                 "week": week,
@@ -264,9 +287,9 @@ class CalendarController:
                 """
                 INSERT INTO results (
                     race_id, horse_id, jockey_id, trainer_id, finish_position,
-                    finish_time, margin, time_diff, prize_awarded,
+                    finish_time, margin, time_diff, prize_awarded, carried_weight,
                     running_style_used, gate_number, last_3f, odds, replay_data_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     res.race_id,
@@ -278,6 +301,7 @@ class CalendarController:
                     res.margin,
                     res.time_diff,
                     res.prize_awarded,
+                    getattr(res, "carried_weight", 55.0),
                     res.running_style_used,
                     res.gate_number,
                     getattr(res, "last_3f", 0.0),
@@ -458,7 +482,7 @@ class CalendarController:
             breeder_id = m['breeder_id']
 
             conn.execute(
-                "UPDATE horses SET is_active = 0, retired_year = ?, trainer_id = NULL, jockey_id = NULL WHERE horse_id = ?",
+                "UPDATE horses SET is_active = 0, retired_year = ? WHERE horse_id = ?",
                 (year, h_id),
             )
             retired_count += 1

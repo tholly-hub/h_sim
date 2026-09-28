@@ -41,7 +41,12 @@ class AnalyticsView(QWidget):
         super().__init__(parent)
         self.db = db
         self.current_record_race_id: Optional[int] = None
+        self._loaded = True
         self._init_ui()
+        self.refresh_charts()
+
+    def ensure_loaded(self) -> None:
+        """表示時にデータをロード"""
         self.refresh_charts()
 
     def _init_ui(self) -> None:
@@ -181,7 +186,7 @@ class AnalyticsView(QWidget):
                 (target_dist, target_surface),
             ).fetchone()
 
-            # 2. 世代別能力値推移の集計 (birth_year >= 0 で初期世代も網羅)
+            # 2. 世代別能力値推移の集計 (第1世代以降: birth_year >= 1 優先)
             stat_rows = conn.execute(
                 """
                 SELECT birth_year,
@@ -190,11 +195,26 @@ class AnalyticsView(QWidget):
                        AVG(acceleration) as avg_acc,
                        COUNT(*) as count
                 FROM horses
-                WHERE birth_year >= 0
+                WHERE birth_year >= 1
                 GROUP BY birth_year
                 ORDER BY birth_year ASC
                 """
             ).fetchall()
+
+            if not stat_rows:
+                stat_rows = conn.execute(
+                    """
+                    SELECT birth_year,
+                           AVG(speed) as avg_spd,
+                           AVG(stamina) as avg_sta,
+                           AVG(acceleration) as avg_acc,
+                           COUNT(*) as count
+                    FROM horses
+                    WHERE birth_year >= 0
+                    GROUP BY birth_year
+                    ORDER BY birth_year ASC
+                    """
+                ).fetchall()
 
         # レコード情報のUI反映
         if rec_row and rec_row["finish_time"]:
@@ -251,7 +271,7 @@ class AnalyticsView(QWidget):
             ax1.set_title(f"{surf_jp} {target_dist}m 勝ち時計の年次・レコード推移")
         else:
             ax1.text(
-                0.5, 0.5, f"{surf_jp} {target_dist}m のレース消化記録がまだありません",
+                0.5, 0.5, f"{surf_jp} {target_dist}m のレース消化記録がまだありません\n（3年目7月以降のレース結果が反映されます）",
                 horizontalalignment="center", verticalalignment="center",
                 transform=ax1.transAxes, color="#94a3b8", fontsize=11
             )
@@ -267,23 +287,29 @@ class AnalyticsView(QWidget):
             stas = [r["avg_sta"] for r in stat_rows]
             accs = [r["avg_acc"] for r in stat_rows]
 
-            ax2.plot(b_years, spds, marker="o", color="#ef4444", label="最高速度", linewidth=2)
-            ax2.plot(b_years, stas, marker="^", color="#10b981", label="持久力", linewidth=2)
-            ax2.plot(b_years, accs, marker="d", color="#f59e0b", label="瞬発力", linewidth=2)
-            ax2.axhline(50.0, color="#64748b", linestyle=":", label="基準平均値 (50.0)")
-            ax2.set_xlabel("生年・世代 (Birth Year)")
+            ax2.plot(b_years, spds, marker="o", markersize=6, color="#ef4444", label="最高速度 (Speed)", linewidth=2)
+            ax2.plot(b_years, stas, marker="^", markersize=6, color="#10b981", label="持久力 (Stamina)", linewidth=2)
+            ax2.plot(b_years, accs, marker="d", markersize=6, color="#f59e0b", label="瞬発力 (Accel)", linewidth=2)
+            ax2.axhline(10.0, color="#64748b", linestyle=":", label="初期基準平均 (10.0)")
+            ax2.set_xlabel("生年・誕生世代 (第N世代 / N年目生まれ)")
             ax2.set_ylabel("ポリジーン能力平均値")
 
-            all_vals = spds + stas + accs
-            y_min = max(20.0, min(all_vals) - 5.0)
-            y_max = min(100.0, max(all_vals) + 5.0)
+            all_vals = spds + stas + accs + [10.0]
+            y_min = max(0.0, min(all_vals) - 3.0)
+            y_max = max(all_vals) + 3.0
             ax2.set_ylim(y_min, y_max)
 
-            ax2.legend(facecolor="#161b26", edgecolor="#334155", labelcolor="#cbd5e1")
+            if len(b_years) == 1:
+                ax2.set_xlim(b_years[0] - 1, b_years[0] + 1)
+            else:
+                ax2.set_xlim(min(b_years) - 0.5, max(b_years) + 0.5)
+
+            ax2.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+            ax2.legend(facecolor="#161b26", edgecolor="#334155", labelcolor="#cbd5e1", loc="upper left")
             ax2.set_title("世代別平均能力値の進化推移")
         else:
             ax2.text(
-                0.5, 0.5, "誕生世代データがまだありません",
+                0.5, 0.5, "誕生世代データがまだありません\n（初期化または出産イベント後に自動表示されます）",
                 horizontalalignment="center", verticalalignment="center",
                 transform=ax2.transAxes, color="#94a3b8", fontsize=11
             )

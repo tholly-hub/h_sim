@@ -30,9 +30,12 @@ from PyQt6.QtWidgets import (
 )
 
 from src.db.database import Database
+from src.gui.styles import get_generation_color
 from src.gui.views.entity_horses_dialog import EntityHorsesDialog
+from src.gui.views.horse_detail_dialog import HorseDetailDialog
 from src.gui.views.progeny_dialog import ProgenyListDialog
 from src.gui.views.ranking_history_dialog import RankingHistoryDialog
+from src.gui.views.sire_detail_dialog import SireDetailDialog
 from src.race.rankings import RankingManager
 
 
@@ -47,8 +50,14 @@ class RankingsView(QWidget):
         self.is_career = False
         self.sire_age_filter: Optional[int] = None
         self.row_entities: List[Dict[str, Any]] = []
+        self._loaded = False
         self._init_ui()
-        self.refresh_data()
+
+    def ensure_loaded(self) -> None:
+        """初回表示時のみデータをロード"""
+        if not self._loaded:
+            self.refresh_data()
+            self._loaded = True
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -102,10 +111,13 @@ class RankingsView(QWidget):
         self.rb_year = QRadioButton("当年成績")
         self.rb_year.setChecked(True)
         self.rb_year.toggled.connect(self._on_term_changed)
+        self.rb_last_year = QRadioButton("昨年成績")
+        self.rb_last_year.toggled.connect(self._on_term_changed)
         self.rb_career = QRadioButton("通算成績")
         self.rb_career.toggled.connect(self._on_term_changed)
 
         nav_layout.addWidget(self.rb_year)
+        nav_layout.addWidget(self.rb_last_year)
         nav_layout.addWidget(self.rb_career)
 
         main_layout.addWidget(nav_frame)
@@ -177,7 +189,8 @@ class RankingsView(QWidget):
         self._load_tier_table()
 
     def _load_ranking_table(self) -> None:
-        is_career = self.is_career
+        is_career = self.rb_career.isChecked()
+        is_last_year = self.rb_last_year.isChecked()
         cat = self.current_category
         self.row_entities.clear()
 
@@ -186,8 +199,34 @@ class RankingsView(QWidget):
             cur_y_row = conn.execute("SELECT MAX(year) FROM races").fetchone()
             cur_year = cur_y_row[0] if cur_y_row and cur_y_row[0] else 1
 
+        if is_career:
+            target_year = None
+            calc_year = cur_year
+        elif is_last_year:
+            target_year = cur_year - 1
+            calc_year = max(1, target_year)
+        else:
+            target_year = cur_year
+            calc_year = cur_year
+
+        term_desc = f"【第{cur_year}年 (当年)】" if (not is_career and not is_last_year) else (f"【第{target_year}年 (昨年)】" if is_last_year else "【通算】")
+        if cat == "sire":
+            self.rank_hint_lbl.setText(f"💡 {term_desc} 種牡馬名クリックで【順位推移グラフ】、産駒数クリックで【産駒一覧】が表示されます。")
+        elif cat in ("trainer", "owner", "breeder"):
+            self.rank_hint_lbl.setText(f"💡 {term_desc} 名前クリックで【順位推移グラフ】、頭数・勝馬数クリックで【馬一覧】が表示されます。")
+        else:
+            self.rank_hint_lbl.setText(f"💡 {term_desc} 名前をクリックすると【年度別順位推移グラフ】が表示されます。")
+
+        # 昨年選択時かつ1年目の場合の案内
+        if is_last_year and cur_year <= 1:
+            self.rank_table.setRowCount(1)
+            self.rank_table.setColumnCount(1)
+            self.rank_table.setHorizontalHeaderLabels(["案内"])
+            self.rank_table.setItem(0, 0, QTableWidgetItem("1年目のため、昨年成績のデータはまだありません。"))
+            return
+
         if cat == "jockey":
-            rows = self.rank_mgr.get_jockey_rankings(is_career=is_career, limit=30)
+            rows = self.rank_mgr.get_jockey_rankings(is_career=is_career, limit=None, year=target_year)
             headers = ["順位", "騎手名 (推移グラフ)", "年齢", "所属", "区分", "戦績 (1-2-3-外)", "勝率", "重賞 (G1-G2-G3)", "獲得賞金", "代表乗鞍"]
             self.rank_table.setColumnCount(len(headers))
             self.rank_table.setHorizontalHeaderLabels(headers)
@@ -198,15 +237,28 @@ class RankingsView(QWidget):
                     "id": r.get("jockey_id", 0),
                     "name": r.get("name", ""),
                     "category": "jockey",
+                    "rep_ids": r.get("representative_horse_ids", []),
                 })
-                # 年数算出
-                debut_y = r.get("debut_year", 1) or 1
-                career_years = max(1, cur_year - debut_y + 1)
-                is_rookie = (career_years == 1 or r.get("is_rookie") == 1)
+                # デビュー年算出 & 新人判定
+                debut_y = r.get("debut_year")
+                if debut_y is None:
+                    debut_y = 1
+
+                if debut_y > 0:
+                    debut_str = f"{debut_y}年デビュー"
+                else:
+                    debut_str = "初期デビュー"
+
+                is_rookie = (debut_y == calc_year or r.get("is_rookie") == 1)
 
                 age_val = r.get("age", 20)
-                age_str = f"{age_val}歳 ({career_years}年目)"
-                free_str = "フリー" if r.get("is_free", 0) == 1 else "所属"
+                if is_last_year:
+                    age_val = max(18, age_val - 1)
+                age_str = f"{age_val}歳 ({debut_str})"
+                if r.get("is_free", 0) == 1 or not r.get("trainer_name"):
+                    affiliation_str = "フリー"
+                else:
+                    affiliation_str = r.get("trainer_name", "フリー")
                 w1 = r.get("win_1", 0)
                 w2 = r.get("win_2", 0)
                 w3 = r.get("win_3", 0)
@@ -236,15 +288,19 @@ class RankingsView(QWidget):
 
                 self.rank_table.setItem(idx, 2, QTableWidgetItem(age_str))
                 self.rank_table.setItem(idx, 3, QTableWidgetItem(r.get("location", "")))
-                self.rank_table.setItem(idx, 4, QTableWidgetItem(free_str))
+                self.rank_table.setItem(idx, 4, QTableWidgetItem(affiliation_str))
                 self.rank_table.setItem(idx, 5, QTableWidgetItem(record_str))
                 self.rank_table.setItem(idx, 6, QTableWidgetItem(win_rate))
                 self.rank_table.setItem(idx, 7, QTableWidgetItem(graded_str))
                 self.rank_table.setItem(idx, 8, QTableWidgetItem(earn_str))
-                self.rank_table.setItem(idx, 9, QTableWidgetItem(rep_str))
+
+                rep_item = QTableWidgetItem(rep_str)
+                if rep_horses:
+                    rep_item.setForeground(QColor("#38bdf8"))
+                self.rank_table.setItem(idx, 9, rep_item)
 
         elif cat == "trainer":
-            rows = self.rank_mgr.get_trainer_rankings(is_career=is_career, limit=30)
+            rows = self.rank_mgr.get_trainer_rankings(is_career=is_career, limit=None, year=target_year)
             headers = ["順位", "厩舎名 (推移グラフ)", "年齢", "所属", "得意分野", "持ち馬数", "勝ち馬数", "戦績 (1-2-3-外)", "勝率", "重賞 (G1-G2-G3)", "獲得賞金", "代表持ち馬"]
             self.rank_table.setColumnCount(len(headers))
             self.rank_table.setHorizontalHeaderLabels(headers)
@@ -255,12 +311,15 @@ class RankingsView(QWidget):
                     "id": r.get("trainer_id", 0),
                     "name": r.get("name", ""),
                     "category": "trainer",
+                    "rep_ids": r.get("representative_horse_ids", []),
                 })
                 debut_y = r.get("debut_year", 1) or 1
-                career_years = max(1, cur_year - debut_y + 1)
+                career_years = max(1, calc_year - debut_y + 1)
                 is_rookie = (career_years == 1 or r.get("is_rookie") == 1)
 
                 age_val = r.get("age", 40)
+                if is_last_year:
+                    age_val = max(25, age_val - 1)
                 age_str = f"{age_val}歳 ({career_years}年目)"
                 h_cnt_str = f"📋 {r.get('horse_count', 0)}頭"
                 w_cnt_str = f"🏆 {r.get('winner_count', 0)}頭"
@@ -308,10 +367,14 @@ class RankingsView(QWidget):
                 self.rank_table.setItem(idx, 8, QTableWidgetItem(win_rate))
                 self.rank_table.setItem(idx, 9, QTableWidgetItem(graded_str))
                 self.rank_table.setItem(idx, 10, QTableWidgetItem(earn_str))
-                self.rank_table.setItem(idx, 11, QTableWidgetItem(rep_str))
+
+                rep_item = QTableWidgetItem(rep_str)
+                if rep_horses:
+                    rep_item.setForeground(QColor("#38bdf8"))
+                self.rank_table.setItem(idx, 11, rep_item)
 
         elif cat == "owner":
-            rows = self.rank_mgr.get_owner_rankings(is_career=is_career, limit=30)
+            rows = self.rank_mgr.get_owner_rankings(is_career=is_career, limit=None, year=target_year)
             headers = ["順位", "馬主名 (推移グラフ)", "冠名", "持ち馬数", "勝ち馬数", "戦績 (1-2-3-外)", "重賞 (G1-G2-G3)", "資金残高", "獲得賞金", "代表持ち馬"]
             self.rank_table.setColumnCount(len(headers))
             self.rank_table.setHorizontalHeaderLabels(headers)
@@ -322,6 +385,7 @@ class RankingsView(QWidget):
                     "id": r.get("owner_id", 0),
                     "name": r.get("name", ""),
                     "category": "owner",
+                    "rep_ids": r.get("representative_horse_ids", []),
                 })
                 h_cnt_str = f"📋 {r.get('horse_count', 0)}頭"
                 w_cnt_str = f"🏆 {r.get('winner_count', 0)}頭"
@@ -364,10 +428,14 @@ class RankingsView(QWidget):
                 self.rank_table.setItem(idx, 6, QTableWidgetItem(graded_str))
                 self.rank_table.setItem(idx, 7, QTableWidgetItem(funds_str))
                 self.rank_table.setItem(idx, 8, QTableWidgetItem(earn_str))
-                self.rank_table.setItem(idx, 9, QTableWidgetItem(rep_str))
+
+                rep_item = QTableWidgetItem(rep_str)
+                if rep_horses:
+                    rep_item.setForeground(QColor("#38bdf8"))
+                self.rank_table.setItem(idx, 9, rep_item)
 
         elif cat == "breeder":
-            rows = self.rank_mgr.get_breeder_rankings(is_career=is_career, limit=30)
+            rows = self.rank_mgr.get_breeder_rankings(is_career=is_career, limit=None, year=target_year)
             headers = ["順位", "牧場名 (推移グラフ)", "地域", "種牡馬", "繁殖牝馬", "生産頭数", "勝ち馬数", "戦績 (1-2-3-外)", "重賞 (G1-G2-G3)", "資金残高", "生産賞金", "代表産駒"]
             self.rank_table.setColumnCount(len(headers))
             self.rank_table.setHorizontalHeaderLabels(headers)
@@ -378,6 +446,7 @@ class RankingsView(QWidget):
                     "id": r.get("breeder_id", 0),
                     "name": r.get("name", ""),
                     "category": "breeder",
+                    "rep_ids": r.get("representative_horse_ids", []),
                 })
                 sire_cnt_str = f"{r.get('sire_count', 0)}頭"
                 dam_cnt_str = f"{r.get('dam_count', 0)}頭"
@@ -424,13 +493,17 @@ class RankingsView(QWidget):
                 self.rank_table.setItem(idx, 8, QTableWidgetItem(graded_str))
                 self.rank_table.setItem(idx, 9, QTableWidgetItem(funds_str))
                 self.rank_table.setItem(idx, 10, QTableWidgetItem(earn_str))
-                self.rank_table.setItem(idx, 11, QTableWidgetItem(rep_str))
+
+                rep_item = QTableWidgetItem(rep_str)
+                if rep_horses:
+                    rep_item.setForeground(QColor("#38bdf8"))
+                self.rank_table.setItem(idx, 11, rep_item)
 
         elif cat == "sire":
             rows = self.rank_mgr.get_sire_rankings(
-                is_career=is_career, limit=30, age_filter=self.sire_age_filter
+                is_career=is_career, limit=None, age_filter=self.sire_age_filter, year=target_year
             )
-            headers = ["順位", "種牡馬名 (推移グラフ)", "サイアーライン", "種付料", "現役産駒", "戦績 (1-2-3-外)", "重賞 (G1-G2-G3)", "AEI", "獲得賞金", "代表産駒"]
+            headers = ["順位", "種牡馬名 (推移グラフ)", "繋養開始", "サイヤーライン", "種付料", "現役産駒", "戦績 (1-2-3-外)", "重賞 (G1-G2-G3)", "AEI", "獲得賞金", "詳細", "代表産駒"]
             self.rank_table.setColumnCount(len(headers))
             self.rank_table.setHorizontalHeaderLabels(headers)
             self.rank_table.setRowCount(len(rows))
@@ -445,7 +518,11 @@ class RankingsView(QWidget):
                     "horse_id": sire_hid,
                     "name": sire_name,
                     "category": "sire",
+                    "rep_ids": r.get("representative_horse_ids", []),
                 })
+
+                st_yr = r.get("start_year", 1) or 1
+                st_yr_str = f"{st_yr}年目"
 
                 sire_line = r.get("sire_line", "")
                 stud_fee = r.get("stud_fee", 0)
@@ -472,36 +549,57 @@ class RankingsView(QWidget):
                 rep_str = ", ".join(rep_horses) if rep_horses else "-"
 
                 is_foreign = r.get("is_foreign", 0) == 1
-                is_new = r.get("is_new", 0) == 1
+                gen = r.get("sire_generation") or r.get("horse_generation") or 1
+                name_col = get_generation_color(gen, is_breeding=True, start_year=st_yr)
+
                 display_name = f"📈 {sire_name}"
                 if is_foreign:
                     display_name += " [外]"
-                elif is_new:
-                    display_name += " [新]"
 
                 self.rank_table.setItem(idx, 0, QTableWidgetItem(f"{idx+1}位"))
 
                 sire_item = QTableWidgetItem(display_name)
-                if is_foreign:
-                    sire_item.setForeground(QColor("#ef4444"))
-                elif is_new:
-                    sire_item.setForeground(QColor("#22c55e"))
-                else:
-                    sire_item.setForeground(QColor("#38bdf8"))
+                sire_item.setForeground(QColor(name_col))
+                f = sire_item.font()
+                f.setBold(True)
+                sire_item.setFont(f)
                 self.rank_table.setItem(idx, 1, sire_item)
 
-                self.rank_table.setItem(idx, 2, QTableWidgetItem(sire_line))
-                self.rank_table.setItem(idx, 3, QTableWidgetItem(stud_fee_str))
+                self.rank_table.setItem(idx, 2, QTableWidgetItem(st_yr_str))
+                self.rank_table.setItem(idx, 3, QTableWidgetItem(sire_line))
+                self.rank_table.setItem(idx, 4, QTableWidgetItem(stud_fee_str))
 
                 progeny_item = QTableWidgetItem(active_progeny)
                 progeny_item.setForeground(QColor("#facc15"))
-                self.rank_table.setItem(idx, 4, progeny_item)
+                self.rank_table.setItem(idx, 5, progeny_item)
 
-                self.rank_table.setItem(idx, 5, QTableWidgetItem(record_str))
-                self.rank_table.setItem(idx, 6, QTableWidgetItem(graded_str))
-                self.rank_table.setItem(idx, 7, QTableWidgetItem(aei_str))
-                self.rank_table.setItem(idx, 8, QTableWidgetItem(earn_str))
-                self.rank_table.setItem(idx, 9, QTableWidgetItem(rep_str))
+                self.rank_table.setItem(idx, 6, QTableWidgetItem(record_str))
+                self.rank_table.setItem(idx, 7, QTableWidgetItem(graded_str))
+                self.rank_table.setItem(idx, 8, QTableWidgetItem(aei_str))
+                self.rank_table.setItem(idx, 9, QTableWidgetItem(earn_str))
+
+                # 詳細ボタン
+                btn_det = QPushButton("詳細")
+                btn_det.setStyleSheet("background-color: #1e293b; color: #38bdf8; font-size: 11px; padding: 2px 6px; border: 1px solid #0284c7; border-radius: 3px;")
+                btn_det.clicked.connect(lambda checked, hid=sire_hid: self._open_sire_detail(hid))
+                self.rank_table.setCellWidget(idx, 10, btn_det)
+
+                rep_item = QTableWidgetItem(rep_str)
+                if rep_horses:
+                    rep_item.setForeground(QColor("#38bdf8"))
+                self.rank_table.setItem(idx, 11, rep_item)
+
+    def _open_sire_detail(self, sire_horse_id: int) -> None:
+        """種牡馬カルテを開く"""
+        if sire_horse_id:
+            dlg = SireDetailDialog(self.db, sire_horse_id, parent=self)
+            dlg.exec()
+
+    def _open_horse_detail(self, horse_id: int) -> None:
+        """競走馬詳細カルテを開く"""
+        if horse_id:
+            dlg = HorseDetailDialog(self.db, horse_id, parent=self)
+            dlg.exec()
 
     def _on_rank_cell_clicked(self, row: int, col: int) -> None:
         if not (0 <= row < len(self.row_entities)):
@@ -511,12 +609,34 @@ class RankingsView(QWidget):
         cat = ent.get("category", "")
         ent_id = ent.get("id", 0)
         ent_name = ent.get("name", "")
+        rep_ids = ent.get("rep_ids", [])
 
-        # サイアーリーディングで産駒数列 (col=4)
-        if cat == "sire" and col == 4:
+        # 代表馬セルクリック判定
+        rep_col_map = {
+            "jockey": 9,
+            "trainer": 11,
+            "owner": 9,
+            "breeder": 11,
+            "sire": 11,
+        }
+        if col == rep_col_map.get(cat):
+            if rep_ids:
+                # 最初の代表馬を開く
+                self._open_horse_detail(rep_ids[0])
+            return
+
+        # サイアーリーディングで産駒数列 (col=5)
+        if cat == "sire" and col == 5:
             if ent_id > 0:
                 dlg = ProgenyListDialog(self.db, ent_id, is_sire=True, parent=self)
                 dlg.exec()
+                return
+
+        # サイアーリーディングで詳細列 (col=10) はボタンで処理されるが念のため
+        if cat == "sire" and col == 10:
+            s_hid = ent.get("horse_id", 0)
+            if s_hid > 0:
+                self._open_sire_detail(s_hid)
                 return
 
         # 調教師: 持ち馬数(col=5), 勝ち馬数(col=6)

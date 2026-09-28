@@ -1,5 +1,5 @@
 {
-    "db_path": "G:\\マイドライブ\\h_sim\\data\\horse_racing_sim.db",
+    "db_path": "data/horse_racing_sim.db",
     "random_seed": 42,
     "auto_vacuum": true
 }

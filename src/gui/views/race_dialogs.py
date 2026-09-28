@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.db.database import Database, get_db
+from src.gui.styles import get_generation_color
 from src.gui.views.race_replay_view import RaceReplayView
 from src.race.engine import clean_race_name
 from src.race.track import check_is_course_record
@@ -91,28 +92,29 @@ class RaceResultDialog(QDialog):
 
         # 結果テーブル
         self.table = QTableWidget()
-        self.table.setColumnCount(10)
+        self.table.setColumnCount(11)
         self.table.setHorizontalHeaderLabels([
-            "着順", "馬番", "馬名", "性齢", "騎手", "オッズ/人気", "タイム", "着差", "上り3F", "賞金"
+            "着順", "馬番", "馬名", "性齢", "斤量", "騎手", "オッズ/人気", "タイム", "着差", "上り3F", "賞金"
         ])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table.setColumnWidth(0, 55)   # 着順
+        self.table.setColumnWidth(0, 50)   # 着順
         self.table.setColumnWidth(1, 45)   # 馬番
-        self.table.setColumnWidth(2, 230)  # 馬名 (全文字最後まで確実に表示)
+        self.table.setColumnWidth(2, 210)  # 馬名
         self.table.setColumnWidth(3, 50)   # 性齢
-        self.table.setColumnWidth(4, 90)   # 騎手
-        self.table.setColumnWidth(5, 125)  # オッズ/人気
-        self.table.setColumnWidth(6, 75)   # タイム
-        self.table.setColumnWidth(7, 65)   # 着差
-        self.table.setColumnWidth(8, 65)   # 上り3F
-        self.table.setColumnWidth(9, 85)   # 賞金
+        self.table.setColumnWidth(4, 55)   # 斤量
+        self.table.setColumnWidth(5, 85)   # 騎手
+        self.table.setColumnWidth(6, 110)  # オッズ/人気
+        self.table.setColumnWidth(7, 75)   # タイム
+        self.table.setColumnWidth(8, 65)   # 着差
+        self.table.setColumnWidth(9, 65)   # 上り3F
+        self.table.setColumnWidth(10, 85)  # 賞金
         header.setStretchLastSection(True)
         self.table.setAlternatingRowColors(True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.cellDoubleClicked.connect(self._on_cell_clicked)
         from src.gui.widgets.html_delegate import HTMLDelegate
-        self.table.setItemDelegateForColumn(6, HTMLDelegate(self.table))
+        self.table.setItemDelegateForColumn(7, HTMLDelegate(self.table))
         layout.addWidget(self.table)
 
         # フッターボタン
@@ -130,6 +132,10 @@ class RaceResultDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def _load_results(self) -> None:
+        from src.models.race import Race
+        from src.race.entry import calculate_carried_weight
+        from types import SimpleNamespace
+
         with self.db.session() as conn:
             rc = conn.execute("SELECT * FROM races WHERE race_id = ?", (self.race_id,)).fetchone()
             if not rc:
@@ -138,9 +144,10 @@ class RaceResultDialog(QDialog):
 
             surf_jp = "芝" if rc["surface"] == "turf" else "ダート"
             r_name = clean_race_name(rc["name"])
-            self.lbl_race_title.setText(f"{r_name} ({rc['grade']})")
+            weight_type = rc["weight_type"] if ("weight_type" in rc.keys() and rc["weight_type"]) else "定量"
+            self.lbl_race_title.setText(f"{r_name} ({rc['grade']}) [{weight_type}]")
             self.lbl_race_cond.setText(
-                f"{rc['year']}年 {rc['month']}月 第{((rc['week']-1)%4)+1}週 | {rc['track_id']} {surf_jp} {rc['distance']}m | 天候: 晴 / 馬場: 良"
+                f"{rc['year']}年 {rc['month']}月 第{((rc['week']-1)%4)+1}週 | {rc['track_id']} {surf_jp} {rc['distance']}m | 斤量: {weight_type} | 天候: 晴 / 馬場: 良"
             )
 
             query = """
@@ -148,10 +155,20 @@ class RaceResultDialog(QDialog):
                     res.finish_position,
                     res.gate_number,
                     res.horse_id,
+                    res.carried_weight,
                     h.name AS horse_name,
                     h.sex,
                     h.age,
+                    h.generation,
+                    h.g1_wins,
+                    h.g2_wins,
+                    h.g3_wins,
+                    h.career_wins,
+                    h.prize_money,
                     j.name AS jockey_name,
+                    j.gender AS jockey_gender,
+                    j.career_years AS jockey_years,
+                    j.career_wins AS jockey_wins,
                     res.odds,
                     res.finish_time,
                     res.margin,
@@ -179,9 +196,14 @@ class RaceResultDialog(QDialog):
                 race_id=rc["race_id"],
             )
 
+        try:
+            race_obj = Race.from_row(rc)
+        except Exception:
+            race_obj = None
 
         self.table.setRowCount(len(rows))
         sex_map = {"colt": "牡", "filly": "牝", "horse": "牡", "mare": "牝", "gelding": "セ"}
+        is_graded_or_listed = rc["grade"] in ("G1", "G2", "G3", "L")
 
         # オッズから人気順を算出
         odds_list = []
@@ -207,6 +229,27 @@ class RaceResultDialog(QDialog):
             else:
                 f_time_display = raw_f_time
 
+            # 斤量 (kg) & 減量記号
+            cw_val = r["carried_weight"] if ("carried_weight" in r.keys() and r["carried_weight"]) else 55.0
+            allowance_symbol = ""
+            if not is_graded_or_listed and r["jockey_name"]:
+                j_female = r["jockey_gender"] in ("female", "牝")
+                j_apprentice = (r["jockey_years"] or 1) <= 5
+                j_wins = r["jockey_wins"] or 0
+                if j_apprentice:
+                    if j_wins <= 30:
+                        allowance_symbol = "★"
+                    elif j_wins <= 50:
+                        allowance_symbol = "▲"
+                    elif j_wins <= 100:
+                        allowance_symbol = "△"
+                    elif j_female:
+                        allowance_symbol = "◇"
+                elif j_female:
+                    allowance_symbol = "◇"
+
+            cw_str = f"{allowance_symbol}{cw_val:.1f}kg"
+
             # 着差
             margin_str = r["margin"] if r["margin"] else ("-" if r["finish_position"] == 1 else f"{r['time_diff']:.1f}s")
             last_3f = f"{r['last_3f']:.1f}" if r["last_3f"] else "--.-"
@@ -214,11 +257,17 @@ class RaceResultDialog(QDialog):
 
             time_item = QTableWidgetItem(f_time_display)
 
+            gen = dict(r).get("generation", 1) or 1
+            name_col = get_generation_color(gen)
+            name_item = QTableWidgetItem(h_name)
+            name_item.setForeground(QColor(name_col))
+
             items = [
                 QTableWidgetItem(pos_str),
                 QTableWidgetItem(gate_str),
-                QTableWidgetItem(h_name),
+                name_item,
                 QTableWidgetItem(sex_age),
+                QTableWidgetItem(cw_str),
                 QTableWidgetItem(j_name),
                 QTableWidgetItem(pop_odds),
                 time_item,
@@ -232,7 +281,7 @@ class RaceResultDialog(QDialog):
 
             for c_idx, item in enumerate(items):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                if r_idx == 0 and c_idx != 6:
+                if r_idx == 0 and c_idx not in (2, 7):
                     item.setForeground(Qt.GlobalColor.yellow)
                 self.table.setItem(r_idx, c_idx, item)
 
@@ -275,21 +324,22 @@ class RaceEntryDialog(QDialog):
 
         # 出馬表テーブル
         self.table = QTableWidget()
-        self.table.setColumnCount(9)
+        self.table.setColumnCount(10)
         self.table.setHorizontalHeaderLabels([
-            "枠", "馬番", "馬名", "性齢", "騎手", "調教師", "脚質", "予想オッズ", "人気"
+            "枠", "馬番", "馬名", "性齢", "斤量", "騎手", "調教師", "脚質", "予想オッズ", "人気"
         ])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table.setColumnWidth(0, 45)   # 枠
         self.table.setColumnWidth(1, 50)   # 馬番
-        self.table.setColumnWidth(2, 230)  # 馬名
-        self.table.setColumnWidth(3, 60)   # 性齢
-        self.table.setColumnWidth(4, 100)  # 騎手
-        self.table.setColumnWidth(5, 100)  # 調教師
-        self.table.setColumnWidth(6, 65)   # 脚質
-        self.table.setColumnWidth(7, 95)   # 予想オッズ
-        self.table.setColumnWidth(8, 70)   # 人気
+        self.table.setColumnWidth(2, 210)  # 馬名
+        self.table.setColumnWidth(3, 55)   # 性齢
+        self.table.setColumnWidth(4, 55)   # 斤量
+        self.table.setColumnWidth(5, 90)   # 騎手
+        self.table.setColumnWidth(6, 90)   # 調教師
+        self.table.setColumnWidth(7, 65)   # 脚質
+        self.table.setColumnWidth(8, 90)   # 予想オッズ
+        self.table.setColumnWidth(9, 65)   # 人気
         header.setStretchLastSection(True)
         self.table.setAlternatingRowColors(True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -313,6 +363,9 @@ class RaceEntryDialog(QDialog):
     def _load_entries(self) -> None:
         from src.gui.widgets.track_canvas import JRA_BRACKET_COLORS
         from src.race.engine import get_jra_bracket
+        from src.models.race import Race
+        from src.race.entry import calculate_carried_weight
+        from types import SimpleNamespace
         from PyQt6.QtGui import QColor
 
         with self.db.session() as conn:
@@ -323,15 +376,17 @@ class RaceEntryDialog(QDialog):
 
             surf_jp = "芝" if rc["surface"] == "turf" else "ダート"
             r_name = clean_race_name(rc["name"])
-            self.lbl_race_title.setText(f"{r_name} ({rc['grade']})")
+            weight_type = rc["weight_type"] if ("weight_type" in rc.keys() and rc["weight_type"]) else "定量"
+            self.lbl_race_title.setText(f"{r_name} ({rc['grade']}) [{weight_type}]")
             self.lbl_race_cond.setText(
-                f"{rc['year']}年 {rc['month']}月 第{((rc['week']-1)%4)+1}週 | {rc['track_id']} {surf_jp} {rc['distance']}m [{rc['full_gate']}頭立]"
+                f"{rc['year']}年 {rc['month']}月 第{((rc['week']-1)%4)+1}週 | {rc['track_id']} {surf_jp} {rc['distance']}m [{rc['full_gate']}頭立] | 斤量: {weight_type}"
             )
 
             query = """
-                SELECT res.horse_id, res.gate_number, res.odds,
-                       h.name AS horse_name, h.sex, h.age, h.running_style,
-                       j.name AS jockey_name,
+                SELECT res.horse_id, res.gate_number, res.odds, res.carried_weight,
+                       h.name AS horse_name, h.sex, h.age, h.running_style, h.generation,
+                       h.g1_wins, h.g2_wins, h.g3_wins, h.career_wins, h.prize_money,
+                       j.name AS jockey_name, j.gender AS jockey_gender, j.career_years AS jockey_years, j.career_wins AS jockey_wins,
                        t.name AS trainer_name
                 FROM results res
                 JOIN horses h ON res.horse_id = h.horse_id
@@ -342,9 +397,15 @@ class RaceEntryDialog(QDialog):
             """
             rows = conn.execute(query, (self.race_id,)).fetchall()
 
+        try:
+            race_obj = Race.from_row(rc)
+        except Exception:
+            race_obj = None
+
         self.table.setRowCount(len(rows))
         sex_map = {"colt": "牡", "filly": "牝", "horse": "牡", "mare": "牝", "gelding": "セ"}
         style_map = {"escape": "逃げ", "leading": "先行", "between": "差し", "closing": "追込"}
+        is_graded_or_listed = rc["grade"] in ("G1", "G2", "G3", "L")
 
         # オッズから人気順を算出
         odds_list = []
@@ -380,14 +441,52 @@ class RaceEntryDialog(QDialog):
             odds_str = f"{r['odds']:.1f}倍" if r["odds"] else "--"
             pop_str = f"{pop}人気"
 
+            # 斤量 (kg) & 減量記号
+            allowance_symbol = ""
+            if not is_graded_or_listed and r["jockey_name"]:
+                j_female = r["jockey_gender"] in ("female", "牝")
+                j_apprentice = (r["jockey_years"] or 1) <= 5
+                j_wins = r["jockey_wins"] or 0
+                if j_apprentice:
+                    if j_wins <= 30:
+                        allowance_symbol = "★"
+                    elif j_wins <= 50:
+                        allowance_symbol = "▲"
+                    elif j_wins <= 100:
+                        allowance_symbol = "△"
+                    elif j_female:
+                        allowance_symbol = "◇"
+                elif j_female:
+                    allowance_symbol = "◇"
+
+            if "carried_weight" in r.keys() and r["carried_weight"]:
+                cw_val = r["carried_weight"]
+            elif race_obj:
+                temp_horse = SimpleNamespace(
+                    sex=r["sex"], age=r["age"],
+                    g1_wins=r["g1_wins"] or 0, g2_wins=r["g2_wins"] or 0, g3_wins=r["g3_wins"] or 0,
+                    career_wins=r["career_wins"] or 0, prize_money=r["prize_money"] or 0
+                )
+                cw_val = calculate_carried_weight(race_obj, temp_horse)  # type: ignore
+            else:
+                cw_val = 57.0
+
+            cw_str = f"{allowance_symbol}{cw_val:.1f}kg"
+
             odds_item = QTableWidgetItem(odds_str)
             odds_item.setForeground(Qt.GlobalColor.yellow)
+
+            gen = dict(r).get("generation", 1) or 1
+            name_col = get_generation_color(gen)
+            name_item = QTableWidgetItem(h_name)
+            name_item.setForeground(QColor(name_col))
 
             items = [
                 bracket_item,
                 gate_item,
-                QTableWidgetItem(h_name),
+                name_item,
                 QTableWidgetItem(sex_age),
+                QTableWidgetItem(cw_str),
                 QTableWidgetItem(j_name),
                 QTableWidgetItem(t_name),
                 QTableWidgetItem(style_str),

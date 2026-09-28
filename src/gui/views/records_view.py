@@ -104,10 +104,13 @@ class RecordHistoryDialog(QDialog):
             QDialog { background-color: #0f172a; color: #f8fafc; }
             QTableWidget {
                 background-color: #1e293b;
+                alternate-background-color: #111827;
                 gridline-color: #334155;
                 color: #f1f5f9;
                 border: 1px solid #334155;
                 border-radius: 6px;
+                selection-background-color: #0284c7;
+                selection-color: #ffffff;
             }
             QHeaderView::section {
                 background-color: #334155;
@@ -233,31 +236,44 @@ class RecordHistoryDialog(QDialog):
         self.ax.set_facecolor("#1e293b")
 
         if history:
-            labels = [f"{r['year']}年\n{r['horse_name'][:4]}" for r in history]
             times = [float(r["finish_time"]) for r in history]
-            x_indices = list(range(len(history)))
+            # 1単位=1週の時間軸座標 (通算週数: 1年1週目=1)
+            x_weeks = [((r["year"] - 1) * 48 + r["week"]) for r in history]
 
-            self.ax.plot(x_indices, times, marker="o", color="#38bdf8", linewidth=2.5, markersize=8, label="レコードタイム")
+            self.ax.plot(x_weeks, times, marker="o", color="#38bdf8", linewidth=2.5, markersize=8, label="レコードタイム")
 
-            for i, (x, y) in enumerate(zip(x_indices, times)):
+            for i, (x, y, r) in enumerate(zip(x_weeks, times, history)):
+                h_name_short = r["horse_name"][:5]
                 self.ax.annotate(
-                    format_finish_time(y),
+                    f"{format_finish_time(y)}\n({h_name_short})",
                     (x, y),
                     textcoords="offset points",
-                    xytext=(0, 8),
+                    xytext=(0, 10),
                     ha="center",
                     color="#facc15",
-                    fontsize=9,
+                    fontsize=8,
                     fontweight="bold",
                 )
 
-            self.ax.set_xticks(x_indices)
-            self.ax.set_xticklabels(labels, color="#94a3b8", fontsize=9)
+            # X軸フォーマッタ (週数 -> ○年○月○週)
+            def _week_formatter(val, pos):
+                v = int(val)
+                if v <= 0:
+                    return ""
+                y = ((v - 1) // 48) + 1
+                rem_w = ((v - 1) % 48)
+                m = (rem_w // 4) + 1
+                w = (rem_w % 4) + 1
+                return f"{y}年{m}月{w}週"
+
+            self.ax.xaxis.set_major_formatter(ticker.FuncFormatter(_week_formatter))
             self.ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda val, pos: format_finish_time(val)))
-            self.ax.tick_params(colors="#94a3b8")
+            self.ax.tick_params(colors="#94a3b8", labelsize=8)
             self.ax.grid(True, linestyle="--", alpha=0.3, color="#475569")
             self.ax.invert_yaxis()  # タイムが速い（小さい）ほど上向きに表示
-            self.ax.set_title(f"歴代レコードタイム更新推移 (全{len(history)}回更新)", color="#f8fafc", fontsize=11, fontweight="bold")
+            self.ax.set_xlabel("時間軸（1単位＝1週）", color="#94a3b8", fontsize=10)
+            self.ax.set_ylabel("走破タイム", color="#94a3b8", fontsize=10)
+            self.ax.set_title(f"歴代レコードタイム推移 (全{len(history)}回更新 / 時間軸)", color="#f8fafc", fontsize=11, fontweight="bold")
         else:
             self.ax.text(0.5, 0.5, "レコード履歴データがありません", color="#94a3b8", ha="center", va="center")
 

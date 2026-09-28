@@ -20,23 +20,38 @@ from PyQt6.QtWidgets import (
 )
 
 
+from src.views.pedigree_builder import PedigreeBuilder
+
+
 class PedigreeCell(QFrame):
     """血統表の1セル（1頭分のカード）"""
 
     clicked = pyqtSignal(int)  # horse_id
 
-    def __init__(self, horse_data: Optional[Dict[str, Any]], gen: int, is_male: bool, parent: Optional[QWidget] = None):
+    def __init__(
+        self,
+        horse_data: Optional[Dict[str, Any]],
+        gen: int,
+        is_male: bool,
+        is_inbred: bool = False,
+        parent: Optional[QWidget] = None,
+    ):
         super().__init__(parent)
         self.horse_data = horse_data or {}
         self.horse_id = self.horse_data.get("horse_id")
         self.gen = gen
         self.is_male = is_male
+        self.is_inbred = is_inbred
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setCursor(Qt.CursorShape.PointingHandCursor if self.horse_id else Qt.CursorShape.ArrowCursor)
 
-        # 世代に応じた背景色
-        if is_male:
+        # 世代に応じた背景色・枠線色（インブリード時はゴールド枠）
+        if is_inbred:
+            bg_color = "#3b2f15" if gen % 2 == 1 else "#2a220f"
+            border_color = "#f59e0b"
+            text_color = "#fef08a"
+        elif is_male:
             bg_color = "#1e293b" if gen % 2 == 1 else "#172554"
             border_color = "#3b82f6"
             text_color = "#93c5fd"
@@ -48,12 +63,12 @@ class PedigreeCell(QFrame):
         self.setStyleSheet(f"""
             PedigreeCell {{
                 background-color: {bg_color};
-                border: 1px solid {border_color};
+                border: {'2px' if is_inbred else '1px'} solid {border_color};
                 border-radius: 4px;
                 padding: 2px 4px;
             }}
             PedigreeCell:hover {{
-                border: 1px solid #38bdf8;
+                border: 2px solid #38bdf8;
                 background-color: #334155;
             }}
         """)
@@ -71,6 +86,8 @@ class PedigreeCell(QFrame):
         sire_line = self.horse_data.get("sire_line")
         g1_wins = self.horse_data.get("g1_wins", 0)
         extra_parts = []
+        if is_inbred:
+            extra_parts.append("★クロス")
         if g1_wins:
             extra_parts.append(f"G1:{g1_wins}勝")
         if sire_line:
@@ -78,7 +95,7 @@ class PedigreeCell(QFrame):
 
         if extra_parts and gen <= 3:
             sub_lbl = QLabel(" / ".join(extra_parts))
-            sub_lbl.setStyleSheet("color: #94a3b8; font-size: 9px;")
+            sub_lbl.setStyleSheet(f"color: {'#fbbf24' if is_inbred else '#94a3b8'}; font-size: 9px; font-weight: {'bold' if is_inbred else 'normal'};")
             layout.addWidget(sub_lbl)
 
     def mousePressEvent(self, event) -> None:
@@ -99,6 +116,27 @@ class PedigreeWidget(QWidget):
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(6)
+
+        # インブリード / アウトブリード 情報バナー
+        self.inbreed_banner = QFrame()
+        self.inbreed_banner.setStyleSheet(
+            "background-color: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 4px 8px;"
+        )
+        banner_layout = QHBoxLayout(self.inbreed_banner)
+        banner_layout.setContentsMargins(8, 4, 8, 4)
+        banner_layout.setSpacing(8)
+
+        self.lbl_inbreed_title = QLabel("🧬 血量（インブリード計算）:")
+        self.lbl_inbreed_title.setStyleSheet("font-size: 13px; font-weight: bold; color: #94a3b8;")
+        banner_layout.addWidget(self.lbl_inbreed_title)
+
+        self.lbl_inbreed_val = QLabel("アウトブリード")
+        self.lbl_inbreed_val.setStyleSheet("font-size: 13px; font-weight: bold; color: #34d399;")
+        banner_layout.addWidget(self.lbl_inbreed_val)
+        banner_layout.addStretch()
+
+        main_layout.addWidget(self.inbreed_banner)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -122,17 +160,39 @@ class PedigreeWidget(QWidget):
                 widget.deleteLater()
 
         if not tree:
+            self.lbl_inbreed_val.setText("―")
             return
 
-        # 5代血統表のグリッド総行数は 2^4 = 16 行（第5世代の16頭分、あるいは2^5=32頭分）
-        # ここでは5代（第1代:父母、第2代:祖父母、第3代:曾祖父母、第4代:玄祖父母、第5代）
-        # 第5世代は32頭なので 32行 で構成
+        # インブリード・血量計算
+        inbreed_info = PedigreeBuilder.calculate_inbreeding(tree)
+        summary_text = inbreed_info.get("summary_text", "アウトブリード")
+        is_outbreed = inbreed_info.get("is_outbreed", True)
+
+        if is_outbreed:
+            self.lbl_inbreed_val.setText("アウトブリード")
+            self.lbl_inbreed_val.setStyleSheet("font-size: 13px; font-weight: bold; color: #34d399;")
+        else:
+            self.lbl_inbreed_val.setText(summary_text)
+            self.lbl_inbreed_val.setStyleSheet("font-size: 13px; font-weight: bold; color: #fbbf24;")
+
+        # インブリード馬名のセット（ハイライト用）
+        inbred_names = {item["name"] for item in inbreed_info.get("inbreeds", [])}
+
         TOTAL_ROWS = 32
 
-        def render_node(node: Optional[Dict[str, Any]], gen: int, row_start: int, row_span: int, is_male: bool, col: int) -> None:
+        def render_node(
+            node: Optional[Dict[str, Any]],
+            gen: int,
+            row_start: int,
+            row_span: int,
+            is_male: bool,
+            col: int,
+        ) -> None:
             if not node:
                 return
-            cell = PedigreeCell(node, gen=gen, is_male=is_male)
+            n_name = node.get("name", "")
+            is_inbred = (n_name in inbred_names and is_male)
+            cell = PedigreeCell(node, gen=gen, is_male=is_male, is_inbred=is_inbred)
             cell.clicked.connect(self.horse_selected.emit)
             self.grid.addWidget(cell, row_start, col, row_span, 1)
 
@@ -157,3 +217,7 @@ class PedigreeWidget(QWidget):
         # カラムの幅均等ストレッチ
         for c in range(5):
             self.grid.setColumnStretch(c, 1)
+
+    def set_pedigree_tree(self, tree: Dict[str, Any]) -> None:
+        """set_tree_data のエイリアス"""
+        self.set_tree_data(tree)

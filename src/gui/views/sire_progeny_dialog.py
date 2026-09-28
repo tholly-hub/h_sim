@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Optional
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QDialog,
     QFrame,
@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.db.database import Database
+from src.gui.styles import get_generation_color
 from src.gui.views.horse_detail_dialog import HorseDetailDialog
 from src.race.rankings import RankingManager
 
@@ -73,6 +74,7 @@ class SireProgenyDialog(QDialog):
             }
             QTableWidget {
                 background-color: #161b22;
+                alternate-background-color: #0d1117;
                 gridline-color: #30363d;
                 color: #c9d1d9;
                 border: 1px solid #30363d;
@@ -126,7 +128,7 @@ class SireProgenyDialog(QDialog):
 
         # 産駒一覧テーブル
         self.table = QTableWidget()
-        headers = ["馬名", "性齢", "脚質", "所属厩舎", "馬主", "戦績", "重賞(G1/G2/G3)", "主な勝ち鞍", "総獲得賞金"]
+        headers = ["馬名", "性齢", "脚質", "所属厩舎", "馬主", "戦績 (1-2-3-外)", "重賞 (G1-G2-G3)", "主な勝ち鞍 (G1)", "総獲得賞金"]
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -186,25 +188,46 @@ class SireProgenyDialog(QDialog):
             t_name = h.get("trainer_name") or "未定"
             o_name = h.get("owner_name") or "未定"
 
-            # 戦績
-            starts = h.get("career_starts", 0)
-            wins = h.get("career_wins", 0)
-            record_str = f"{starts}戦{wins}勝"
+            # 戦績 (1-2-3-着外)
+            p1 = h.get("pos1", 0)
+            p2 = h.get("pos2", 0)
+            p3 = h.get("pos3", 0)
+            p_out = h.get("pos_out", 0)
+            record_str = f"{p1}-{p2}-{p3}-{p_out}"
 
-            # 重賞勝
-            g1 = h.get("g1_wins", 0)
-            g2 = h.get("g2_wins", 0)
-            g3 = h.get("g3_wins", 0)
-            graded_str = f"{g1}-{g2}-{g3}" if (g1 + g2 + g3 > 0) else "-"
+            # 重賞 (G1-G2-G3)
+            g1 = h.get("g1_wins", 0) or 0
+            g2 = h.get("g2_wins", 0) or 0
+            g3 = h.get("g3_wins", 0) or 0
+            graded_str = f"{g1}-{g2}-{g3}"
 
-            # 主な勝ち鞍
-            major_str = h.get("major_wins") or ("重賞未勝利" if (g1 + g2 + g3 == 0) else "-")
+            # 主な勝ち鞍 (G1限定)
+            with self.db.session() as conn:
+                if g1 > 0:
+                    g1_rows = conn.execute("""
+                        SELECT rc.name FROM results res
+                        JOIN races rc ON res.race_id = rc.race_id
+                        WHERE res.horse_id = ? AND res.finish_position = 1 AND rc.grade = 'G1'
+                        ORDER BY rc.year ASC, rc.week ASC
+                    """, (h["horse_id"],)).fetchall()
+                    major_str = "、".join(g_r["name"] for g_r in g1_rows) if g1_rows else (h.get("major_wins") or "-")
+                else:
+                    major_str = "-"
 
             # 賞金
             prize = h.get("prize_money", 0)
             prize_str = f"{prize:,}円"
 
-            self.table.setItem(row_idx, 0, QTableWidgetItem(h.get("name", "")))
+            # 馬名（世代カラー適用）
+            gen = h.get("generation", 1) or 1
+            name_col = get_generation_color(gen)
+            name_item = QTableWidgetItem(h.get("name", ""))
+            name_item.setForeground(QColor(name_col))
+            f = name_item.font()
+            f.setBold(True)
+            name_item.setFont(f)
+
+            self.table.setItem(row_idx, 0, name_item)
             self.table.setItem(row_idx, 1, QTableWidgetItem(sex_age_str))
             self.table.setItem(row_idx, 2, QTableWidgetItem(style_str))
             self.table.setItem(row_idx, 3, QTableWidgetItem(t_name))
@@ -213,12 +236,6 @@ class SireProgenyDialog(QDialog):
             self.table.setItem(row_idx, 6, QTableWidgetItem(graded_str))
             self.table.setItem(row_idx, 7, QTableWidgetItem(major_str))
             self.table.setItem(row_idx, 8, QTableWidgetItem(prize_str))
-
-            # 色付け（重賞馬・G1馬はハイライト）
-            if g1 > 0:
-                self.table.item(row_idx, 0).setForeground(Qt.GlobalColor.yellow)
-            elif (g2 + g3) > 0:
-                self.table.item(row_idx, 0).setForeground(Qt.GlobalColor.cyan)
 
     def _on_cell_clicked(self, row: int, col: int) -> None:
         if 0 <= row < len(self.horse_ids):

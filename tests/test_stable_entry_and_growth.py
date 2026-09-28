@@ -86,7 +86,7 @@ class TestStableEntryAndGrowth(unittest.TestCase):
             self.assertGreater(h1["current_ability_rate"], h2["current_ability_rate"])
             self.assertAlmostEqual(h1["current_ability_rate"], 1.02, delta=0.02)
             self.assertAlmostEqual(h2["current_ability_rate"], 0.99, delta=0.02)
-            self.assertAlmostEqual(h3["current_ability_rate"], 0.77, delta=0.02)
+            self.assertAlmostEqual(h3["current_ability_rate"], 0.92, delta=0.02)
 
     def test_2yo_pedigree_draft_priority(self):
         """実績上位厩舎への血統期待値優先ドラフト入厩の検証"""

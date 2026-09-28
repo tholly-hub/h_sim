@@ -79,10 +79,10 @@ class TestPhase3RaceEngine(unittest.TestCase):
         # 1年目: 2・3歳限定G1の存在確認
         g1_names_y1 = [r.name for r in races_y1 if r.grade == RaceGrade.G1]
         self.assertIn('皐月賞', g1_names_y1)
-        self.assertIn('日本ダービー', g1_names_y1)
+        self.assertIn('東京優駿（日本ダービー）', g1_names_y1)
         self.assertIn('菊花賞', g1_names_y1)
         self.assertIn('桜花賞', g1_names_y1)
-        self.assertIn('オークス', g1_names_y1)
+        self.assertIn('優駿牝馬（オークス）', g1_names_y1)
         self.assertIn('秋華賞', g1_names_y1)
         self.assertIn('阪神ジュベナイルフィリーズ', g1_names_y1)
         self.assertIn('朝日杯フューチュリティS', g1_names_y1)
@@ -186,7 +186,7 @@ class TestPhase3RaceEngine(unittest.TestCase):
         t_slow = engine.calculate_finish_time(slow_horse, race, track_b)
 
         self.assertLess(t_fast, t_slow)
-        self.assertTrue(90.0 <= t_fast <= 125.0)
+        self.assertTrue(75.0 <= t_fast <= 125.0)
 
         starters = [fast_horse, slow_horse]
         results = engine.run_race(race, starters, {101: 1, 102: 2}, [], [])

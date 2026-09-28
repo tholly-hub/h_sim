@@ -48,6 +48,7 @@ class Jockey:
     g1_wins: int = 0
     g2_wins: int = 0
     g3_wins: int = 0
+    low_performance_years: int = 0      # 年間5勝未満の連続年数（3年連続で引退）
     jockey_id: Optional[int] = None
 
     @property
@@ -66,31 +67,54 @@ class Jockey:
         """総合能力評価値 (平均値)"""
         return round((self.skill + self.drive + self.start_dash + self.temperament_handling) / 4.0, 1)
 
+    def get_weight_allowance(self, is_graded_or_listed: bool = False) -> tuple[float, str]:
+        """
+        騎手の減量キロ数と減量記号を取得 (JRA公式ルール準拠)
+        - 重賞(G1, G2, G3)およびリステッド(L)では減量なし (0.0, "")
+        - 一般競走（特別戦・平場条件戦・新馬・未勝利等）で適用:
+          - 免許取得5年未満の見習騎手:
+            - 0〜30勝: ★ (-4.0kg)
+            - 31〜50勝: ▲ (-3.0kg)
+            - 51〜100勝: △ (-2.0kg)
+            - 101勝以上: 減量なし（女性騎手は◇ -2.0kg）
+          - 免許取得5年以上または101勝以上の女性騎手:
+            - ◇ (-2.0kg)
+          - それ以外（5年以上かつ101勝以上の男性騎手）:
+            - 減量なし (0.0, "")
+        返り値: (減量kg, 減量記号)  例: (-3.0, "▲")
+        """
+        if is_graded_or_listed:
+            return 0.0, ""
+
+        is_female = self.gender in ("female", "牝")
+        is_apprentice = (self.career_years <= 5)
+        wins = self.career_wins
+
+        if is_apprentice:
+            if wins <= 30:
+                return -4.0, "★"
+            elif wins <= 50:
+                return -3.0, "▲"
+            elif wins <= 100:
+                return -2.0, "△"
+            else:
+                return (-2.0, "◇") if is_female else (0.0, "")
+        else:
+            if is_female:
+                return -2.0, "◇"
+            return 0.0, ""
+
     def can_become_free(self, strict: bool = True) -> bool:
         """
         フリー騎手への転向資格を判定
-        strict=True (厳格条件):
-          - 通算150勝以上 かつ G1 1勝以上、または
-          - 重賞5勝以上（内G2以上2勝以上）、または
-          - 通算250勝以上
-        strict=False (標準条件):
-          - 通算100勝以上 かつ G1 1勝以上、または
-          - G2 3勝以上、または
-          - G3 5勝以上
+        【新厳格ルール】
+          - 通算300勝以上 かつ (G1 10勝以上 または 重賞30勝以上)
         """
         if self.is_free == 1:
             return True
 
-        if strict:
-            condition_1 = (self.career_wins >= 150 and self.g1_wins >= 1)
-            condition_2 = ((self.g1_wins + self.g2_wins + self.g3_wins) >= 5 and (self.g1_wins + self.g2_wins) >= 2)
-            condition_3 = (self.career_wins >= 250)
-            return condition_1 or condition_2 or condition_3
-        else:
-            condition_1 = (self.career_wins >= 100 and self.g1_wins >= 1)
-            condition_2 = (self.g2_wins >= 3)
-            condition_3 = (self.g3_wins >= 5)
-            return condition_1 or condition_2 or condition_3
+        graded_wins = self.g1_wins + self.g2_wins + self.g3_wins
+        return (self.career_wins >= 300) and (self.g1_wins >= 10 or graded_wins >= 30)
 
     def advance_age_and_abilities(self, wins_this_year: int = 0, g1_this_year: int = 0, rides_this_year: int = 0) -> None:
         """
@@ -156,8 +180,8 @@ class Jockey:
             start_dash=row["start_dash"],
             temperament_handling=row["temperament_handling"],
             current_year_starts=row["current_year_starts"] if "current_year_starts" in keys else 0,
-            current_year_wins=row["current_year_wins"],
-            current_year_rides=row["current_year_rides"],
+            current_year_wins=row["current_year_wins"] if "current_year_wins" in keys else 0,
+            current_year_rides=row["current_year_rides"] if "current_year_rides" in keys else 0,
             current_year_g1=row["current_year_g1"] if "current_year_g1" in keys else 0,
             current_year_g2=row["current_year_g2"] if "current_year_g2" in keys else 0,
             current_year_g3=row["current_year_g3"] if "current_year_g3" in keys else 0,
@@ -168,5 +192,6 @@ class Jockey:
             g1_wins=row["g1_wins"],
             g2_wins=row["g2_wins"] if "g2_wins" in keys else 0,
             g3_wins=row["g3_wins"] if "g3_wins" in keys else 0,
+            low_performance_years=row["low_performance_years"] if "low_performance_years" in keys else 0,
         )
 

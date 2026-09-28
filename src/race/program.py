@@ -30,26 +30,33 @@ class RaceProgramBuilder:
         all_races = generate_full_program(year=year)
         return all_races
 
-    def register_annual_program(self, year: int = 1) -> int:
+    def register_annual_program(self, year: int = 1, conn: Optional[Any] = None) -> int:
         """年間番組表をDBへ登録"""
         races = self.generate_annual_program(year=year)
-        with self.db.session() as conn:
-            conn.execute("DELETE FROM results WHERE race_id IN (SELECT race_id FROM races WHERE year = ?)", (year,))
-            conn.execute("DELETE FROM races WHERE year = ?", (year,))
-            for r in races:
-                conn.execute(
-                    """
-                    INSERT INTO races (
-                        year, month, week, track_id, name, grade, surface, distance,
-                        age_restriction, sex_restriction, condition, full_gate,
-                        is_trial, target_g1_name, base_prize, condition_prize
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        r.year, r.month, r.week, r.track_id, r.name, r.grade.value,
-                        r.surface.value, r.distance, r.age_restriction.value,
-                        r.sex_restriction.value, r.condition, r.full_gate,
-                        r.is_trial, r.target_g1_name, r.base_prize, r.condition_prize,
-                    ),
-                )
+        if conn is not None:
+            return self._register_annual_program_impl(conn, year, races)
+        else:
+            with self.db.session() as s_conn:
+                return self._register_annual_program_impl(s_conn, year, races)
+
+    def _register_annual_program_impl(self, conn: Any, year: int, races: List[Any]) -> int:
+        conn.execute("DELETE FROM results WHERE race_id IN (SELECT race_id FROM races WHERE year = ?)", (year,))
+        conn.execute("DELETE FROM races WHERE year = ?", (year,))
+        for r in races:
+            w_type = r.weight_type if hasattr(r, 'weight_type') and r.weight_type else '定量'
+            conn.execute(
+                """
+                INSERT INTO races (
+                    year, month, week, track_id, name, grade, surface, distance,
+                    age_restriction, sex_restriction, weight_type, condition, full_gate,
+                    is_trial, target_g1_name, base_prize, condition_prize
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    r.year, r.month, r.week, r.track_id, r.name, r.grade.value,
+                    r.surface.value, r.distance, r.age_restriction.value,
+                    r.sex_restriction.value, w_type, r.condition, r.full_gate,
+                    r.is_trial, r.target_g1_name, r.base_prize, r.condition_prize,
+                ),
+            )
         return len(races)

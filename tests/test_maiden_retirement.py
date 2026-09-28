@@ -142,8 +142,8 @@ class TestMaidenAnd2yoRetirement(unittest.TestCase):
             """)
             h_maiden_id = c2.lastrowid
 
-        # 年進行で引退判定
-        self.lifecycle.advance_year(1)
+        # 年進行で引退判定 (3年目終了時: 引退オープン牝馬の昇格判定)
+        self.lifecycle.advance_year(3)
 
         with self.db.session() as conn:
             win_horse = conn.execute("SELECT is_dam, is_active FROM horses WHERE horse_id = ?", (h_win_id,)).fetchone()

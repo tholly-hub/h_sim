@@ -93,9 +93,9 @@ class TestPhase8Fixes(unittest.TestCase):
         from src.race.track import get_track_info
         track = get_track_info("TOKYO")
 
-        # 1600m で 1F 10.0秒 (80.0秒) 未満にならないことを確認
+        # 1600m で 1F 9.5秒 (76.0秒) 未満にならないことを確認
         t = engine.calculate_finish_time(horse, race_1600, track)
-        self.assertGreaterEqual(t, 80.0)
+        self.assertGreaterEqual(t, 76.0)
 
     def test_horse_status_name_and_class_name(self):
         def _make_horse(**kwargs):

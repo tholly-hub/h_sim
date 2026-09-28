@@ -49,8 +49,8 @@ class TestPaceAndEvolution(unittest.TestCase):
             print(f"距離: {d:4d}m | 基準タイム: {m}分{s:04.1f}秒 ({bt:5.1f}s) | 1F平均ペース: {p:.2f}秒/F")
 
     def test_initial_horse_finish_time_1600m(self):
-        """初年度の標準馬（能力50）が走ったときに1600mで約120.0秒となることの確認"""
-        horse_50 = Horse(
+        """初年度の標準馬（能力10）が走ったときに1600mで約120.0秒となることの確認"""
+        horse_10 = Horse(
             horse_id=1,
             name="スタンダード号",
             sex="colt",
@@ -59,12 +59,12 @@ class TestPaceAndEvolution(unittest.TestCase):
             breeder_id=1,
             owner_id=1,
             mstn_type=GenotypeMSTN.CT,
-            speed=50.0,
-            stamina=50.0,
-            acceleration=50.0,
-            durability=50.0,
-            temperament=50.0,
-            maternal_vitality=50.0,
+            speed=10.0,
+            stamina=10.0,
+            acceleration=10.0,
+            durability=10.0,
+            temperament=10.0,
+            maternal_vitality=10.0,
             growth_type=GrowthType.NORMAL,
             peak_age=4.0,
             running_style=RunningStyle.LEADING,
@@ -103,12 +103,12 @@ class TestPaceAndEvolution(unittest.TestCase):
         # 100回試走して平均と分散を確認
         times = [
             self.engine.calculate_finish_time(
-                horse_50, race_1600, track, jockey=jockey_50, trainer=trainer_50
+                horse_10, race_1600, track, jockey=jockey_50, trainer=trainer_50
             )
             for _ in range(100)
         ]
         avg_time = float(np.mean(times))
-        print(f"\n標準馬(能力50) 1600m走破タイム 100回平均: {avg_time:.2f}秒 (目標: 120.0秒前後)")
+        print(f"\n標準馬(能力10) 1600m走破タイム 100回平均: {avg_time:.2f}秒 (目標: 120.0秒前後)")
         self.assertAlmostEqual(avg_time, 120.0, delta=1.5)
 
     def test_ability_evolution_shortens_time(self):

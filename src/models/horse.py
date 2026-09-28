@@ -178,6 +178,10 @@ class Horse:
         d_min, d_max = self._calc_distance_range()
         return d_max - d_min
 
+    def get_distance_aptitude(self) -> tuple[int, int]:
+        """適性距離レンジ (最小距離, 最大距離) を取得"""
+        return self._calc_distance_range()
+
     def _calc_distance_range(self) -> tuple[int, int]:
         """
         遺伝型(MSTN)、スタミナ、耐久力から距離適性レンジ(最小距離, 最大距離)を算出
@@ -266,12 +270,12 @@ class Horse:
     @property
     def class_name(self) -> str:
         """競走馬の現在クラス名（オープン/3勝クラス/2勝クラス/1勝クラス/未勝利/未出走/入厩前/引退/種牡馬/繁殖牝馬）"""
+        if self.age <= 1:
+            return "入厩前"
         if self.is_sire:
             return "種牡馬"
         if self.is_dam:
             return "繁殖牝馬"
-        if self.age <= 1:
-            return "入厩前"
         if not self.is_active:
             return "引退"
 
@@ -294,12 +298,12 @@ class Horse:
     @property
     def status_name(self) -> str:
         """競走馬の現在状態名（入厩前/未出走/現役/種牡馬/繁殖牝馬/引退）"""
+        if self.age <= 1:
+            return "入厩前"
         if self.is_sire:
             return "種牡馬"
         if self.is_dam:
             return "繁殖牝馬"
-        if self.age <= 1:
-            return "入厩前"
         if self.is_active:
             if self.career_starts == 0:
                 return "未出走"

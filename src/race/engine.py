@@ -151,16 +151,18 @@ class RaceEngine:
         trainer: Optional[Trainer] = None,
         escape_count: int = 1,
         tactical_style: Optional[RunningStyle] = None,
+        carried_weight: float = 55.0,
     ) -> float:
         """
-        走破タイム確定アルゴリズム
-        Time = 基準タイム - (α * Speed + β * Accel) + 距離ペナルティ + コース補正 - 騎手/厩舎補正 + 乱数
+        走破タイム確定アルゴリズム (0924修正仕様):
+        - 初期能力10で1F 15秒、能力100で1F 10秒を目安
+        - 負の累乗モデル (収穫逓減): T_furlong = 7.6876 + 23.1238 / sqrt(Ability)
+        - 斤量作用: 基準55kgから重くなるとタイム遅延 (+0.20秒/1600m/kg)
+        - 距離・スタミナ・展開・騎手・厩舎・馬場特性・気性乱数
         """
-        base_time = get_base_time(race.distance, race.surface)
         eff = horse.current_ability_rate
 
         # 1. 騎手による馬の能力引き出し率 (Jockey Ability Extraction Rate)
-        # 騎手技術50.0で1.00(100%)を基準とし、腕利きで最大108%、若手で92%前後
         if jockey is not None:
             j_power = (jockey.skill * 0.45 + jockey.drive * 0.35 + min(jockey.experience, 100.0) * 0.20)
             jockey_extraction = 0.92 + (j_power / 100.0) * 0.16
@@ -176,114 +178,113 @@ class RaceEngine:
         effective_temperament = horse.temperament
 
         scale = race.distance / 1600.0
+        num_furlongs = race.distance / 200.0
         style = tactical_style if tactical_style is not None else horse.running_style
 
-        # 2. 脚質に応じた速度・瞬発力によるタイム短縮 (基準能力50.0からの成長・向上)
-        # 能力50.0で1F 15.0秒（1600mで120.0秒）、能力100.0で1F 10.0秒（1600mで80.0秒）に到達するよう
-        # 1600m換算で能力1ptにつき0.80秒短縮（1Fあたり0.10秒短縮）
-        dev_speed = effective_speed - 50.0
-        dev_accel = effective_accel - 50.0
-
+        # 2. 脚質に応じた実効能力値（α: スピード比率, β: 瞬発力比率）
         if style == RunningStyle.ESCAPE:
-            # 逃げ: スピード重視 (α=0.65, β=0.35)
-            linear_bonus = (0.65 * dev_speed + 0.35 * dev_accel) * 0.80
+            alpha, beta = 0.65, 0.35
         elif style == RunningStyle.LEADING:
-            # 先行: バランス (α=0.52, β=0.48)
-            linear_bonus = (0.52 * dev_speed + 0.48 * dev_accel) * 0.80
+            alpha, beta = 0.52, 0.48
         elif style == RunningStyle.BETWEEN:
-            # 差し: 瞬発力重視 (α=0.38, β=0.62)
-            linear_bonus = (0.38 * dev_speed + 0.62 * dev_accel) * 0.80
+            alpha, beta = 0.38, 0.62
         else:  # CLOSING (追込)
-            # 追込: 極限瞬発力 (α=0.25, β=0.75)
-            linear_bonus = (0.25 * dev_speed + 0.75 * dev_accel) * 0.80
+            alpha, beta = 0.25, 0.75
 
-        speed_bonus = linear_bonus * scale
+        combined_ability = max(1.0, alpha * effective_speed + beta * effective_accel)
 
-        # 2. スタミナ・距離ペナルティ & 各脚質の消耗
-        opt_dist = 1800.0
-        if horse.mstn_type == GenotypeMSTN.CC:
-            opt_dist = 1200.0
-        elif horse.mstn_type == GenotypeMSTN.TT:
-            opt_dist = 2600.0
+        # 3. 負の累乗モデルによる1Fあたり基礎タイム (秒/F)
+        # Ability 10 -> 15.00秒/F (1600m: 120.0秒, 2000m: 150.0秒)
+        # Ability 100 -> 10.00秒/F (1600m: 80.0秒, 2000m: 100.0秒)
+        # Ability 30 -> 11.91秒/F, Ability 80 -> 10.27秒/F
+        time_per_furlong = 7.6876 + (23.1238 / (combined_ability ** 0.5))
+        base_calc_time = num_furlongs * time_per_furlong
 
-        # 最適距離から±200mの適性スイートスポット
-        dist_diff = max(0.0, abs(race.distance - opt_dist) - 200.0)
-        stamina_cover = max(0.0, (effective_stamina - 50.0) * 0.02)
-        dist_penalty = max(0.0, ((dist_diff / 400.0) ** 1.3) * (0.8 - stamina_cover))
+        # 4. 馬場補正 (ダートは1000mあたり2.5秒タイムがかかる)
+        if race.surface == RaceSurface.DIRT:
+            base_calc_time += 2.5 * (race.distance / 1000.0)
 
-        if race.distance >= 2000 and effective_stamina < 50.0:
-            dist_penalty += ((50.0 - effective_stamina) * 0.05) * scale
+        # 5. 斤量補正 (基準55.0kg、重いほどタイムが遅くなる)
+        weight_diff = carried_weight - 55.0
+        weight_penalty = weight_diff * 0.20 * scale
 
-        # 全脚質（逃げ・先行・差し・追込）のスタミナ消耗・体力枯渇による直線バテ・失速ペナルティ
+        # 6. スタミナ・距離ペナルティ & 各脚質の消耗
+        min_apt_d, max_apt_d = horse.get_distance_aptitude()
+        if race.distance < min_apt_d:
+            dist_diff = float(min_apt_d - race.distance)
+        elif race.distance > max_apt_d:
+            dist_diff = float(race.distance - max_apt_d)
+        else:
+            dist_diff = 0.0
+
+        stamina_cover = max(0.0, (effective_stamina - 10.0) * 0.010)
+        # 距離適性外ペナルティの強化 (低下量を大きめに設定)
+        dist_penalty = max(0.0, ((dist_diff / 200.0) ** 1.4) * max(0.35, (0.75 - stamina_cover))) * scale
+
+        if race.distance >= 2000 and effective_stamina < 10.0:
+            dist_penalty += ((10.0 - effective_stamina) * 0.10) * scale
+
+        # 脚質別スタミナ消耗ペナルティ
         if style == RunningStyle.ESCAPE:
-            if effective_stamina < 58.0:
-                dist_penalty += ((58.0 - effective_stamina) * 0.011) * scale
+            if effective_stamina < 15.0:
+                dist_penalty += ((15.0 - effective_stamina) * 0.015) * scale
         elif style == RunningStyle.LEADING:
-            if effective_stamina < 57.0:
-                dist_penalty += ((57.0 - effective_stamina) * 0.010) * scale
+            if effective_stamina < 14.0:
+                dist_penalty += ((14.0 - effective_stamina) * 0.013) * scale
         elif style == RunningStyle.BETWEEN:
-            if effective_stamina < 56.0:
-                dist_penalty += ((56.0 - effective_stamina) * 0.010) * scale
-        else:  # CLOSING (追込)
-            if effective_stamina < 55.0:
-                dist_penalty += ((55.0 - effective_stamina) * 0.009) * scale
+            if effective_stamina < 12.0:
+                dist_penalty += ((12.0 - effective_stamina) * 0.012) * scale
+        else:  # CLOSING
+            if effective_stamina < 10.0:
+                dist_penalty += ((10.0 - effective_stamina) * 0.011) * scale
 
-        # 3. ペース展開補正（先行争いハイペース vs 単騎逃げスローペース）
+        # 7. ペース展開補正（先行争いハイペース vs 単騎逃げスローペース）
         pace_penalty = 0.0
         if escape_count >= 2:
-            # 逃げ馬が複数（ハイペース）: 逃げ勢に消耗、差し・追込に絶好の展開利
             if style == RunningStyle.ESCAPE:
-                pace_penalty += min(0.18, 0.06 + (escape_count - 2) * 0.04) * scale
+                pace_penalty += min(0.25, 0.08 + (escape_count - 2) * 0.05) * scale
             elif style == RunningStyle.LEADING:
-                pace_penalty += 0.02 * scale
+                pace_penalty += 0.03 * scale
             elif style == RunningStyle.BETWEEN:
-                pace_penalty -= 0.08 * scale
+                pace_penalty -= 0.10 * scale
             elif style == RunningStyle.CLOSING:
-                pace_penalty -= 0.09 * scale
+                pace_penalty -= 0.12 * scale
         else:
-            # 単騎逃げ（スローペース）: 逃げ・先行馬にマイペース恩恵
             if style == RunningStyle.ESCAPE:
-                pace_penalty -= 0.15 * scale
+                pace_penalty -= 0.18 * scale
             elif style == RunningStyle.LEADING:
-                pace_penalty -= 0.08 * scale
+                pace_penalty -= 0.10 * scale
             elif style == RunningStyle.BETWEEN:
-                pace_penalty += 0.02 * scale
+                pace_penalty += 0.03 * scale
             elif style == RunningStyle.CLOSING:
-                pace_penalty += 0.04 * scale
+                pace_penalty += 0.06 * scale
 
-        # 4. 騎手のペース配分・仕掛け巧拙補正
-        # A. 逃げ馬: 向正面での息入れ・ペースコントロール（後続を見ながらペースを落としてスタミナ温存・直線二の脚）
+        # 8. 騎手のペース配分・仕掛け補正
         escape_pace_bonus = 0.0
         if jockey is not None and style == RunningStyle.ESCAPE:
             j_skill = float(getattr(jockey, "skill", 50.0))
             if j_skill >= 50.0:
-                # 熟練騎手: 向正面で絶妙に息を入れ、直線での二の脚・粘り込みを引き出す
                 escape_pace_bonus = ((j_skill - 50.0) / 50.0) * 0.32 * scale
             elif j_skill < 45.0:
-                # 未熟な騎手: 息を入れられずオーバーペースで直線のスタミナ切れを招く
                 escape_pace_bonus = -((45.0 - j_skill) / 50.0) * 0.12 * scale
 
-        # B. 差し・追込馬: 3〜4コーナーでの捲り（まくり）仕掛け巧拙
         makuri_jockey_bonus = 0.0
         if jockey is not None and style in (RunningStyle.BETWEEN, RunningStyle.CLOSING):
             j_skill = float(getattr(jockey, "skill", 50.0))
             if j_skill >= 55.0:
-                # 熟練騎手: 絶妙なタイミングの捲りで直線も持続
-                makuri_jockey_bonus = ((j_skill - 50.0) / 50.0) * 0.14 * scale
+                makuri_jockey_bonus = ((j_skill - 50.0) / 50.0) * 0.16 * scale
             elif j_skill < 45.0:
-                # 未熟な騎手: 早仕掛け・暴走により直線で脚が上がり失速
                 makuri_jockey_bonus = -((45.0 - j_skill) / 50.0) * 0.14 * scale
 
-        # 4. 競馬場特性補正（坂 & 直線距離の連続補正）
+        # 9. 競馬場特性補正（坂 & 直線距離）
         track_penalty = 0.0
         if track.has_slope:
             slope_impact = 1.0 if track.slope_type == 'steep_slope' else 0.5
-            if effective_durability < 60.0:
-                track_penalty += ((60.0 - effective_durability) * 0.03) * slope_impact
+            if effective_durability < 15.0:
+                track_penalty += ((15.0 - effective_durability) * 0.03) * slope_impact
             else:
-                track_penalty -= ((effective_durability - 60.0) * 0.01) * slope_impact
+                track_penalty -= ((effective_durability - 15.0) * 0.01) * slope_impact
 
-        # 直線距離に応じた連続的な脚質適性（400m基準: 長いほど差し・追込有利、短いほど逃げ先行有利）
         sl_diff = (track.straight_length - 400.0) / 200.0
         if style == RunningStyle.ESCAPE:
             track_penalty += sl_diff * 0.12
@@ -294,7 +295,7 @@ class RaceEngine:
         elif style == RunningStyle.CLOSING:
             track_penalty -= sl_diff * 0.12
 
-        # 4. 騎手補正 (スキル50.0を基準とし、名手で短縮、未熟で遅延)
+        # 10. 騎手・調教師・母系底力補正
         jockey_bonus = 0.0
         if jockey is not None:
             j_power = (jockey.skill * 0.5 + jockey.drive * 0.3 + min(jockey.experience, 100.0) * 0.2)
@@ -302,21 +303,20 @@ class RaceEngine:
             if jockey.is_free == 1:
                 jockey_bonus += 0.15 * scale
 
-        # 5. 調教師スキル補正 (スキル50.0を基準)
         trainer_bonus = 0.0
         if trainer is not None:
             trainer_bonus = ((trainer.skill_level - 50.0) / 50.0) * 0.40 * scale
 
-        # 6. 気性と展開乱数
-        temp_factor = max(10.0, effective_temperament)
-        noise_sd = (100.0 - temp_factor) * 0.012 + 0.15
+        vitality_bonus = ((horse.maternal_vitality - 10.0) / 50.0) * 0.30 * scale
+
+        # 11. 気性と乱数
+        temp_factor = max(1.0, min(100.0, effective_temperament))
+        noise_sd = (100.0 - temp_factor) * 0.004 + 0.12
         noise = random.gauss(0.0, noise_sd)
 
-        vitality_bonus = ((horse.maternal_vitality - 50.0) / 50.0) * 0.30 * scale
-
         finish_time = (
-            base_time
-            - speed_bonus
+            base_calc_time
+            + weight_penalty
             + dist_penalty
             + track_penalty
             + pace_penalty
@@ -328,11 +328,11 @@ class RaceEngine:
             + noise
         )
 
-        # 想定限界タイム（1Fあたり10.0秒）の厳格なガード
-        min_allowed = (race.distance / 200.0) * 10.0
+        # 限界タイムガード (1Fあたり最小9.5秒)
+        min_allowed = num_furlongs * 9.5
         if race.surface == RaceSurface.DIRT:
             min_allowed += 2.0 * (race.distance / 1000.0)
-        max_allowed = base_time * 1.35
+        max_allowed = base_calc_time * 1.40
         finish_time = max(min_allowed, min(max_allowed, finish_time))
 
         return round(finish_time, 2)
@@ -572,9 +572,14 @@ class RaceEngine:
             # 各馬のスタミナ適性判定と直線での体力切れ（スタミナ枯渇）発生地点の算出
             eff_stamina = horse.stamina * horse.current_ability_rate
             req_stamina = 36.0 + (distance / 400.0) * 2.8
-            opt_dist = 1200.0 if horse.mstn_type == GenotypeMSTN.CC else (2600.0 if horse.mstn_type == GenotypeMSTN.TT else 1800.0)
-            dist_gap = max(0.0, abs(distance - opt_dist) - 400.0)
-            dist_stam_loss = (dist_gap / 200.0) * 4.0
+            min_d_apt, max_d_apt = horse.get_distance_aptitude()
+            if distance < min_d_apt:
+                dist_gap = float(min_d_apt - distance)
+            elif distance > max_d_apt:
+                dist_gap = float(distance - max_d_apt)
+            else:
+                dist_gap = 0.0
+            dist_stam_loss = (dist_gap / 200.0) * 5.0
             net_stamina = (eff_stamina - req_stamina) - dist_stam_loss
             if style == RunningStyle.ESCAPE:
                 net_stamina -= 4.0
@@ -1004,7 +1009,14 @@ class RaceEngine:
 
             tactical_style_map[h_id] = chosen_style
 
+        from src.race.entry import calculate_race_carried_weights
+
+        carried_weights_map = calculate_race_carried_weights(race, valid_starters)
+        is_graded_or_listed = race.grade in (RaceGrade.G1, RaceGrade.G2, RaceGrade.G3, RaceGrade.L)
+
         finish_times: Dict[int, float] = {}
+        effective_weights_map: Dict[int, float] = {}
+
         for horse in valid_starters:
             h_id = horse.horse_id
             j_id = jockey_assignments.get(h_id)
@@ -1012,10 +1024,19 @@ class RaceEngine:
             t_id = horse.trainer_id
             trainer = trainer_dict.get(t_id) if t_id else None
 
+            base_w = carried_weights_map.get(h_id, 55.0)
+            j_allowance_kg = 0.0
+            if jockey is not None:
+                j_allowance_kg, _ = jockey.get_weight_allowance(is_graded_or_listed=is_graded_or_listed)
+
+            carried_w = max(48.0, base_w + j_allowance_kg)
+            effective_weights_map[h_id] = carried_w
+
             f_time = self.calculate_finish_time(
                 horse, race, track, jockey, trainer,
                 escape_count=escape_count,
                 tactical_style=tactical_style_map.get(h_id),
+                carried_weight=carried_w,
             )
             finish_times[h_id] = f_time
 
@@ -1081,6 +1102,7 @@ class RaceEngine:
                     margin=margin,
                     prize_awarded=prize,
                     condition_prize_awarded=cond_prize,
+                    carried_weight=effective_weights_map.get(h_id, 55.0),
                     jockey_id=jockey_assignments.get(h_id),
                     trainer_id=horse.trainer_id,
                     running_style_used=tactical_style_map.get(h_id, horse.running_style).value,

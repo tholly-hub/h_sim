@@ -209,8 +209,8 @@ class TestRankingsAndOddsFix(unittest.TestCase):
         self.assertIn("頭", view.rank_table.item(0, 4).text())
 
         view._change_category("sire")
-        self.assertEqual(view.rank_table.horizontalHeaderItem(4).text(), "現役産駒")
-        self.assertIn("頭", view.rank_table.item(0, 4).text())
+        self.assertEqual(view.rank_table.horizontalHeaderItem(5).text(), "現役産駒")
+        self.assertIn("頭", view.rank_table.item(0, 5).text())
 
 
 if __name__ == "__main__":

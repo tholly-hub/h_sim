@@ -1,84 +1,51 @@
 @echo off
-@setlocal
+setlocal
 cd /d "%~dp0"
 
-:: 文字コードをUTF-8に設定
-chcp 65001 > nul
-set PYTHONIOENCODING=utf-8
-set PYTHONPATH=.
-
-:: 引数がある場合はそのまま渡して実行
-if not "%~1"=="" (
-    goto :run_with_args
+set "PYTHON_CMD="
+if exist ".venv\Scripts\python.exe" set "PYTHON_CMD=.venv\Scripts\python.exe"
+if not defined PYTHON_CMD (
+    where py >nul 2>nul && set "PYTHON_CMD=py"
+)
+if not defined PYTHON_CMD (
+    where python >nul 2>nul && set "PYTHON_CMD=python"
 )
 
-:: 引数がない場合は選択メニューを表示
+if not defined PYTHON_CMD (
+    echo [ERROR] Python not found.
+    echo Please install Python 3.10 or higher and add it to PATH.
+    pause
+    exit /b 1
+)
+
+set PYTHONPATH=.
+set PYTHONIOENCODING=utf-8
+
+if not "%~1"=="" (
+    %PYTHON_CMD% main.py %*
+    goto :eof
+)
+
 :menu
 cls
 echo ============================================================
-echo   競馬シミュレーションエンジン (Horse Racing Sim)
+echo   Horse Racing Simulation Engine (���n�V�~�����[�V����)
 echo ============================================================
-echo  [1] GUI 画面（可視化＆レース再生）を起動
-echo  [2] CUI 対話型メニューを起動
-echo  [3] 終了
+echo  [1] GUI (���������[�X�Đ�)
+echo  [2] CUI �Θb�^���j���[
+echo  [3] �I��
 echo ============================================================
-set /p CHOICE="番号を入力してください (1-3): "
+set /p CHOICE="�ԍ������ (1-3): "
 
 if "%CHOICE%"=="1" (
-    goto :run_gui
+    %PYTHON_CMD% main.py --gui
+    goto :eof
 )
 if "%CHOICE%"=="2" (
-    goto :run_menu
+    %PYTHON_CMD% main.py --menu
+    goto :eof
 )
 if "%CHOICE%"=="3" (
-    goto :done
+    goto :eof
 )
 goto :menu
-
-:run_gui
-where py >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    py main.py --gui
-    goto :done
-)
-where python >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    python main.py --gui
-    goto :done
-)
-goto :py_not_found
-
-:run_menu
-where py >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    py main.py --menu
-    goto :done
-)
-where python >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    python main.py --menu
-    goto :done
-)
-goto :py_not_found
-
-:run_with_args
-where py >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    py main.py %*
-    goto :done
-)
-where python >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    python main.py %*
-    goto :done
-)
-goto :py_not_found
-
-:py_not_found
-echo [エラー] Python が見つかりませんでした。
-echo Python 3.10以上をインストールし、PATHに追加してください。
-echo https://www.python.org/
-pause
-
-:done
-endlocal

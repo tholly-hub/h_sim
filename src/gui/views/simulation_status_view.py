@@ -23,13 +23,16 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QSplitter,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
+import matplotlib.ticker as ticker
 
 from src.core.lifecycle import LifecycleEngine
 from src.db.database import Database, get_db
+from src.gui.widgets.mpl_canvas import MplCanvas
 from src.race.calendar import CalendarController
 
 
@@ -52,26 +55,38 @@ class OutputRedirector(QObject):
             self.original_stream.flush()
 
 
-def get_current_sim_status(conn) -> tuple[int, int]:
-    """DB内の消化済みレースから現在のシミュレーション年・進行対象週を取得（1年目は第21週から開始）"""
-    row = conn.execute("""
-        SELECT rc.year, rc.week
-        FROM results r
-        JOIN races rc ON r.race_id = rc.race_id
-        ORDER BY rc.year DESC, rc.week DESC
-        LIMIT 1
-    """).fetchone()
+def get_current_sim_status(conn_or_db) -> tuple[int, int]:
+    """DB内の直近に完了・消化されたシミュレーション年・週を取得 (未開始時は 1, 0)"""
+    if hasattr(conn_or_db, "get_connection"):
+        with conn_or_db.get_connection() as conn:
+            return get_current_sim_status(conn)
 
-    if not row:
-        return 1, 21
+    conn = conn_or_db
+    # 1. resultsテーブルから実際に消化された最新のレース実績 (year, week) を取得
+    try:
+        row = conn.execute("""
+            SELECT rc.year, rc.week
+            FROM results r
+            JOIN races rc ON r.race_id = rc.race_id
+            ORDER BY rc.year DESC, rc.week DESC
+            LIMIT 1
+        """).fetchone()
 
-    last_year = row["year"]
-    last_week = row["week"]
+        if row and row["year"] is not None and row["week"] is not None:
+            return int(row["year"]), int(row["week"])
+    except Exception:
+        pass
 
-    if last_week >= 48:
-        return last_year + 1, 1
-    else:
-        return last_year, last_week + 1
+    # 2. resultsがない場合（初期状態など）はsystem_statusを参照
+    try:
+        row_y = conn.execute("SELECT value_int FROM system_status WHERE key = 'current_year'").fetchone()
+        row_w = conn.execute("SELECT value_int FROM system_status WHERE key = 'current_week'").fetchone()
+        if row_y and row_w and row_y[0] is not None and row_w[0] is not None:
+            return int(row_y[0]), int(row_w[0])
+    except Exception:
+        pass
+
+    return 1, 0
 
 
 def advance_one_week_core(
@@ -88,18 +103,16 @@ def advance_one_week_core(
     戻り値: (実行した年, 実行した週, レース実行結果辞書)
     """
     with db.session() as conn:
-        row = conn.execute("""
-            SELECT rc.year, rc.week
-            FROM results r
-            JOIN races rc ON r.race_id = rc.race_id
-            ORDER BY rc.year DESC, rc.week DESC
-            LIMIT 1
-        """).fetchone()
-
-        if not row:
-            latest_y, latest_w = 1, 20  # まだ1件もなければ1年目21週へ
-        else:
-            latest_y, latest_w = row["year"], row["week"]
+        try:
+            row_y = conn.execute("SELECT value_int FROM system_status WHERE key = 'current_year'").fetchone()
+            row_w = conn.execute("SELECT value_int FROM system_status WHERE key = 'current_week'").fetchone()
+            if row_y and row_w and row_y[0] is not None and row_w[0] is not None:
+                latest_y = int(row_y[0])
+                latest_w = int(row_w[0])
+            else:
+                latest_y, latest_w = 1, 0
+        except Exception:
+            latest_y, latest_w = 1, 0
 
     if latest_w >= 48:
         if log_callback:
@@ -214,15 +227,15 @@ class SimulationStatusView(QWidget):
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(16, 16, 16, 16)
-        main_layout.setSpacing(12)
+        main_layout.setSpacing(10)
 
-        # 1. ヘッダー (現在の進行年・週)
+        # 1. ヘッダー (現在の進行年・完了週)
         header_frame = QFrame()
         header_frame.setObjectName("CardFrame")
         header_layout = QHBoxLayout(header_frame)
 
-        self.label_year_week = QLabel("📅 シミュレーション状況: 計算中...")
-        self.label_year_week.setStyleSheet("font-size: 20px; font-weight: bold; color: #4dabf7;")
+        self.label_year_week = QLabel("📅 完了週: 計算中...")
+        self.label_year_week.setStyleSheet("font-size: 18px; font-weight: bold; color: #4dabf7;")
         header_layout.addWidget(self.label_year_week)
         header_layout.addStretch()
 
@@ -232,9 +245,10 @@ class SimulationStatusView(QWidget):
                 background-color: #721c24;
                 color: #f8d7da;
                 border: 1px solid #f5c6cb;
-                padding: 6px 14px;
+                padding: 5px 12px;
                 border-radius: 4px;
                 font-weight: bold;
+                font-size: 11px;
             }
             QPushButton:hover {
                 background-color: #c82333;
@@ -252,15 +266,15 @@ class SimulationStatusView(QWidget):
 
         btn_layout = QHBoxLayout()
         self.btn_advance_week = QPushButton("▶ 1週進める")
-        self.btn_advance_week.setStyleSheet("background-color: #1971c2; font-size: 14px; font-weight: bold; padding: 8px;")
+        self.btn_advance_week.setStyleSheet("background-color: #1971c2; font-size: 13px; font-weight: bold; padding: 6px;")
         self.btn_advance_week.clicked.connect(lambda: self._start_simulation("week"))
 
         self.btn_advance_month = QPushButton("⏩ 1ヶ月(4週)進める")
-        self.btn_advance_month.setStyleSheet("background-color: #0c8599; font-size: 14px; font-weight: bold; padding: 8px;")
+        self.btn_advance_month.setStyleSheet("background-color: #0c8599; font-size: 13px; font-weight: bold; padding: 6px;")
         self.btn_advance_month.clicked.connect(lambda: self._start_simulation("month"))
 
         self.btn_advance_year = QPushButton("⏭ 1年間進める")
-        self.btn_advance_year.setStyleSheet("background-color: #2f9e44; font-size: 14px; font-weight: bold; padding: 8px;")
+        self.btn_advance_year.setStyleSheet("background-color: #2f9e44; font-size: 13px; font-weight: bold; padding: 6px;")
         self.btn_advance_year.clicked.connect(lambda: self._start_simulation("year"))
 
         btn_layout.addWidget(self.btn_advance_week)
@@ -271,18 +285,26 @@ class SimulationStatusView(QWidget):
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFixedHeight(18)
         self.progress_bar.setFormat("待機中: %p%")
         control_layout.addWidget(self.progress_bar)
 
         self.lbl_progress_status = QLabel("進行ステータス: 待機中")
-        self.lbl_progress_status.setStyleSheet("color: #adb5bd; font-size: 12px;")
+        self.lbl_progress_status.setStyleSheet("color: #adb5bd; font-size: 11px;")
         control_layout.addWidget(self.lbl_progress_status)
 
         main_layout.addWidget(control_group)
 
-        # 3. 主要サマリーカード
-        stats_group = QGroupBox("📊 シミュレーション全体統計")
+        # 3 & 4. 中央・下部スプリッター（全体統計カード＆リアルタイムログ）
+        body_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # 3. 主要サマリーカード（幅をコンパクトに抑える）
+        stats_group = QGroupBox("📊 全体統計")
+        stats_group.setMinimumWidth(260)
+        stats_group.setMaximumWidth(360)
         stats_layout = QGridLayout(stats_group)
+        stats_layout.setContentsMargins(6, 8, 6, 8)
+        stats_layout.setSpacing(6)
 
         self.card_active_horses = self._create_card("現役競走馬", "0 頭", "#339af0")
         self.card_sires = self._create_card("繋養種牡馬", "0 頭", "#51cf66")
@@ -293,39 +315,47 @@ class SimulationStatusView(QWidget):
 
         stats_layout.addWidget(self.card_active_horses, 0, 0)
         stats_layout.addWidget(self.card_sires, 0, 1)
-        stats_layout.addWidget(self.card_dams, 0, 2)
-        stats_layout.addWidget(self.card_trainers, 1, 0)
-        stats_layout.addWidget(self.card_jockeys, 1, 1)
-        stats_layout.addWidget(self.card_total_races, 1, 2)
+        stats_layout.addWidget(self.card_dams, 1, 0)
+        stats_layout.addWidget(self.card_trainers, 1, 1)
+        stats_layout.addWidget(self.card_jockeys, 2, 0)
+        stats_layout.addWidget(self.card_total_races, 2, 1)
 
-        main_layout.addWidget(stats_group)
+        body_splitter.addWidget(stats_group)
 
-        # 4. 実行ログ
+        # 4. 実行ログ（大きく幅と高さを取る）
         log_group = QGroupBox("📝 リアルタイム実行ログ")
+        log_group.setStyleSheet("QGroupBox { font-weight: bold; color: #ced4da; }")
         log_layout = QVBoxLayout(log_group)
+        log_layout.setContentsMargins(6, 8, 6, 8)
         self.text_log = QTextEdit()
         self.text_log.setReadOnly(True)
         self.text_log.setStyleSheet("background-color: #141517; font-family: monospace; font-size: 12px; color: #ced4da;")
         log_layout.addWidget(self.text_log)
 
-        main_layout.addWidget(log_group, stretch=1)
+        body_splitter.addWidget(log_group)
+        body_splitter.setStretchFactor(0, 0)
+        body_splitter.setStretchFactor(1, 1)
+
+        main_layout.addWidget(body_splitter, stretch=1)
 
     def _create_card(self, title: str, initial_value: str, color: str) -> QFrame:
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
                 background-color: #25262b;
-                border-left: 4px solid {color};
-                border-radius: 6px;
-                padding: 10px;
+                border-left: 3px solid {color};
+                border-radius: 5px;
+                padding: 6px 8px;
             }}
         """)
         layout = QVBoxLayout(frame)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(2)
         lbl_title = QLabel(title)
-        lbl_title.setStyleSheet("color: #868e96; font-size: 12px;")
+        lbl_title.setStyleSheet("color: #868e96; font-size: 11px;")
         lbl_val = QLabel(initial_value)
         lbl_val.setObjectName("CardValue")
-        lbl_val.setStyleSheet(f"color: {color}; font-size: 20px; font-weight: bold;")
+        lbl_val.setStyleSheet(f"color: {color}; font-size: 16px; font-weight: bold;")
         layout.addWidget(lbl_title)
         layout.addWidget(lbl_val)
         return frame
@@ -400,14 +430,17 @@ class SimulationStatusView(QWidget):
             QMessageBox.critical(self, "エラー", msg)
 
     def refresh_view(self) -> None:
-        """統計と現在週表示をDB最新情報で更新"""
+        """統計と完了週表示をDB最新情報で更新"""
         with self.db.session() as conn:
             cur_year, cur_week = get_current_sim_status(conn)
-            cur_month = (cur_week - 1) // 4 + 1
-            month_week = (cur_week - 1) % 4 + 1
-            self.label_year_week.setText(
-                f"📅 シミュレーション状況: 第 {cur_year} 年 {cur_month} 月 第 {month_week} 週 (通算 第{cur_week}週)"
-            )
+            if cur_week == 0:
+                self.label_year_week.setText(f"📅 完了週: 第 {cur_year} 年（未進行・開幕前）")
+            else:
+                cur_month = (cur_week - 1) // 4 + 1
+                month_week = (cur_week - 1) % 4 + 1
+                self.label_year_week.setText(
+                    f"📅 完了週: 第 {cur_year} 年 {cur_month} 月 第 {month_week} 週 (年間 第{cur_week}週 消化完了)"
+                )
 
             cnt_active = conn.execute("SELECT COUNT(*) FROM horses WHERE is_active = 1").fetchone()[0]
             cnt_sires = conn.execute("SELECT COUNT(*) FROM sires WHERE is_active = 1").fetchone()[0]

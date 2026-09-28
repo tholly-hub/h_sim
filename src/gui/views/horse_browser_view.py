@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.db.database import Database
+from src.gui.styles import get_generation_color
 from src.gui.widgets.pedigree_widget import PedigreeWidget
 from src.views.pedigree_builder import PedigreeBuilder
 
@@ -226,7 +227,7 @@ class HorseBrowserView(QWidget):
             SELECT h.horse_id, h.name, h.sex, h.age, h.mstn_type, h.running_style,
                    h.speed, h.stamina, h.acceleration,
                    h.career_starts, h.career_wins, h.g1_wins, h.g2_wins, h.g3_wins,
-                   h.prize_money, h.is_active, h.is_sire, h.is_dam,
+                   h.prize_money, h.is_active, h.is_sire, h.is_dam, h.generation,
                    o.name as owner_name, b.name as breeder_name
             FROM horses h
             LEFT JOIN owners o ON h.owner_id = o.owner_id
@@ -281,15 +282,15 @@ class HorseBrowserView(QWidget):
             rec_str = f"{starts}戦{wins}勝"
             graded_str = f"{r['g1_wins']}/{r['g2_wins']}/{r['g3_wins']}"
 
-            if r["is_sire"]:
+            if r["age"] <= 1:
+                status_str = "当歳" if r["age"] == 0 else "1歳幼駒"
+                status_col = "#38bdf8"
+            elif r["is_sire"]:
                 status_str = "種牡馬"
                 status_col = "#facc15"
             elif r["is_dam"]:
                 status_str = "繁殖牝馬"
                 status_col = "#f472b6"
-            elif r["age"] <= 1:
-                status_str = "入厩前"
-                status_col = "#38bdf8"
             elif r["is_active"]:
                 if starts == 0:
                     status_str = "未出走"
@@ -304,8 +305,16 @@ class HorseBrowserView(QWidget):
             status_item = QTableWidgetItem(status_str)
             status_item.setForeground(QColor(status_col))
 
+            gen = dict(r).get("generation", 1) or 1
+            name_col = get_generation_color(gen)
+            name_item = QTableWidgetItem(r["name"])
+            name_item.setForeground(QColor(name_col))
+            f_n = name_item.font()
+            f_n.setBold(True)
+            name_item.setFont(f_n)
+
             self.table.setItem(row_idx, 0, QTableWidgetItem(str(r["horse_id"])))
-            self.table.setItem(row_idx, 1, QTableWidgetItem(r["name"]))
+            self.table.setItem(row_idx, 1, name_item)
             self.table.setItem(row_idx, 2, QTableWidgetItem(sex_str))
             self.table.setItem(row_idx, 3, status_item)
             self.table.setItem(row_idx, 4, QTableWidgetItem(r["mstn_type"]))

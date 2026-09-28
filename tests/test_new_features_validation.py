@@ -120,7 +120,7 @@ class TestNewFeaturesValidation(unittest.TestCase):
         hof_horses = self.awards_mgr.get_hall_of_fame_horses()
         self.assertEqual(len(hof_horses), 1)
         self.assertEqual(hof_horses[0]["horse_name"], "レジェンドテイオー")
-        self.assertEqual(hof_horses[0]["distinct_g1_wins"], 5)
+        self.assertEqual(hof_horses[0]["g1_wins"], 5)
 
         # 特別功労チェック
         merits = self.awards_mgr.get_special_merit_awards()

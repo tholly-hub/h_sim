@@ -118,9 +118,9 @@ class TestRankingsAndAnalyticsUpdates(unittest.TestCase):
         self.assertTrue(self.entry_mgr.can_enter_race(h_1w, r_summer_g3))
 
     def test_older_races_excluded_in_early_years(self):
-        """1〜2年目は古馬限定/古馬混合重賞・Lが除外され、3年目以降に開催されること"""
+        """1〜2年目は古馬限定/古馬混合重賞・Lが除外され、5年目以降（古馬誕生後）に開催されること"""
         prog_y1 = generate_full_program(year=1)
-        prog_y3 = generate_full_program(year=3)
+        prog_y5 = generate_full_program(year=5)
 
         y1_older_graded = [
             r.name for r in prog_y1
@@ -129,12 +129,12 @@ class TestRankingsAndAnalyticsUpdates(unittest.TestCase):
         ]
         self.assertEqual(len(y1_older_graded), 0, "1年目に古馬重賞・Lが含まれていてはなりません")
 
-        y3_older_graded = [
-            r.name for r in prog_y3
+        y5_older_graded = [
+            r.name for r in prog_y5
             if r.grade in (RaceGrade.G1, RaceGrade.G2, RaceGrade.G3, RaceGrade.L)
             and r.age_restriction in (AgeRestriction.FOUR_YO_UP, AgeRestriction.THREE_YO_UP)
         ]
-        self.assertGreater(len(y3_older_graded), 20, "3年目以降は古馬重賞・Lが開催される必要があります")
+        self.assertGreater(len(y5_older_graded), 20, "5年目以降は古馬重賞・Lが開催される必要があります")
 
     def test_sire_rankings_age_filter_and_history(self):
         """サイアーリーディングの年齢フィルター（総合・2歳・3歳）と順位推移履歴が取得できること"""

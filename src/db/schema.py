@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS jockeys (
     g2_wins INTEGER NOT NULL DEFAULT 0,
     g3_wins INTEGER NOT NULL DEFAULT 0,
     career_earnings INTEGER NOT NULL DEFAULT 0,
+    low_performance_years INTEGER NOT NULL DEFAULT 0, -- 年間5勝未満の連続年数
     FOREIGN KEY (trainer_id) REFERENCES trainers(trainer_id)
 );
 
@@ -184,6 +185,7 @@ CREATE TABLE IF NOT EXISTS horses (
     g2_wins INTEGER NOT NULL DEFAULT 0,               -- G2勝利数
     g3_wins INTEGER NOT NULL DEFAULT 0,               -- G3勝利数
     major_wins TEXT,                                  -- 主な勝ち鞍 (例: "東京優駿(G1), 皐月賞(G1)")
+    generation INTEGER NOT NULL DEFAULT 1,            -- 世代番号 (初期1、新種牡馬誕生で世代進展)
 
     FOREIGN KEY (breeder_id) REFERENCES breeders(breeder_id),
     FOREIGN KEY (owner_id) REFERENCES owners(owner_id),
@@ -203,6 +205,8 @@ CREATE TABLE IF NOT EXISTS sires (
     annual_coverings INTEGER NOT NULL DEFAULT 0, -- 今年の種付け頭数
     max_coverings INTEGER NOT NULL DEFAULT 30,   -- 年間最大種付け頭数上限 (30頭)
     stud_fee INTEGER NOT NULL DEFAULT 1000000,   -- 種付け料 (円)
+    generation INTEGER NOT NULL DEFAULT 1,       -- 種牡馬世代番号 (初期1、父の世代+1)
+    start_year INTEGER NOT NULL DEFAULT 1,       -- 繋養開始年 (初期種牡馬は1)
     is_active INTEGER NOT NULL DEFAULT 1,
     is_foreign INTEGER NOT NULL DEFAULT 0,       -- 1: 海外種牡馬 [外]
     is_new INTEGER NOT NULL DEFAULT 0,           -- 1: 新種牡馬 [新]
@@ -216,6 +220,8 @@ CREATE TABLE IF NOT EXISTS dams (
     dam_id INTEGER PRIMARY KEY AUTOINCREMENT,
     horse_id INTEGER NOT NULL UNIQUE,
     breeder_id INTEGER NOT NULL,                 -- 繋養牧場
+    generation INTEGER NOT NULL DEFAULT 1,       -- 繁殖牝馬世代番号
+    start_year INTEGER NOT NULL DEFAULT 1,       -- 繋養開始年 (初期繁殖牝馬は1)
     consecutive_empty_years INTEGER NOT NULL DEFAULT 0, -- 連続不受胎年数
     is_active INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (horse_id) REFERENCES horses(horse_id),
@@ -235,6 +241,7 @@ CREATE TABLE IF NOT EXISTS races (
     distance INTEGER NOT NULL,
     age_restriction TEXT NOT NULL,               -- '2yo', '3yo', '3yo_up', '4yo_up'
     sex_restriction TEXT NOT NULL,               -- 'mixed', 'filly_mare', 'colt_horse'
+    weight_type TEXT NOT NULL DEFAULT '定量',    -- '定量', '別定', 'ハンデ'
     condition TEXT NOT NULL DEFAULT 'good',      -- 'good' (良馬場固定)
     full_gate INTEGER NOT NULL DEFAULT 18,
     is_trial INTEGER NOT NULL DEFAULT 0,         -- トライアル競走フラグ
@@ -255,6 +262,7 @@ CREATE TABLE IF NOT EXISTS results (
     margin TEXT,                                 -- 着差表現 (例: "1 1/4", "クビ", "ハナ")
     time_diff REAL NOT NULL DEFAULT 0.0,         -- 1着とのタイム差 (秒)
     prize_awarded INTEGER NOT NULL DEFAULT 0,    -- 獲得本賞金
+    carried_weight REAL NOT NULL DEFAULT 55.0,   -- 負担重量 (斤量 kg)
     running_style_used TEXT,                     -- 実際のレース脚質
     gate_number INTEGER NOT NULL DEFAULT 1,      -- 馬番 (枠番ゲート番号 1〜18)
     last_3f REAL DEFAULT 0.0,                    -- 上がり3ハロンタイム (秒)
@@ -307,7 +315,13 @@ CREATE TABLE IF NOT EXISTS matings (
 );
 CREATE INDEX IF NOT EXISTS idx_matings_year ON matings(mating_year);
 CREATE INDEX IF NOT EXISTS idx_matings_sire ON matings(sire_id);
-CREATE INDEX IF NOT EXISTS idx_matings_dam ON matings(dam_id);
+-- 10. システム状態テーブル (System Status: 現在の年・週など)
+CREATE TABLE IF NOT EXISTS system_status (
+    key TEXT PRIMARY KEY,
+    value_int INTEGER,
+    value_text TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 -- インデックス作成 (検索・参照の高速化)
 CREATE INDEX IF NOT EXISTS idx_horses_name ON horses(name);
@@ -327,4 +341,9 @@ CREATE INDEX IF NOT EXISTS idx_results_race ON results(race_id);
 CREATE INDEX IF NOT EXISTS idx_results_horse ON results(horse_id);
 CREATE INDEX IF NOT EXISTS idx_results_jockey ON results(jockey_id);
 CREATE INDEX IF NOT EXISTS idx_results_trainer ON results(trainer_id);
+CREATE INDEX IF NOT EXISTS idx_results_race_gate ON results(race_id, gate_number);
+CREATE INDEX IF NOT EXISTS idx_results_finish ON results(race_id, finish_position);
+CREATE INDEX IF NOT EXISTS idx_races_year_week ON races(year, week);
+CREATE INDEX IF NOT EXISTS idx_races_track ON races(track_id);
+CREATE INDEX IF NOT EXISTS idx_races_grade ON races(grade);
 """

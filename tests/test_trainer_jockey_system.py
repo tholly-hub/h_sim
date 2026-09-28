@@ -33,20 +33,20 @@ class TestTrainerJockeySystem(unittest.TestCase):
             cls.test_db_path.unlink()
 
     def test_1_initial_jockeys_and_trainers_quota(self):
-        """初期生成時の騎手定員（90名・美浦45/栗東45）、厩舎（60厩舎）、所属騎手配備を検証"""
+        """初期生成時の騎手定員（120名・美浦60/栗東60）、厩舎（60厩舎）、所属騎手配備を検証"""
         with self.db.session() as conn:
             jockeys_count = conn.execute("SELECT COUNT(*) FROM jockeys WHERE is_active = 1").fetchone()[0]
             miho_count = conn.execute("SELECT COUNT(*) FROM jockeys WHERE is_active = 1 AND location = '美浦'").fetchone()[0]
             ritto_count = conn.execute("SELECT COUNT(*) FROM jockeys WHERE is_active = 1 AND location = '栗東'").fetchone()[0]
-            self.assertEqual(jockeys_count, 90, "騎手定員は90名である必要があります")
-            self.assertEqual(miho_count, 45, "美浦騎手は45名である必要があります")
-            self.assertEqual(ritto_count, 45, "栗東騎手は45名である必要があります")
+            self.assertEqual(jockeys_count, 120, "騎手定員は120名である必要があります")
+            self.assertEqual(miho_count, 60, "美浦騎手は60名である必要があります")
+            self.assertEqual(ritto_count, 60, "栗東騎手は60名である必要があります")
 
             # 厩舎数
             trainers_count = conn.execute("SELECT COUNT(*) FROM trainers").fetchone()[0]
             self.assertEqual(trainers_count, 60, "厩舎数は60である必要があります")
 
-            # 全60厩舎に1名ずつ所属騎手が配備されているか
+            # 全60厩舎に所属騎手が配備されているか
             stable_jockeys = conn.execute("SELECT COUNT(DISTINCT trainer_id) FROM jockeys WHERE is_active = 1 AND trainer_id IS NOT NULL").fetchone()[0]
             self.assertEqual(stable_jockeys, 60, "全60厩舎に所属騎手が配備されている必要があります")
 
@@ -87,26 +87,30 @@ class TestTrainerJockeySystem(unittest.TestCase):
         self.assertLess(veteran_j.drive, 75.0, "40歳以降は推進力（追い）が減退")
 
     def test_4_free_jockey_strictness_comparison(self):
-        """フリー騎手転向条件の標準条件と厳格条件（ユーザー要望）の検証・比較"""
-        j_a = Jockey(name="テストA", location="美浦", age=28, debut_year=1, career_wins=100, g1_wins=0, g2_wins=0, g3_wins=5)
-        self.assertTrue(j_a.can_become_free(strict=False), "標準条件ではG3 5勝でフリー化可能")
-        self.assertFalse(j_a.can_become_free(strict=True), "厳格条件ではG3 5勝のみではフリー化不可（重賞5勝中G2以上2勝以上が必要）")
+        """フリー騎手転向条件（新厳格条件: 通算300勝以上 かつ (G1 10勝以上 または 重賞30勝以上)）の検証"""
+        # A: 250勝、G1 12勝（勝数不足で不可）
+        j_a = Jockey(name="テストA", location="美浦", age=28, debut_year=1, career_wins=250, g1_wins=12, g2_wins=5, g3_wins=5)
+        self.assertFalse(j_a.can_become_free(), "通算300勝未満はフリー化不可")
 
-        j_b = Jockey(name="テストB", location="栗東", age=30, debut_year=1, career_wins=120, g1_wins=1)
-        self.assertTrue(j_b.can_become_free(strict=False), "標準条件では100勝+G1でフリー化可能")
-        self.assertFalse(j_b.can_become_free(strict=True), "厳格条件では150勝+G1が必要なため不可")
+        # B: 320勝、G1 8勝、重賞合計20勝（G1不足かつ重賞30勝未満で不可）
+        j_b = Jockey(name="テストB", location="栗東", age=30, debut_year=1, career_wins=320, g1_wins=8, g2_wins=7, g3_wins=5)
+        self.assertFalse(j_b.can_become_free(), "300勝達成でもG1 10勝未満かつ重賞30勝未満はフリー化不可")
 
-        j_c = Jockey(name="テストC", location="栗東", age=32, debut_year=1, career_wins=180, g1_wins=1)
-        self.assertTrue(j_c.can_become_free(strict=False))
-        self.assertTrue(j_c.can_become_free(strict=True), "厳格条件でも150勝+G1達成者はフリー化可能")
+        # C: 300勝、G1 10勝（条件達成でフリー化可能）
+        j_c = Jockey(name="テストC", location="栗東", age=32, debut_year=1, career_wins=300, g1_wins=10, g2_wins=5, g3_wins=5)
+        self.assertTrue(j_c.can_become_free(), "通算300勝以上かつG1 10勝以上でフリー化可能")
+
+        # D: 350勝、G1 5勝、重賞合計30勝（条件達成でフリー化可能）
+        j_d = Jockey(name="テストD", location="美浦", age=33, debut_year=1, career_wins=350, g1_wins=5, g2_wins=15, g3_wins=10)
+        self.assertTrue(j_d.can_become_free(), "通算300勝以上かつ重賞30勝以上でフリー化可能")
 
     def test_5_multi_year_advancement_and_quota_sustainability(self):
-        """複数年の年進行シミュレーションを行い、定員90名維持・世代交代・調教助手承継が正常に稼働することを検証"""
+        """複数年の年進行シミュレーションを行い、定員120名維持・世代交代・調教助手承継が正常に稼働することを検証"""
         for year in range(1, 4):
             res = self.lifecycle.advance_year(current_year=year, strict_free_jockey=True)
             with self.db.session() as conn:
                 active_jockeys = conn.execute("SELECT COUNT(*) FROM jockeys WHERE is_active = 1").fetchone()[0]
-                self.assertEqual(active_jockeys, 90, f"{year}年目進行後も現役騎手は90名一定である必要があります")
+                self.assertEqual(active_jockeys, 120, f"{year}年目進行後も現役騎手は120名一定である必要があります")
 
                 active_trainers = conn.execute("SELECT COUNT(*) FROM trainers").fetchone()[0]
                 self.assertEqual(active_trainers, 60, f"{year}年目進行後も厩舎数は60一定である必要があります")

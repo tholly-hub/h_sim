@@ -23,9 +23,36 @@ class AppConfig:
     random_seed: Optional[int] = 42
     auto_vacuum: bool = True
 
-    def get_db_path(self) -> Path:
-        """プラットフォームに応じた pathlib.Path オブジェクトを取得"""
-        return Path(self.db_path).resolve()
+    def get_db_path(self, base_dir: Optional[Path] = None) -> Path:
+        """プラットフォームに応じた pathlib.Path オブジェクトを取得（クロスプラットフォーム自動解決）"""
+        if base_dir is None:
+            base_dir = Path(__file__).resolve().parent.parent.parent
+
+        raw_path = self.db_path.strip()
+        p = Path(raw_path)
+
+        # 1. 相対パス指定の場合は base_dir を基準に解決
+        if not p.is_absolute():
+            resolved = (base_dir / p).resolve()
+            if resolved.exists():
+                return resolved
+
+        # 2. Windowsドライブ文字 (例: G:\...) が POSIX環境 (Mac/Linux) にある場合、または無効なパスの場合はデフォルトDBを使用
+        if os.name != "nt" and (":" in raw_path or "\\" in raw_path):
+            default_db = base_dir / "data" / "horse_racing_sim.db"
+            if default_db.exists():
+                return default_db.resolve()
+
+        # 3. 指定パスが存在していれば使用
+        if p.exists() and p.is_file():
+            return p.resolve()
+
+        # 4. デフォルトDB (base_dir/data/horse_racing_sim.db)
+        default_db = base_dir / "data" / "horse_racing_sim.db"
+        if default_db.exists():
+            return default_db.resolve()
+
+        return (base_dir / p).resolve() if not p.is_absolute() else p.resolve()
 
 
 class ConfigManager:
@@ -72,8 +99,7 @@ class ConfigManager:
                 # 破損や互換性問題がある場合はデフォルトにフォールバック
                 print(f"[警告] 設定ファイルの読み込みに失敗しました ({e})。デフォルト設定を使用します。")
 
-        default_db = self.get_default_db_path()
-        self._config = AppConfig(db_path=str(default_db))
+        self._config = AppConfig(db_path="data/horse_racing_sim.db")
         self.save()
         return self._config
 
@@ -95,7 +121,7 @@ class ConfigManager:
 
     def get_db_path(self) -> Path:
         """設定されている SQLite データベースの Path を取得"""
-        return self.config.get_db_path()
+        return self.config.get_db_path(base_dir=self.base_dir)
 
     def set_db_path(self, new_path: Path | str) -> None:
         """

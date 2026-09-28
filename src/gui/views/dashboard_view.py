@@ -40,8 +40,10 @@ from src.gui.views.annual_events_dialogs import (
     UnvictoryRetirementDialog,
     YearEndAwardsDialog,
 )
+from src.gui.views.weekly_event_dialog import WeeklyEventDialog
 from src.gui.views.horse_detail_dialog import HorseDetailDialog
 from src.gui.views.race_dialogs import RaceResultDialog, RaceViewDialog
+from src.gui.styles import get_generation_color
 from src.models.horse import Horse
 from src.models.race import RaceGrade
 from src.race.engine import clean_race_name
@@ -118,18 +120,34 @@ def format_finish_time(seconds: float) -> str:
     return f"{m}:{s:04.1f}"
 
 
-def get_latest_completed_week(conn) -> tuple[int, int]:
-    """DB内の消化済み最新レースの年・週を取得（まだ1件もなければ 1, 21）"""
-    row = conn.execute("""
-        SELECT rc.year, rc.week
-        FROM results r
-        JOIN races rc ON r.race_id = rc.race_id
-        ORDER BY rc.year DESC, rc.week DESC
-        LIMIT 1
-    """).fetchone()
-    if not row:
-        return 1, 21
-    return row["year"], row["week"]
+def get_latest_completed_week(conn_or_db) -> tuple[int, int]:
+    """DB内の現在のシミュレーション完了済み年・週を取得（resultsテーブルの実績を優先）"""
+    if hasattr(conn_or_db, "get_connection"):
+        with conn_or_db.get_connection() as conn:
+            return get_latest_completed_week(conn)
+
+    conn = conn_or_db
+    # 1. resultsテーブルから実際に消化された最新のレース実績 (year, week) を高速取得
+    try:
+        row = conn.execute("""
+            SELECT year, week FROM races 
+            WHERE race_id = (SELECT race_id FROM results ORDER BY result_id DESC LIMIT 1)
+        """).fetchone()
+        if row and row["year"] is not None and row["week"] is not None:
+            return int(row["year"]), int(row["week"])
+    except Exception:
+        pass
+
+    # 2. resultsがない場合（初期状態など）はsystem_statusを参照
+    try:
+        row_y = conn.execute("SELECT value_int FROM system_status WHERE key = 'current_year'").fetchone()
+        row_w = conn.execute("SELECT value_int FROM system_status WHERE key = 'current_week'").fetchone()
+        if row_y and row_w and row_y[0] is not None and row_w[0] is not None:
+            return int(row_y[0]), int(row_w[0])
+    except Exception:
+        pass
+
+    return 1, 1
 
 
 class DashboardView(QWidget):
@@ -144,7 +162,7 @@ class DashboardView(QWidget):
         self.life = LifecycleEngine(self.db)
         self.current_selected_race_id: Optional[int] = None
         self.viewing_year = 1
-        self.viewing_week = 21
+        self.viewing_week = 1
 
         self._init_ui()
         # 初回起動時に未実行なら今週のレースを自動実行して表示
@@ -394,12 +412,17 @@ class DashboardView(QWidget):
         return None
 
     def _ensure_initial_week_run(self) -> None:
-        """初期状態で未実行のレースがあれば第21週を自動実行して確定させる"""
+        """初期状態で未実行のレースがあれば第1週を自動実行して確定させる"""
         with self.db.session() as conn:
-            cnt = conn.execute("SELECT COUNT(*) FROM results").fetchone()[0]
-        if cnt == 0:
-            # 1年目第21週のレースを即座に実行
-            self.cal.run_week(1, 21)
+            try:
+                row_y = conn.execute("SELECT value_int FROM system_status WHERE key = 'current_year'").fetchone()
+                if not row_y:
+                    conn.execute(
+                        "INSERT INTO system_status (key, value_int) VALUES ('current_year', 1), ('current_week', 1) "
+                        "ON CONFLICT(key) DO UPDATE SET value_int = excluded.value_int"
+                    )
+            except Exception:
+                pass
 
     def refresh_dashboard(self) -> None:
         """DBの最新消化週を取得し、ダッシュボードを更新"""
@@ -422,34 +445,15 @@ class DashboardView(QWidget):
         self.combo_year.clear()
         self.combo_week.clear()
 
-        # 過去すべての消化済み (year, week) を取得
-        with self.db.session() as conn:
-            rows = conn.execute("""
-                SELECT DISTINCT rc.year, rc.week
-                FROM results r
-                JOIN races rc ON r.race_id = rc.race_id
-                ORDER BY rc.year ASC, rc.week ASC
-            """).fetchall()
-
-        self._year_weeks_map: Dict[int, List[int]] = {}
-        if not rows:
-            self._year_weeks_map[current_year] = [current_week]
-        else:
-            for r in rows:
-                y = r["year"]
-                w = r["week"]
-                self._year_weeks_map.setdefault(y, []).append(w)
-
-        for y in sorted(self._year_weeks_map.keys()):
+        # 1年目から current_year 年目まで追加
+        for y in range(1, current_year + 1):
             self.combo_year.addItem(f"{y}年目", y)
 
-        # 最新年を選択
-        latest_y = current_year if current_year in self._year_weeks_map else max(self._year_weeks_map.keys())
-        idx_y = self.combo_year.findData(latest_y)
+        idx_y = self.combo_year.findData(current_year)
         if idx_y >= 0:
             self.combo_year.setCurrentIndex(idx_y)
 
-        self._update_weeks_for_year(latest_y, select_week=current_week)
+        self._update_weeks_for_year(current_year, select_week=current_week)
 
         self.combo_year.blockSignals(False)
         self.combo_week.blockSignals(False)
@@ -459,14 +463,17 @@ class DashboardView(QWidget):
         self.combo_week.blockSignals(True)
         self.combo_week.clear()
 
-        weeks = self._year_weeks_map.get(year, [21])
-        for w in sorted(weeks):
+        with self.db.session() as conn:
+            cur_y, cur_w = get_latest_completed_week(conn)
+
+        max_w = cur_w if year == cur_y else (48 if year < cur_y else 1)
+        for w in range(1, max(1, max_w) + 1):
             m = ((w - 1) // 4) + 1
             mw = ((w - 1) % 4) + 1
             label = f"{m}月 第{mw}週 (第{w}週)"
             self.combo_week.addItem(label, w)
 
-        if select_week is not None and select_week in weeks:
+        if select_week is not None and 1 <= select_week <= max_w:
             idx = self.combo_week.findData(select_week)
             if idx >= 0:
                 self.combo_week.setCurrentIndex(idx)
@@ -597,7 +604,8 @@ class DashboardView(QWidget):
             tbl.setRowCount(len(track_races))
             for r_idx, r in enumerate(track_races):
                 r_num_str = f"第{r_idx + 1}R"
-                race_name = clean_race_name(r.name)
+                weight_type = getattr(r, "weight_type", "定量") or "定量"
+                race_name = f"{clean_race_name(r.name)} [{weight_type}]"
                 grade_name = r.grade.value if hasattr(r.grade, "value") else str(r.grade)
                 surf_jp = "芝" if (r.surface.value if hasattr(r.surface, "value") else str(r.surface)) == "turf" else "ダート"
                 surf_dist = f"{surf_jp} {r.distance}m"
@@ -645,6 +653,21 @@ class DashboardView(QWidget):
             self.current_selected_race_id = first_race_id
             self._load_race_entry(first_race_id)
         else:
+            # レースがない週の案内表示
+            empty_widget = QWidget()
+            empty_layout = QVBoxLayout(empty_widget)
+            empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            msg_label = QLabel(
+                f"🌱 第 {year} 年 第 {week} 週 は開催レースがありません。\n\n"
+                f"※ 1〜2年目は幼駒育成期間です。\n"
+                f"（第3年7月 第27週より2歳新馬戦が開幕します）\n\n"
+                f"画面上部の『⏩ 次の週に進む』ボタン、またはシミュレーション状況タブで進行できます。"
+            )
+            msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            msg_label.setStyleSheet("color: #94a3b8; font-size: 14px; line-height: 1.6; font-weight: bold;")
+            empty_layout.addWidget(msg_label)
+            self.tabs_tracks.addTab(empty_widget, "ℹ️ 開催情報 (非開催週)")
+
             self.table_entry.setRowCount(0)
             self.lbl_selected_race_title.setText("今週は開催レースがありません")
             self.btn_view_race.setEnabled(False)
@@ -704,13 +727,14 @@ class DashboardView(QWidget):
             surf_jp = "芝" if rc["surface"] == "turf" else "ダート"
             r_name = clean_race_name(rc["name"])
             track_name = TRACK_DISPLAY_NAMES.get(rc["track_id"], rc["track_id"])
+            weight_type = rc["weight_type"] if ("weight_type" in rc.keys() and rc["weight_type"]) else "定量"
             self.lbl_selected_race_title.setText(
-                f"{r_name} ({rc['grade']}) - {track_name} {surf_jp} {rc['distance']}m [{rc['full_gate']}頭立]"
+                f"{r_name} ({rc['grade']}) [{weight_type}] - {track_name} {surf_jp} {rc['distance']}m [{rc['full_gate']}頭立]"
             )
 
             # 馬番順 (gate_number ASC) で取得（着順ではソートしない！）
             results = conn.execute("""
-                SELECT res.*, h.name as horse_name, h.sex, h.age, h.mstn_type,
+                SELECT res.*, h.name as horse_name, h.sex, h.age, h.mstn_type, h.generation,
                        j.name as jockey_name, t.name as trainer_name
                 FROM results res
                 JOIN horses h ON res.horse_id = h.horse_id
@@ -728,7 +752,7 @@ class DashboardView(QWidget):
                 self.cal.run_week(rc_info["year"], rc_info["week"])
                 with self.db.session() as conn:
                     results = conn.execute("""
-                        SELECT res.*, h.name as horse_name, h.sex, h.age, h.mstn_type,
+                        SELECT res.*, h.name as horse_name, h.sex, h.age, h.mstn_type, h.generation,
                                j.name as jockey_name, t.name as trainer_name
                         FROM results res
                         JOIN horses h ON res.horse_id = h.horse_id
@@ -800,10 +824,12 @@ class DashboardView(QWidget):
                 # 馬番アイテム
                 gate_item = QTableWidgetItem(f"{g_num}番")
 
-                # 馬名アイテム
+                # 馬名アイテム (世代別カラー適用)
+                gen = dict(r).get("generation", 1) or 1
+                name_col = get_generation_color(gen)
                 name_item = QTableWidgetItem(h_name)
                 name_item.setData(Qt.ItemDataRole.UserRole, r["horse_id"])
-                name_item.setForeground(Qt.GlobalColor.cyan)
+                name_item.setForeground(QColor(name_col))
 
                 items = [
                     bracket_item,
@@ -860,65 +886,75 @@ class DashboardView(QWidget):
         self.btn_next_week.setEnabled(False)
         self.btn_next_week.setText("⏳ 進行中...")
 
-        with self.db.session() as conn:
-            latest_y, latest_w = get_latest_completed_week(conn)
+        try:
+            with self.db.session() as conn:
+                latest_y, latest_w = get_latest_completed_week(conn)
 
-        if latest_w >= 48:
-            # 1. 年度更新処理（8歳馬・ピークアウト馬引退、種牡馬・繁殖牝馬昇格、騎手・調教師世代交代・承継、2歳新馬入厩、全馬加齢）
-            self.life.advance_year(current_year=latest_y)
-            next_y = latest_y + 1
-            next_w = 1
+            if latest_w >= 48:
+                # 1. 年度更新処理（8歳馬・ピークアウト馬引退、種牡馬・繁殖牝馬昇格、騎手・調教師世代交代・承継、2歳新馬入厩、全馬加齢）
+                self.life.advance_year(current_year=latest_y)
+                next_y = latest_y + 1
+                next_w = 1
 
-            # 2. 1月第1週（新シーズン開幕）のJRA表彰式 & 新シーズン体制発表ダイアログの表示
+                # 2. 1月第1週（新シーズン開幕）のJRA表彰式 & 新シーズン体制発表ダイアログの表示
+                try:
+                    awards_dlg = YearEndAwardsDialog(self.db, latest_y, self)
+                    awards_dlg.exec()
+                except Exception as e:
+                    print(f"YearEndAwardsDialog Error: {e}")
+
+                # 3. 次年度第1週（1月第1週）のレースを実行
+                # ※既に引退馬・引退騎手・引退調教師の処理が完了しているため、1月1週のレースには一切出走・騎乗・出走登録されません
+                res = self.cal.run_week(next_y, next_w)
+                QMessageBox.information(
+                    self,
+                    "新シーズン開幕 & レース完了",
+                    f"★ 第{latest_y}年度が終了し、第{next_y}年度 第1週（1月第1週）へ進行しました！\n"
+                    f"開催: {res.get('races_run', 0)}レース / 出走: {res.get('starters_count', 0)}頭"
+                )
+            else:
+                next_y = latest_y
+                next_w = latest_w + 1
+
+                # レースを実行（run_week内で3月第1週の出産、4月第1週の種付け、36週の未勝利引退が自動実行される）
+                res = self.cal.run_week(next_y, next_w)
+
+                # 3月第1週 (第9週) 進行時: 当歳馬（0歳）誕生発表ダイアログ
+                if next_w == 9:
+                    try:
+                        foal_dlg = SpringFoalingDialog(self.db, next_y, self)
+                        foal_dlg.exec()
+                    except Exception as e:
+                        print(f"SpringFoalingDialog Error: {e}")
+
+                # 4月第1週 (第13週) 進行時: 春季種付け交配発表ダイアログ
+                if next_w == 13:
+                    try:
+                        breed_dlg = SpringBreedingDialog(self.db, next_y, self)
+                        breed_dlg.exec()
+                    except Exception as e:
+                        print(f"SpringBreedingDialog Error: {e}")
+
+                # 9月第4週 (第36週) 進行時: 3歳未勝利馬 引退発表ダイアログ
+                # （第36週のレース終了時点で3歳未勝利馬は引退処理されます）
+                if next_w == 36:
+                    try:
+                        retire_dlg = UnvictoryRetirementDialog(self.db, next_y, self)
+                        retire_dlg.exec()
+                    except Exception as e:
+                        print(f"UnvictoryRetirementDialog Error: {e}")
+
+            # 毎週終了時の週報・イベント速報ダイアログの表示
             try:
-                awards_dlg = YearEndAwardsDialog(self.db, latest_y, self)
-                awards_dlg.exec()
+                weekly_dlg = WeeklyEventDialog(self.db, next_y, next_w, results_summary=res, parent=self)
+                weekly_dlg.exec()
             except Exception as e:
-                print(f"YearEndAwardsDialog Error: {e}")
-
-            # 3. 次年度第1週（1月第1週）のレースを実行
-            # ※既に引退馬・引退騎手・引退調教師の処理が完了しているため、1月1週のレースには一切出走・騎乗・出走登録されません
-            res = self.cal.run_week(next_y, next_w)
-            QMessageBox.information(
-                self,
-                "新シーズン開幕 & レース完了",
-                f"★ 第{latest_y}年度が終了し、第{next_y}年度 第1週（1月第1週）へ進行しました！\n"
-                f"開催: {res.get('races_run', 0)}レース / 出走: {res.get('starters_count', 0)}頭"
-            )
-        else:
-            next_y = latest_y
-            next_w = latest_w + 1
-
-            # レースを実行（run_week内で3月第1週の出産、4月第1週の種付け、36週の未勝利引退が自動実行される）
-            res = self.cal.run_week(next_y, next_w)
-
-            # 3月第1週 (第9週) 進行時: 当歳馬（0歳）誕生発表ダイアログ
-            if next_w == 9:
-                try:
-                    foal_dlg = SpringFoalingDialog(self.db, next_y, self)
-                    foal_dlg.exec()
-                except Exception as e:
-                    print(f"SpringFoalingDialog Error: {e}")
-
-            # 4月第1週 (第13週) 進行時: 春季種付け交配発表ダイアログ
-            if next_w == 13:
-                try:
-                    breed_dlg = SpringBreedingDialog(self.db, next_y, self)
-                    breed_dlg.exec()
-                except Exception as e:
-                    print(f"SpringBreedingDialog Error: {e}")
-
-            # 9月第4週 (第36週) 進行時: 3歳未勝利馬 引退発表ダイアログ
-            # （第36週のレース終了時点で3歳未勝利馬は引退処理されます）
-            if next_w == 36:
-                try:
-                    retire_dlg = UnvictoryRetirementDialog(self.db, next_y, self)
-                    retire_dlg.exec()
-                except Exception as e:
-                    print(f"UnvictoryRetirementDialog Error: {e}")
-
-        self.btn_next_week.setText("⏩ 次の週に進む")
-        self.btn_next_week.setEnabled(True)
-
-        self.refresh_dashboard()
-        self.simulation_completed.emit()
+                print(f"WeeklyEventDialog Error: {e}")
+        except Exception as e:
+            print(f"_advance_to_next_week Fatal Error: {e}")
+            QMessageBox.critical(self, "進行エラー", f"週進行中にエラーが発生しました:\n{e}")
+        finally:
+            self.btn_next_week.setText("⏩ 次の週に進む")
+            self.btn_next_week.setEnabled(True)
+            self.refresh_dashboard()
+            self.simulation_completed.emit()

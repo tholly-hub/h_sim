@@ -40,8 +40,14 @@ class AwardsView(QWidget):
         super().__init__(parent)
         self.db = db or get_db()
         self.awards_mgr = AwardsManager(self.db)
+        self._loaded = False
         self._init_ui()
-        self.refresh_all()
+
+    def ensure_loaded(self) -> None:
+        """初回表示時のみデータをロード"""
+        if not self._loaded:
+            self.refresh_all()
+            self._loaded = True
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -115,7 +121,7 @@ class AwardsView(QWidget):
         layout.addWidget(scroll)
 
         # 歴代推移一覧
-        lbl_hist = QLabel("📜 歴代JRA賞・年度代表馬＆各部門賞 推移一覧")
+        lbl_hist = QLabel("📜 歴代表彰・年度代表馬＆各部門賞 推移一覧")
         lbl_hist.setStyleSheet("color: #38bdf8; font-weight: bold; font-size: 13px; margin-top: 4px;")
         layout.addWidget(lbl_hist)
 
@@ -138,22 +144,23 @@ class AwardsView(QWidget):
 
     def _refresh_horse_awards_years(self) -> None:
         with self.db.session() as conn:
-            rows = conn.execute("SELECT DISTINCT year FROM annual_awards ORDER BY year ASC").fetchall()
-            race_years = conn.execute("SELECT DISTINCT year FROM races ORDER BY year ASC").fetchall()
+            rows = conn.execute("SELECT DISTINCT year FROM annual_awards ORDER BY year DESC").fetchall()
+            if not rows:
+                rows = conn.execute("SELECT DISTINCT year FROM races ORDER BY year DESC").fetchall()
 
-        all_years = sorted(list(set([r["year"] for r in rows] + [r["year"] for r in race_years])), reverse=False)
+        all_years = [r["year"] for r in rows]
 
         cur_year = self.combo_horse_awards_year.currentData()
         self.combo_horse_awards_year.blockSignals(True)
         self.combo_horse_awards_year.clear()
         for y in all_years:
             self.combo_horse_awards_year.addItem(f"{y}年度", y)
-        if cur_year is not None:
+        if cur_year is not None and cur_year in all_years:
             idx = self.combo_horse_awards_year.findData(cur_year)
             if idx >= 0:
                 self.combo_horse_awards_year.setCurrentIndex(idx)
         elif all_years:
-            self.combo_horse_awards_year.setCurrentIndex(len(all_years) - 1)
+            self.combo_horse_awards_year.setCurrentIndex(0)
         self.combo_horse_awards_year.blockSignals(False)
 
     def refresh_horse_awards(self) -> None:
@@ -226,7 +233,7 @@ class AwardsView(QWidget):
             col = i % 4
             self.horse_awards_grid.addWidget(card, row, col)
 
-        # 歴代推移
+        # 歴代推移 (降順: 最新年が上)
         all_awards = self.awards_mgr.get_horse_of_the_year_history()
         years_map: Dict[int, Dict[str, str]] = {}
         for a in all_awards:
@@ -235,7 +242,7 @@ class AwardsView(QWidget):
                 years_map[y] = {}
             years_map[y][a["category"]] = a["horse_name"]
 
-        sorted_years = sorted(years_map.keys(), reverse=False)
+        sorted_years = sorted(years_map.keys(), reverse=True)
         self.table_horse_awards_hist.setRowCount(len(sorted_years))
 
         cat_keys = [
@@ -284,7 +291,7 @@ class AwardsView(QWidget):
         t_layout.addStretch()
         layout.addWidget(top_bar)
 
-        # 6大リーディングカード (2行 × 3列)
+        # 5大リーディングカード (2行 × 3列)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setMinimumHeight(240)
@@ -302,15 +309,15 @@ class AwardsView(QWidget):
         layout.addWidget(lbl_hist)
 
         self.table_leading_hist = QTableWidget()
-        self.table_leading_hist.setColumnCount(7)
+        self.table_leading_hist.setColumnCount(6)
         self.table_leading_hist.setHorizontalHeaderLabels([
-            "年度", "最多勝騎手", "最多勝調教師", "最多勝馬主", "最多勝生産牧場", "最多勝新人騎手", "最多勝新人調教師"
+            "年度", "最多勝騎手", "最多勝調教師", "最多勝馬主", "最多勝生産牧場", "最多勝新人騎手"
         ])
         h_header = self.table_leading_hist.horizontalHeader()
         h_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table_leading_hist.setColumnWidth(0, 60)
-        for c in range(1, 7):
-            self.table_leading_hist.setColumnWidth(c, 130)
+        for c in range(1, 6):
+            self.table_leading_hist.setColumnWidth(c, 140)
         h_header.setStretchLastSection(True)
         self.table_leading_hist.setAlternatingRowColors(True)
         self.table_leading_hist.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -320,7 +327,7 @@ class AwardsView(QWidget):
 
     def _refresh_leading_awards_years(self) -> None:
         with self.db.session() as conn:
-            rows = conn.execute("SELECT DISTINCT year FROM races ORDER BY year ASC").fetchall()
+            rows = conn.execute("SELECT DISTINCT year FROM races ORDER BY year DESC").fetchall()
         years = [r["year"] for r in rows]
 
         cur_year = self.combo_leading_awards_year.currentData()
@@ -328,12 +335,12 @@ class AwardsView(QWidget):
         self.combo_leading_awards_year.clear()
         for y in years:
             self.combo_leading_awards_year.addItem(f"{y}年度", y)
-        if cur_year is not None:
+        if cur_year is not None and cur_year in years:
             idx = self.combo_leading_awards_year.findData(cur_year)
             if idx >= 0:
                 self.combo_leading_awards_year.setCurrentIndex(idx)
         elif years:
-            self.combo_leading_awards_year.setCurrentIndex(len(years) - 1)
+            self.combo_leading_awards_year.setCurrentIndex(0)
         self.combo_leading_awards_year.blockSignals(False)
 
     def refresh_leading_awards(self) -> None:
@@ -356,7 +363,6 @@ class AwardsView(QWidget):
             ("owner", "👑 最多勝馬主", leaders.get("owner"), "#f59e0b"),
             ("breeder", "🏡 最多勝生産牧場", leaders.get("breeder"), "#8b5cf6"),
             ("rookie_jockey", "🌱 最多勝新人騎手", leaders.get("rookie_jockey"), "#06b6d4"),
-            ("rookie_trainer", "🌱 最多勝新人調教師", leaders.get("rookie_trainer"), "#ec4899"),
         ]
 
         for i, (key, title, data, col) in enumerate(card_defs):
@@ -394,16 +400,16 @@ class AwardsView(QWidget):
             col_idx = i % 3
             self.leading_awards_grid.addWidget(card, row, col_idx)
 
-        # 歴代推移
+        # 歴代推移 (降順)
         with self.db.session() as conn:
-            years = [r["year"] for r in conn.execute("SELECT DISTINCT year FROM races ORDER BY year ASC").fetchall()]
+            years = [r["year"] for r in conn.execute("SELECT DISTINCT year FROM races ORDER BY year DESC").fetchall()]
 
         self.table_leading_hist.setRowCount(len(years))
         for r_idx, y in enumerate(years):
             y_leaders = self._calc_annual_leaders(y)
             self.table_leading_hist.setItem(r_idx, 0, QTableWidgetItem(f"{y}年"))
 
-            keys = ["jockey", "trainer", "owner", "breeder", "rookie_jockey", "rookie_trainer"]
+            keys = ["jockey", "trainer", "owner", "breeder", "rookie_jockey"]
             for c_idx, k in enumerate(keys, start=1):
                 ld = y_leaders.get(k)
                 txt = f"{ld['name']} ({ld['wins']}勝)" if ld else "-"
@@ -493,104 +499,233 @@ class AwardsView(QWidget):
             """, (year, year)).fetchone()
             res["rookie_jockey"] = dict(rj_row) if rj_row and rj_row["wins"] > 0 else None
 
-            # 新人調教師 (開業1年目: created_year == year または trainer_years == 1)
-            rt_row = conn.execute("""
-                SELECT t.name, COUNT(r.result_id) as starts,
-                       SUM(CASE WHEN r.finish_position = 1 THEN 1 ELSE 0 END) as wins,
-                       SUM(r.prize_awarded) as prize
-                FROM results r
-                JOIN races rc ON r.race_id = rc.race_id
-                JOIN horses h ON r.horse_id = h.horse_id
-                JOIN trainers t ON h.trainer_id = t.trainer_id
-                WHERE rc.year = ? AND (t.created_year = ? OR t.trainer_years = 1)
-                GROUP BY t.trainer_id
-                ORDER BY wins DESC, prize DESC
-                LIMIT 1
-            """, (year, year)).fetchone()
-            res["rookie_trainer"] = dict(rt_row) if rt_row and rt_row["wins"] > 0 else None
-
         return res
 
     # ==========================================
-    # 3. 顕彰馬・殿堂・メモリアル
+    # 3. 顕彰馬・功労馬・殿堂・メモリアル
     # ==========================================
     def _create_hall_of_fame_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(12)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(8)
 
-        lbl_hall = QLabel("🏆 JRA顕彰馬 (Hall of Fame) - G1通算4勝以上を達成した伝説的名馬")
-        lbl_hall.setStyleSheet("color: #facc15; font-weight: bold; font-size: 14px;")
-        layout.addWidget(lbl_hall)
+        hall_sub_tabs = QTabWidget()
+        hall_sub_tabs.setStyleSheet("""
+            QTabBar::tab {
+                font-weight: bold;
+                font-size: 12px;
+                padding: 5px 12px;
+            }
+        """)
+
+        # ----------------------------------------------------
+        # サブタブ1: 🏆 顕彰馬 & 🎖 功労馬一覧
+        # ----------------------------------------------------
+        w_horses = QWidget()
+        l_horses = QVBoxLayout(w_horses)
+        l_horses.setContentsMargins(6, 6, 6, 6)
+        l_horses.setSpacing(6)
+
+        # フィルターバー
+        f_bar = QFrame()
+        f_bar.setStyleSheet("background-color: #161b26; border: 1px solid #242c3d; border-radius: 6px;")
+        fb_layout = QHBoxLayout(f_bar)
+        fb_layout.setContentsMargins(8, 4, 8, 4)
+        fb_layout.setSpacing(10)
+
+        fb_layout.addWidget(QLabel("表彰区分:"))
+        self.combo_hall_filter = QComboBox()
+        self.combo_hall_filter.addItem("すべて (顕彰馬 & 功労馬)", "all")
+        self.combo_hall_filter.addItem("🏆 顕彰馬のみ (G1 5勝/3冠/3連覇)", "hall")
+        self.combo_hall_filter.addItem("🎖 功労馬のみ (G1複数/重賞多数/長寿)", "merit")
+        self.combo_hall_filter.currentIndexChanged.connect(self.refresh_hall_of_fame_horses)
+        fb_layout.addWidget(self.combo_hall_filter)
+
+        fb_layout.addWidget(QLabel("現役/引退:"))
+        self.combo_hall_active = QComboBox()
+        self.combo_hall_active.addItem("すべて", "all")
+        self.combo_hall_active.addItem("現役馬のみ", "active")
+        self.combo_hall_active.addItem("引退馬のみ", "retired")
+        self.combo_hall_active.currentIndexChanged.connect(self.refresh_hall_of_fame_horses)
+        fb_layout.addWidget(self.combo_hall_active)
+
+        fb_layout.addStretch()
+
+        self.lbl_hall_count = QLabel("該当: 0頭")
+        self.lbl_hall_count.setStyleSheet("color: #38bdf8; font-weight: bold;")
+        fb_layout.addWidget(self.lbl_hall_count)
+
+        l_horses.addWidget(f_bar)
 
         self.table_hall = QTableWidget()
-        self.table_hall.setColumnCount(8)
+        self.table_hall.setColumnCount(10)
         self.table_hall.setHorizontalHeaderLabels([
-            "選出年", "顕彰馬名", "性齢", "通算成績", "G1勝数", "総獲得賞金", "主な勝鞍", "詳細"
+            "表彰区分", "馬名", "性齢", "状態", "通算成績", "G1勝数", "重賞勝数", "総獲得賞金", "選考・表彰理由", "詳細"
         ])
         h_header = self.table_hall.horizontalHeader()
         h_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table_hall.setColumnWidth(0, 65)
-        self.table_hall.setColumnWidth(1, 150)
-        self.table_hall.setColumnWidth(2, 60)
-        self.table_hall.setColumnWidth(3, 90)
-        self.table_hall.setColumnWidth(4, 70)
-        self.table_hall.setColumnWidth(5, 110)
-        h_header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
-        self.table_hall.setColumnWidth(7, 60)
+        self.table_hall.setColumnWidth(0, 85)
+        self.table_hall.setColumnWidth(1, 140)
+        self.table_hall.setColumnWidth(2, 55)
+        self.table_hall.setColumnWidth(3, 55)
+        self.table_hall.setColumnWidth(4, 85)
+        self.table_hall.setColumnWidth(5, 60)
+        self.table_hall.setColumnWidth(6, 65)
+        self.table_hall.setColumnWidth(7, 100)
+        h_header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
+        self.table_hall.setColumnWidth(9, 55)
         self.table_hall.setAlternatingRowColors(True)
         self.table_hall.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        layout.addWidget(self.table_hall)
+        l_horses.addWidget(self.table_hall)
 
+        hall_sub_tabs.addTab(w_horses, "🏆 顕彰馬 & 🎖 功労馬")
+
+        # ----------------------------------------------------
+        # サブタブ2: 🎖 関係者 特別功労 & 殿堂入り
+        # ----------------------------------------------------
+        w_people = QWidget()
+        l_people = QVBoxLayout(w_people)
+        l_people.setContentsMargins(6, 6, 6, 6)
+        l_people.setSpacing(6)
+
+        lbl_peop = QLabel("🎖 騎手・調教師 特別功労者＆殿堂入り (通算勝利数・G1制覇実績に基づく表彰)")
+        lbl_peop.setStyleSheet("color: #38bdf8; font-weight: bold; font-size: 12px;")
+        l_people.addWidget(lbl_peop)
+
+        self.table_people_awards = QTableWidget()
+        self.table_people_awards.setColumnCount(6)
+        self.table_people_awards.setHorizontalHeaderLabels([
+            "表彰区分", "対象者名 (区分)", "所属", "通算成績", "G1勝利数", "表彰基準・主な実績"
+        ])
+        p_header = self.table_people_awards.horizontalHeader()
+        p_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table_people_awards.setColumnWidth(0, 110)
+        self.table_people_awards.setColumnWidth(1, 140)
+        self.table_people_awards.setColumnWidth(2, 70)
+        self.table_people_awards.setColumnWidth(3, 100)
+        self.table_people_awards.setColumnWidth(4, 75)
+        p_header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        self.table_people_awards.setAlternatingRowColors(True)
+        self.table_people_awards.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        l_people.addWidget(self.table_people_awards)
+
+        hall_sub_tabs.addTab(w_people, "🎖 関係者特別功労・殿堂")
+
+        # ----------------------------------------------------
+        # サブタブ3: 🎯 通算100勝メモリアル記録
+        # ----------------------------------------------------
+        w_mile = QWidget()
+        l_mile = QVBoxLayout(w_mile)
+        l_mile.setContentsMargins(6, 6, 6, 6)
+        l_mile.setSpacing(6)
+
+        m_bar = QFrame()
+        m_bar.setStyleSheet("background-color: #161b26; border: 1px solid #242c3d; border-radius: 6px;")
+        mb_layout = QHBoxLayout(m_bar)
+        mb_layout.setContentsMargins(8, 4, 8, 4)
+        mb_layout.setSpacing(10)
+
+        mb_layout.addWidget(QLabel("主体区分:"))
+        self.combo_mile_type = QComboBox()
+        self.combo_mile_type.addItem("すべて", None)
+        self.combo_mile_type.addItem("🏇 騎手", "jockey")
+        self.combo_mile_type.addItem("📋 調教師", "trainer")
+        self.combo_mile_type.addItem("👑 馬主", "owner")
+        self.combo_mile_type.addItem("🏡 生産牧場", "breeder")
+        self.combo_mile_type.currentIndexChanged.connect(self.refresh_milestone_records)
+        mb_layout.addWidget(self.combo_mile_type)
+        mb_layout.addStretch()
+
+        l_mile.addWidget(m_bar)
+
+        self.table_milestones = QTableWidget()
+        self.table_milestones.setColumnCount(6)
+        self.table_milestones.setHorizontalHeaderLabels([
+            "達成時期", "区分", "達成者名", "達成節目", "達成レース", "達成騎乗/所有馬"
+        ])
+        m_header = self.table_milestones.horizontalHeader()
+        m_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table_milestones.setColumnWidth(0, 90)
+        self.table_milestones.setColumnWidth(1, 80)
+        self.table_milestones.setColumnWidth(2, 130)
+        self.table_milestones.setColumnWidth(3, 90)
+        self.table_milestones.setColumnWidth(4, 150)
+        m_header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        self.table_milestones.setAlternatingRowColors(True)
+        self.table_milestones.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        l_mile.addWidget(self.table_milestones)
+
+        hall_sub_tabs.addTab(w_mile, "🎯 100勝メモリアル")
+
+        layout.addWidget(hall_sub_tabs)
         return widget
 
     def refresh_hall_of_fame(self) -> None:
-        """G1を4勝以上した顕彰馬をロード"""
-        with self.db.session() as conn:
-            rows = conn.execute("""
-                SELECT h.horse_id, h.name, h.sex, h.age, h.g1_wins, h.prize_money, h.major_wins,
-                       COUNT(r.result_id) as total_starts,
-                       SUM(CASE WHEN r.finish_position = 1 THEN 1 ELSE 0 END) as total_wins,
-                       MAX(rc.year) as last_active_year
-                FROM horses h
-                JOIN results r ON h.horse_id = r.horse_id
-                JOIN races rc ON r.race_id = rc.race_id
-                WHERE h.g1_wins >= 4
-                GROUP BY h.horse_id
-                ORDER BY last_active_year ASC, h.g1_wins DESC, h.prize_money DESC
-            """).fetchall()
+        """顕彰馬・功労馬・関係者表彰・メモリアルをすべて更新"""
+        self.refresh_hall_of_fame_horses()
+        self.refresh_people_awards()
+        self.refresh_milestone_records()
+
+    def refresh_hall_of_fame_horses(self) -> None:
+        """顕彰馬 & 功労馬一覧をロード"""
+        type_filter = self.combo_hall_filter.currentData()
+        active_filter = self.combo_hall_active.currentData()
+
+        f_type = None if type_filter == "all" else type_filter
+        rows = self.awards_mgr.get_hall_and_merit_horses(filter_type=f_type)
+
+        if active_filter == "active":
+            rows = [r for r in rows if r.get("is_active", 0) == 1]
+        elif active_filter == "retired":
+            rows = [r for r in rows if r.get("is_active", 0) == 0]
+
+        self.lbl_hall_count.setText(f"該当: {len(rows)}頭")
 
         sex_map = {"colt": "牡", "filly": "牝", "horse": "牡", "mare": "牝", "gelding": "セ"}
         self.table_hall.setRowCount(len(rows))
 
         for idx, r in enumerate(rows):
-            y_str = f"{r['last_active_year']}年"
-            h_name = r["name"]
-            sex_age = f"{sex_map.get(r['sex'], '')}{r['age']}"
-            rec_str = f"{r['total_starts']}戦{r['total_wins']}勝"
-            g1_str = f"{r['g1_wins']}勝"
-            prz_str = f"{(r['prize_money'] or 0) // 10000:,} 万円"
-            maj_str = r["major_wins"] or "G1多数制覇"
+            is_hall = (r.get("award_type") == "hall")
+            type_label = r.get("award_type_label", "🎖 功労馬")
+            h_name = r.get("horse_name", r.get("name", ""))
+            sex_age = f"{sex_map.get(r.get('sex', ''), '')}{r.get('age', '')}"
+            act_str = "現役" if r.get("is_active") == 1 else "引退"
+            rec_str = f"{r.get('career_starts', 0)}戦{r.get('career_wins', 0)}勝"
+            g1_str = f"{r.get('g1_wins', 0)}勝"
+            gr_str = f"{r.get('graded_wins_count', 0)}勝"
+            prz_str = f"{(r.get('prize_money', 0) or 0) // 10000:,} 万円"
+            reason_str = r.get("reason", "-")
+
+            item_type = QTableWidgetItem(type_label)
+            item_type.setForeground(QColor("#facc15") if is_hall else QColor("#34d399"))
+            f_type = item_type.font()
+            f_type.setBold(True)
+            item_type.setFont(f_type)
 
             name_item = QTableWidgetItem(h_name)
-            name_item.setForeground(QColor("#facc15"))
+            name_item.setForeground(QColor("#facc15") if is_hall else QColor("#38bdf8"))
             f = name_item.font()
             f.setBold(True)
             name_item.setFont(f)
 
+            act_item = QTableWidgetItem(act_str)
+            act_item.setForeground(QColor("#22c55e") if r.get("is_active") == 1 else QColor("#94a3b8"))
+
             items = [
-                QTableWidgetItem(y_str),
+                item_type,
                 name_item,
                 QTableWidgetItem(sex_age),
+                act_item,
                 QTableWidgetItem(rec_str),
                 QTableWidgetItem(g1_str),
+                QTableWidgetItem(gr_str),
                 QTableWidgetItem(prz_str),
-                QTableWidgetItem(maj_str),
+                QTableWidgetItem(reason_str),
             ]
 
             for c, itm in enumerate(items):
-                if c not in (1, 6):
+                if c not in (1, 8):
                     itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table_hall.setItem(idx, c, itm)
 
@@ -598,7 +733,131 @@ class AwardsView(QWidget):
             btn_d = QPushButton("詳細")
             btn_d.setStyleSheet("background-color: #1e293b; color: #38bdf8; font-size: 11px; padding: 2px 6px; border: 1px solid #0284c7; border-radius: 3px;")
             btn_d.clicked.connect(lambda checked, h=hid: self._open_horse_detail(h))
-            self.table_hall.setCellWidget(idx, 7, btn_d)
+            self.table_hall.setCellWidget(idx, 9, btn_d)
+
+    def refresh_people_awards(self) -> None:
+        """関係者（騎手・調教師）特別功労＆殿堂入りをロード"""
+        special = self.awards_mgr.get_special_merit_awards()
+        legends = self.awards_mgr.get_hall_of_fame_legends()
+
+        people_list = []
+
+        # 殿堂騎手 (2000勝+G1 20勝)
+        for j in legends.get("jockeys", []):
+            people_list.append({
+                "type": "🏆 殿堂入り騎手",
+                "name": f"{j['name']} (騎手)",
+                "loc": j.get("location", "-"),
+                "rec": f"{j.get('career_starts', 0)}戦{j.get('career_wins', 0)}勝",
+                "g1": f"{j.get('g1_wins', 0)}勝",
+                "reason": f"通算2000勝 & G1 20勝達成 (獲得賞金: {j.get('career_earnings', 0)//10000:,}万円)",
+                "color": "#facc15"
+            })
+        # 特別功労騎手 (1000勝+G1 10勝)
+        legend_j_names = {j["name"] for j in legends.get("jockeys", [])}
+        for j in special.get("jockeys", []):
+            if j["name"] in legend_j_names:
+                continue
+            people_list.append({
+                "type": "🎖 特別功労騎手",
+                "name": f"{j['name']} (騎手)",
+                "loc": j.get("location", "-"),
+                "rec": f"{j.get('career_starts', 0)}戦{j.get('career_wins', 0)}勝",
+                "g1": f"{j.get('g1_wins', 0)}勝",
+                "reason": f"通算1000勝 & G1 10勝達成 (獲得賞金: {j.get('career_earnings', 0)//10000:,}万円)",
+                "color": "#38bdf8"
+            })
+
+        # 殿堂調教師 (1000勝+G1馬10頭)
+        for t in legends.get("trainers", []):
+            people_list.append({
+                "type": "🏆 殿堂入り調教師",
+                "name": f"{t.get('stable_name', t['name'])} (調教師)",
+                "loc": t.get("location", "-"),
+                "rec": f"{t.get('total_starts', 0)}戦{t.get('total_wins', 0)}勝",
+                "g1": f"{t.get('g1_wins', 0)}勝 (G1馬:{t.get('g1_horse_count', 0)}頭)",
+                "reason": f"通算1000勝 & G1馬10頭輩出 (獲得賞金: {t.get('career_earnings', 0)//10000:,}万円)",
+                "color": "#facc15"
+            })
+        # 特別功労調教師 (500勝+G1馬5頭)
+        legend_t_names = {t["name"] for t in legends.get("trainers", [])}
+        for t in special.get("trainers", []):
+            if t["name"] in legend_t_names:
+                continue
+            people_list.append({
+                "type": "🎖 特別功労調教師",
+                "name": f"{t.get('stable_name', t['name'])} (調教師)",
+                "loc": t.get("location", "-"),
+                "rec": f"{t.get('total_starts', 0)}戦{t.get('total_wins', 0)}勝",
+                "g1": f"{t.get('g1_wins', 0)}勝 (G1馬:{t.get('g1_horse_count', 0)}頭)",
+                "reason": f"通算500勝 & G1馬5頭輩出 (獲得賞金: {t.get('career_earnings', 0)//10000:,}万円)",
+                "color": "#38bdf8"
+            })
+
+        self.table_people_awards.setRowCount(len(people_list))
+        for idx, p in enumerate(people_list):
+            t_item = QTableWidgetItem(p["type"])
+            t_item.setForeground(QColor(p["color"]))
+            f = t_item.font()
+            f.setBold(True)
+            t_item.setFont(f)
+
+            n_item = QTableWidgetItem(p["name"])
+            n_item.setForeground(QColor(p["color"]))
+
+            items = [
+                t_item,
+                n_item,
+                QTableWidgetItem(p["loc"]),
+                QTableWidgetItem(p["rec"]),
+                QTableWidgetItem(p["g1"]),
+                QTableWidgetItem(p["reason"]),
+            ]
+            for c, itm in enumerate(items):
+                if c not in (1, 5):
+                    itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table_people_awards.setItem(idx, c, itm)
+
+    def refresh_milestone_records(self) -> None:
+        """100勝メモリアル記録一覧をロード"""
+        self.awards_mgr.sync_all_milestones()
+        e_type = self.combo_mile_type.currentData()
+        rows = self.awards_mgr.get_milestone_records(entity_type=e_type)
+
+        type_map = {
+            "jockey": "🏇 騎手",
+            "trainer": "📋 調教師",
+            "owner": "👑 馬主",
+            "breeder": "🏡 生産牧場",
+        }
+
+        self.table_milestones.setRowCount(len(rows))
+        for idx, r in enumerate(rows):
+            t_str = f"{r['year']}年{r['month']}月{r['week']}週"
+            cat_str = type_map.get(r["entity_type"], r["entity_type"])
+            name_str = r["entity_name"]
+            win_str = f"🎉 通算{r['win_count']}勝"
+            race_str = r.get("race_name", "-")
+            horse_str = r.get("horse_name", "-")
+
+            win_item = QTableWidgetItem(win_str)
+            win_item.setForeground(QColor("#facc15"))
+            f = win_item.font()
+            f.setBold(True)
+            win_item.setFont(f)
+
+            items = [
+                QTableWidgetItem(t_str),
+                QTableWidgetItem(cat_str),
+                QTableWidgetItem(name_str),
+                win_item,
+                QTableWidgetItem(race_str),
+                QTableWidgetItem(horse_str),
+            ]
+            for c, itm in enumerate(items):
+                if c not in (2, 4, 5):
+                    itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table_milestones.setItem(idx, c, itm)
 
     def _open_horse_detail(self, horse_id: int) -> None:
         dlg = HorseDetailDialog(self.db, horse_id, parent=self)

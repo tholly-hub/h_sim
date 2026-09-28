@@ -9,9 +9,8 @@
 - コースレコード一覧（競馬場別タブ・芝ダート短距離昇順・父母表示・結果動画ボタン完備）
 """
 
-from __future__ import annotations
-
-from typing import Any, Dict, List, Optional
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Set, Tuple
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
@@ -22,20 +21,27 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
     QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
 
 from src.db.database import Database, get_db
+from src.gui.styles import get_generation_color
+from src.gui.views.dam_detail_dialog import DamDetailDialog
 from src.gui.views.horse_detail_dialog import HorseDetailDialog, GRADE_COLOR_MAP
 from src.gui.views.progeny_dialog import ProgenyListDialog
 from src.gui.views.race_dialogs import RaceResultDialog, RaceViewDialog
 from src.gui.views.records_view import RecordsView, format_finish_time
+from src.gui.views.sire_detail_dialog import SireDetailDialog
 from src.race.engine import clean_race_name
 
 
@@ -43,14 +49,14 @@ MAJOR_ROUTES = [
     {
         "id": "classic_colt",
         "name": "👑 3歳牡馬3冠",
-        "races": ["皐月賞", "東京優駿", "菊花賞"],
-        "labels": ["第1冠: 皐月賞", "第2冠: 日本ダービー", "第3冠: 菊花賞"],
+        "races": ["皐月賞", "東京優駿（日本ダービー）", "菊花賞"],
+        "labels": ["第1冠: 皐月賞", "第2冠: 東京優駿（日本ダービー）", "第3冠: 菊花賞"],
     },
     {
         "id": "triple_tiara",
         "name": "🌸 3歳牝馬3冠 (トリプルティアラ)",
-        "races": ["桜花賞", "優駿牝馬", "秋華賞"],
-        "labels": ["第1冠: 桜花賞", "第2冠: オークス", "第3冠: 秋華賞"],
+        "races": ["桜花賞", "優駿牝馬（オークス）", "秋華賞"],
+        "labels": ["第1冠: 桜花賞", "第2冠: 優駿牝馬（オークス）", "第3冠: 秋華賞"],
     },
     {
         "id": "dirt_3yo",
@@ -61,7 +67,7 @@ MAJOR_ROUTES = [
     {
         "id": "sprint",
         "name": "⚡ 古馬短距離2冠",
-        "races": ["高松宮記念", "スプリンターズステークス"],
+        "races": ["高松宮記念", "スプリンターズS"],
         "labels": ["春: 高松宮記念", "秋: スプリンターズS"],
     },
     {
@@ -89,18 +95,34 @@ MAJOR_ROUTES = [
         "labels": ["春: ヴィクトリアM", "秋: エリザベス女王杯"],
     },
     {
+        "id": "dirt_older",
+        "name": "🏜 ダート王道路線",
+        "races": ["フェブラリーS", "チャンピオンズカップ", "東京大賞典"],
+        "labels": ["春: フェブラリーS", "秋: チャンピオンズC", "冬: 東京大賞典"],
+    },
+    {
         "id": "grand_prix",
-        "name": "⭐ グランプリ2冠 (春・冬)",
+        "name": "⭐ グランプリ2冠 (春・秋/冬)",
         "races": ["宝塚記念", "有馬記念"],
         "labels": ["春: 宝塚記念", "冬: 有馬記念"],
     },
-    {
-        "id": "dirt_older",
-        "name": "🏜 ダート王道路線",
-        "races": ["フェブラリーステークス", "チャンピオンズカップ", "東京大賞典"],
-        "labels": ["春: フェブラリーS", "秋: チャンピオンズC", "冬: 東京大賞典"],
-    },
 ]
+
+# 主要レース路線の表記揺れ吸収用エイリアスマップ
+ROUTE_RACE_ALIASES: Dict[str, str] = {
+    "日本ダービー": "東京優駿（日本ダービー）",
+    "東京優駿": "東京優駿（日本ダービー）",
+    "東京優駿(日本ダービー)": "東京優駿（日本ダービー）",
+    "オークス": "優駿牝馬（オークス）",
+    "優駿牝馬": "優駿牝馬（オークス）",
+    "優駿牝馬(オークス)": "優駿牝馬（オークス）",
+    "スプリンターズステークス": "スプリンターズS",
+    "フェブラリーステークス": "フェブラリーS",
+    "マイルCS": "マイルチャンピオンシップ",
+    "チャンピオンズC": "チャンピオンズカップ",
+    "JDC": "ジャパンダートクラシック",
+    "ジャパンC": "ジャパンカップ",
+}
 
 
 class DatabaseView(QWidget):
@@ -155,22 +177,37 @@ class DatabaseView(QWidget):
 
         main_layout.addWidget(self.main_tabs)
 
-        # 初回データ読み込み
-        self.refresh_all()
+        # サブタブ切り替え時の遅延ロード接続
+        self.main_tabs.currentChanged.connect(self._on_tab_changed)
 
-    def refresh_all(self) -> None:
-        """全サブタブのデータを最新化"""
+        # 初回はアクティブな第1タブ（競走馬リーディング）のみ読み込み
         self._refresh_leading_filters()
         self.refresh_leading()
-        self._refresh_cohort_filters()
-        self.refresh_cohort_class()
-        self.refresh_major_routes()
-        self.refresh_sires_list()
-        self.refresh_broodmares_list()
-        self._refresh_graded_years()
-        self.refresh_graded()
-        if hasattr(self.tab_records, "refresh_records"):
-            self.tab_records.refresh_records()
+
+    def _on_tab_changed(self, index: int) -> None:
+        """タブが選択された時に該当タブのデータを最新化（遅延ロード）"""
+        if index == 0:
+            self._refresh_leading_filters()
+            self.refresh_leading()
+        elif index == 1:
+            self._refresh_cohort_filters()
+            self.refresh_cohort_class()
+        elif index == 2:
+            self.refresh_major_routes()
+        elif index == 3:
+            self._on_sires_subtab_changed(self.sires_sub_tabs.currentIndex())
+        elif index == 4:
+            self._on_dams_subtab_changed(self.dams_sub_tabs.currentIndex())
+        elif index == 5:
+            self._refresh_graded_years()
+            self.refresh_graded()
+        elif index == 6:
+            if hasattr(self.tab_records, "refresh_records"):
+                self.tab_records.refresh_records()
+
+    def refresh_all(self) -> None:
+        """現在表示中のサブタブのデータを最新化"""
+        self._on_tab_changed(self.main_tabs.currentIndex())
 
     # ==========================================
     # 1. 競走馬リーディング
@@ -192,22 +229,19 @@ class DatabaseView(QWidget):
         self.combo_lead_period.currentIndexChanged.connect(self.refresh_leading)
         f_layout.addWidget(self.combo_lead_period)
 
-        f_layout.addWidget(QLabel("年齢区分:"))
-        self.combo_lead_age = QComboBox()
-        self.combo_lead_age.addItem("全年齢 (総合)", None)
-        self.combo_lead_age.addItem("2歳馬", 2)
-        self.combo_lead_age.addItem("3歳馬", 3)
-        self.combo_lead_age.addItem("古馬 (4歳以上)", "older")
-        self.combo_lead_age.currentIndexChanged.connect(self.refresh_leading)
-        f_layout.addWidget(self.combo_lead_age)
-
-        f_layout.addWidget(QLabel("性別区分:"))
-        self.combo_lead_sex = QComboBox()
-        self.combo_lead_sex.addItem("全性別 (総合)", None)
-        self.combo_lead_sex.addItem("牡馬・セン馬", "male")
-        self.combo_lead_sex.addItem("牝馬のみ", "female")
-        self.combo_lead_sex.currentIndexChanged.connect(self.refresh_leading)
-        f_layout.addWidget(self.combo_lead_sex)
+        f_layout.addWidget(QLabel("区分:"))
+        self.combo_lead_category = QComboBox()
+        self.combo_lead_category.addItem("全馬総合", "all_all")
+        self.combo_lead_category.addItem("現役馬総合", "active_all")
+        self.combo_lead_category.addItem("現役古馬総合", "active_older_all")
+        self.combo_lead_category.addItem("現役古馬牡馬", "active_older_colt")
+        self.combo_lead_category.addItem("現役古馬牝馬", "active_older_filly")
+        self.combo_lead_category.addItem("現役３歳馬総合", "active_3yo_all")
+        self.combo_lead_category.addItem("現役３歳牡馬", "active_3yo_colt")
+        self.combo_lead_category.addItem("現役３歳牝馬", "active_3yo_filly")
+        self.combo_lead_category.addItem("現役２歳馬", "active_2yo_all")
+        self.combo_lead_category.currentIndexChanged.connect(self.refresh_leading)
+        f_layout.addWidget(self.combo_lead_category)
 
         btn_ref = QPushButton("🔄 更新")
         btn_ref.setStyleSheet("background-color: #0284c7; color: #ffffff; font-weight: bold; padding: 4px 12px; border-radius: 4px;")
@@ -263,8 +297,7 @@ class DatabaseView(QWidget):
 
     def refresh_leading(self) -> None:
         period = self.combo_lead_period.currentData()
-        age_filter = self.combo_lead_age.currentData()
-        sex_filter = self.combo_lead_sex.currentData()
+        cat = self.combo_lead_category.currentData() or "all_all"
 
         if period == "career" or period is None:
             query = """
@@ -273,10 +306,12 @@ class DatabaseView(QWidget):
                     h.name AS horse_name,
                     h.sex,
                     h.age,
+                    h.is_active,
                     h.career_starts AS total_starts,
                     h.career_wins AS total_wins,
                     (h.g1_wins + h.g2_wins + h.g3_wins) AS graded_wins,
                     h.prize_money AS total_prize,
+                    h.generation,
                     sire.name AS sire_name,
                     dam.name AS dam_name,
                     t.name AS trainer_name
@@ -287,19 +322,24 @@ class DatabaseView(QWidget):
                 WHERE 1=1
             """
             params: list[Any] = []
-            if age_filter == 2:
-                query += " AND h.age = 2"
-            elif age_filter == 3:
-                query += " AND h.age = 3"
-            elif age_filter == "older":
-                query += " AND h.age >= 4"
+            if cat == "active_all":
+                query += " AND h.is_active = 1"
+            elif cat == "active_older_all":
+                query += " AND h.is_active = 1 AND h.age >= 4"
+            elif cat == "active_older_colt":
+                query += " AND h.is_active = 1 AND h.age >= 4 AND h.sex IN ('colt', 'horse', 'gelding')"
+            elif cat == "active_older_filly":
+                query += " AND h.is_active = 1 AND h.age >= 4 AND h.sex IN ('filly', 'mare')"
+            elif cat == "active_3yo_all":
+                query += " AND h.is_active = 1 AND h.age = 3"
+            elif cat == "active_3yo_colt":
+                query += " AND h.is_active = 1 AND h.age = 3 AND h.sex IN ('colt', 'horse', 'gelding')"
+            elif cat == "active_3yo_filly":
+                query += " AND h.is_active = 1 AND h.age = 3 AND h.sex IN ('filly', 'mare')"
+            elif cat == "active_2yo_all":
+                query += " AND h.is_active = 1 AND h.age = 2"
 
-            if sex_filter == "male":
-                query += " AND h.sex IN ('colt', 'horse', 'gelding')"
-            elif sex_filter == "female":
-                query += " AND h.sex IN ('filly', 'mare')"
-
-            query += " ORDER BY h.prize_money DESC, h.career_wins DESC LIMIT 100"
+            query += " ORDER BY h.prize_money DESC, h.career_wins DESC"
         else:
             year = int(period)
             query = """
@@ -308,6 +348,8 @@ class DatabaseView(QWidget):
                     h.name AS horse_name,
                     h.sex,
                     h.age,
+                    h.is_active,
+                    h.generation,
                     COUNT(res.result_id) AS total_starts,
                     SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END) AS total_wins,
                     SUM(CASE WHEN res.finish_position = 1 AND r.grade IN ('G1', 'G2', 'G3') THEN 1 ELSE 0 END) AS graded_wins,
@@ -324,19 +366,24 @@ class DatabaseView(QWidget):
                 WHERE r.year = ?
             """
             params = [year]
-            if age_filter == 2:
-                query += " AND h.age = 2"
-            elif age_filter == 3:
-                query += " AND h.age = 3"
-            elif age_filter == "older":
-                query += " AND h.age >= 4"
+            if cat == "active_all":
+                query += " AND h.is_active = 1"
+            elif cat == "active_older_all":
+                query += " AND h.is_active = 1 AND h.age >= 4"
+            elif cat == "active_older_colt":
+                query += " AND h.is_active = 1 AND h.age >= 4 AND h.sex IN ('colt', 'horse', 'gelding')"
+            elif cat == "active_older_filly":
+                query += " AND h.is_active = 1 AND h.age >= 4 AND h.sex IN ('filly', 'mare')"
+            elif cat == "active_3yo_all":
+                query += " AND h.is_active = 1 AND h.age = 3"
+            elif cat == "active_3yo_colt":
+                query += " AND h.is_active = 1 AND h.age = 3 AND h.sex IN ('colt', 'horse', 'gelding')"
+            elif cat == "active_3yo_filly":
+                query += " AND h.is_active = 1 AND h.age = 3 AND h.sex IN ('filly', 'mare')"
+            elif cat == "active_2yo_all":
+                query += " AND h.is_active = 1 AND h.age = 2"
 
-            if sex_filter == "male":
-                query += " AND h.sex IN ('colt', 'horse', 'gelding')"
-            elif sex_filter == "female":
-                query += " AND h.sex IN ('filly', 'mare')"
-
-            query += " GROUP BY h.horse_id ORDER BY total_prize DESC, total_wins DESC LIMIT 100"
+            query += " GROUP BY h.horse_id ORDER BY total_prize DESC, total_wins DESC"
 
         with self.db.session() as conn:
             rows = conn.execute(query, tuple(params)).fetchall()
@@ -347,7 +394,12 @@ class DatabaseView(QWidget):
         for idx, r in enumerate(rows):
             rank_str = f"{idx + 1}"
             h_name = r["horse_name"]
-            sex_age = f"{sex_map.get(r['sex'], '')}{r['age']}"
+            gen = dict(r).get("generation", 1) or 1
+            name_col = get_generation_color(gen)
+            if not r["is_active"]:
+                sex_age = "引退"
+            else:
+                sex_age = f"{sex_map.get(r['sex'], '')}{r['age']}"
             s_name = r["sire_name"] or "-"
             d_name = r["dam_name"] or "-"
             tr_name = r["trainer_name"] or "未定"
@@ -374,7 +426,10 @@ class DatabaseView(QWidget):
             for c_idx, item in enumerate(items):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if c_idx == 1:
-                    item.setForeground(QColor("#38bdf8"))
+                    item.setForeground(QColor(name_col))
+                    f = item.font()
+                    f.setBold(True)
+                    item.setFont(f)
                 if c_idx == 8 and (r["graded_wins"] or 0) > 0:
                     item.setForeground(QColor("#facc15"))
                 self.table_leading.setItem(idx, c_idx, item)
@@ -525,6 +580,7 @@ class DatabaseView(QWidget):
                 h.name AS horse_name,
                 h.sex,
                 h.age,
+                h.generation,
                 h.career_starts,
                 h.career_wins,
                 h.g1_wins,
@@ -649,6 +705,8 @@ class DatabaseView(QWidget):
         for idx, r in enumerate(classified_rows):
             rank_str = f"{idx + 1}"
             h_name = r["horse_name"]
+            gen = r.get("generation", 1) or 1
+            name_col = get_generation_color(gen)
             sex_age = f"{sex_map.get(r['sex'], '')}{r['age']}"
             cls_str = r["cls_label"]
             s_name = r["sire_name"] or "-"
@@ -658,6 +716,13 @@ class DatabaseView(QWidget):
             prz_str = f"{(r['prize_money'] or 0) // 10000:,} 万円"
             major_str = r["major_wins"] or "-"
 
+            name_item = QTableWidgetItem(h_name)
+            name_item.setForeground(QColor(name_col))
+            f_name = name_item.font()
+            f_name.setBold(True)
+            name_item.setFont(f_name)
+            name_item.setData(Qt.ItemDataRole.UserRole, r["horse_id"])
+
             cls_item = QTableWidgetItem(cls_str)
             cls_item.setForeground(QColor(r["cls_col"]))
             f = cls_item.font()
@@ -666,7 +731,7 @@ class DatabaseView(QWidget):
 
             items = [
                 QTableWidgetItem(rank_str),
-                QTableWidgetItem(h_name),
+                name_item,
                 QTableWidgetItem(sex_age),
                 cls_item,
                 QTableWidgetItem(s_name),
@@ -756,12 +821,16 @@ class DatabaseView(QWidget):
         with self.db.session() as conn:
             all_years = [r["year"] for r in conn.execute("SELECT DISTINCT year FROM races ORDER BY year ASC").fetchall()]
 
-            # 各年度・各レースの勝ち馬を取得
-            race_winners: Dict[int, Dict[str, Dict[str, Any]]] = {}
-            for y in all_years:
-                race_winners[y] = {}
+            # 各年度・各レースの勝ち馬格納用マップを初期化
+            race_winners: Dict[int, Dict[str, Dict[str, Any]]] = {y: {} for y in all_years}
 
-            placeholders = ",".join(["?"] * len(r_names))
+            # 表記揺れ（別称）を含めた検索対象レース名セットを作成
+            search_names = set(r_names)
+            for alias_name, canonical in ROUTE_RACE_ALIASES.items():
+                if canonical in r_names:
+                    search_names.add(alias_name)
+
+            placeholders = ",".join(["?"] * len(search_names))
             w_rows = conn.execute(f"""
                 SELECT rc.year, rc.name as race_name, h.horse_id, h.name as horse_name
                 FROM results res
@@ -769,15 +838,18 @@ class DatabaseView(QWidget):
                 JOIN horses h ON res.horse_id = h.horse_id
                 WHERE res.finish_position = 1 AND rc.name IN ({placeholders})
                 ORDER BY rc.year ASC
-            """, tuple(r_names)).fetchall()
+            """, tuple(search_names)).fetchall()
 
             for r in w_rows:
                 y = r["year"]
                 if y in race_winners:
-                    race_winners[y][r["race_name"]] = {
-                        "horse_id": r["horse_id"],
-                        "horse_name": r["horse_name"],
-                    }
+                    raw_name = clean_race_name(r["race_name"])
+                    canonical_name = ROUTE_RACE_ALIASES.get(raw_name, raw_name)
+                    if canonical_name in r_names:
+                        race_winners[y][canonical_name] = {
+                            "horse_id": r["horse_id"],
+                            "horse_name": r["horse_name"],
+                        }
 
         self.table_major_routes.setRowCount(len(all_years))
 
@@ -836,13 +908,54 @@ class DatabaseView(QWidget):
                 self._open_horse_detail(hid)
 
     # ==========================================
-    # 4. 種牡馬リストタブ (新設)
+    # 4. 種牡馬データベース・サイアーラインタブ (新設・大幅拡張)
     # ==========================================
     def _create_sires_list_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(8)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
+
+        self.sires_sub_tabs = QTabWidget()
+        self.sires_sub_tabs.setStyleSheet("""
+            QTabBar::tab {
+                font-weight: bold;
+                font-size: 12px;
+                padding: 6px 14px;
+            }
+        """)
+
+        # サブタブ1: 全種牡馬一覧
+        self.tab_sires_all = self._create_sire_all_list_subtab()
+        self.sires_sub_tabs.addTab(self.tab_sires_all, "🐴 全種牡馬一覧")
+
+        # サブタブ2: サイアーライン別 競走馬リスト
+        self.tab_lineage_horses = self._create_lineage_horses_subtab()
+        self.sires_sub_tabs.addTab(self.tab_lineage_horses, "🐎 サイアーライン別 競走馬")
+
+        # サブタブ3: サイアーライン別 種牡馬リスト
+        self.tab_lineage_sires = self._create_lineage_sires_subtab()
+        self.sires_sub_tabs.addTab(self.tab_lineage_sires, "🧬 サイアーライン別 種牡馬")
+
+        layout.addWidget(self.sires_sub_tabs)
+        self.sires_sub_tabs.currentChanged.connect(self._on_sires_subtab_changed)
+
+        return widget
+
+    def _on_sires_subtab_changed(self, index: int) -> None:
+        if index == 0:
+            self.refresh_sires_list()
+        elif index == 1:
+            self.refresh_lineage_horses()
+        elif index == 2:
+            self.refresh_lineage_sires()
+
+    # 4-1. 全種牡馬一覧 サブタブ
+    def _create_sire_all_list_subtab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
 
         filter_bar = QFrame()
         filter_bar.setStyleSheet("background-color: #161b26; border: 1px solid #242c3d; border-radius: 6px;")
@@ -852,7 +965,7 @@ class DatabaseView(QWidget):
 
         f_layout.addWidget(QLabel("状態:"))
         self.combo_sire_status = QComboBox()
-        self.combo_sire_status.addItem("現役種牡馬のみ", "active")
+        self.combo_sire_status.addItem("供用中のみ", "active")
         self.combo_sire_status.addItem("全種牡馬 (引退含む)", "all")
         self.combo_sire_status.currentIndexChanged.connect(self.refresh_sires_list)
         f_layout.addWidget(self.combo_sire_status)
@@ -877,26 +990,292 @@ class DatabaseView(QWidget):
         layout.addWidget(filter_bar)
 
         self.table_sires = QTableWidget()
-        self.table_sires.setColumnCount(10)
+        self.table_sires.setColumnCount(12)
         self.table_sires.setHorizontalHeaderLabels([
-            "種牡馬名", "年齢", "繋養年数", "系統", "産駒頭数", "勝馬数", "勝ち上がり率", "重賞勝数", "代表産駒", "産駒一覧"
+            "種牡馬名", "年齢", "繋養開始", "繋養年数", "系統", "産駒頭数", "勝馬数", "勝ち上がり率", "重賞勝数", "代表産駒", "カルテ", "産駒一覧"
         ])
         header = self.table_sires.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table_sires.setColumnWidth(0, 170)
-        self.table_sires.setColumnWidth(1, 55)
-        self.table_sires.setColumnWidth(2, 75)
-        self.table_sires.setColumnWidth(3, 110)
-        self.table_sires.setColumnWidth(4, 70)
-        self.table_sires.setColumnWidth(5, 70)
-        self.table_sires.setColumnWidth(6, 90)
-        self.table_sires.setColumnWidth(7, 70)
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
-        self.table_sires.setColumnWidth(9, 85)
+        self.table_sires.setColumnWidth(0, 160)
+        self.table_sires.setColumnWidth(1, 50)
+        self.table_sires.setColumnWidth(2, 65)
+        self.table_sires.setColumnWidth(3, 65)
+        self.table_sires.setColumnWidth(4, 100)
+        self.table_sires.setColumnWidth(5, 65)
+        self.table_sires.setColumnWidth(6, 65)
+        self.table_sires.setColumnWidth(7, 85)
+        self.table_sires.setColumnWidth(8, 65)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
+        self.table_sires.setColumnWidth(10, 60)
+        self.table_sires.setColumnWidth(11, 75)
 
         self.table_sires.setAlternatingRowColors(True)
         self.table_sires.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table_sires.cellClicked.connect(self._on_sire_cell_clicked)
         layout.addWidget(self.table_sires)
+
+        return widget
+
+    # 4-2. サイアーライン別 競走馬 サブタブ
+    def _create_lineage_horses_subtab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
+
+        # 上部: 系統別競走馬集計ツリー (初代種牡馬から段下げ)
+        top_box = QGroupBox("🐎 現在のサイアーライン別 競走馬数・構成割合 (行を選択して下部一覧を表示)")
+        top_layout = QVBoxLayout(top_box)
+        top_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.tree_lineage_horses = QTreeWidget()
+        self.tree_lineage_horses.setHeaderLabels([
+            "サイアーライン (父系)", "現役頭数", "構成割合", "通算勝数", "G1勝", "重賞勝", "獲得賞金"
+        ])
+        self.tree_lineage_horses.setAlternatingRowColors(True)
+        self.tree_lineage_horses.setRootIsDecorated(True)
+        self.tree_lineage_horses.setAnimated(True)
+        self.tree_lineage_horses.setStyleSheet("""
+            QTreeWidget {
+                background-color: #12161f;
+                alternate-background-color: #1a202c;
+                color: #f8fafc;
+                border: 1px solid #242c3d;
+                border-radius: 6px;
+                font-size: 12px;
+            }
+            QTreeWidget::item {
+                padding: 5px 2px;
+                background-color: transparent;
+            }
+            QTreeWidget::item:hover {
+                background-color: #1e293b;
+            }
+            QTreeWidget::item:selected {
+                background-color: #2563eb;
+                color: #ffffff;
+                font-weight: bold;
+            }
+            QHeaderView::section {
+                background-color: #0b0f17;
+                color: #cbd5e1;
+                padding: 6px 4px;
+                border: none;
+                border-bottom: 2px solid #334155;
+                border-right: 1px solid #1e293b;
+                font-weight: 700;
+            }
+        """)
+        h_tree = self.tree_lineage_horses.header()
+        h_tree.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for i in range(1, 7):
+            h_tree.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree_lineage_horses.itemClicked.connect(self._on_lineage_horses_tree_clicked)
+        top_layout.addWidget(self.tree_lineage_horses)
+        layout.addWidget(top_box, stretch=1)
+
+        # 下部: 選択された系統の所属競走馬一覧
+        bot_box = QGroupBox("🐎 所属現役競走馬一覧 (行をクリックして選択)")
+        bot_layout = QVBoxLayout(bot_box)
+        bot_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.table_lineage_horses_detail = QTableWidget()
+        self.table_lineage_horses_detail.setColumnCount(9)
+        self.table_lineage_horses_detail.setHorizontalHeaderLabels([
+            "馬名", "性齢", "世代", "クラス", "父馬", "母馬", "通算成績", "獲得賞金", "詳細"
+        ])
+        b_hdr = self.table_lineage_horses_detail.horizontalHeader()
+        b_hdr.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table_lineage_horses_detail.setColumnWidth(0, 160)
+        self.table_lineage_horses_detail.setColumnWidth(1, 55)
+        self.table_lineage_horses_detail.setColumnWidth(2, 55)
+        self.table_lineage_horses_detail.setColumnWidth(3, 85)
+        self.table_lineage_horses_detail.setColumnWidth(4, 130)
+        self.table_lineage_horses_detail.setColumnWidth(5, 130)
+        self.table_lineage_horses_detail.setColumnWidth(6, 90)
+        b_hdr.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        self.table_lineage_horses_detail.setColumnWidth(8, 60)
+
+        self.table_lineage_horses_detail.setAlternatingRowColors(True)
+        self.table_lineage_horses_detail.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table_lineage_horses_detail.cellDoubleClicked.connect(self._on_lineage_horses_detail_double_clicked)
+        bot_layout.addWidget(self.table_lineage_horses_detail)
+        layout.addWidget(bot_box, stretch=1)
+
+        return widget
+
+    # 4-3. サイアーライン別 種牡馬 サブタブ
+    def _create_lineage_sires_subtab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
+
+        # 上部: 系統別種牡馬集計ツリー (初代種牡馬から段下げ)
+        top_box = QGroupBox("🐴 現在のサイアーライン別 種牡馬数・構成割合 (行を選択して下部一覧を表示)")
+        top_layout = QVBoxLayout(top_box)
+        top_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.tree_lineage_sires = QTreeWidget()
+        self.tree_lineage_sires.setHeaderLabels([
+            "サイアーライン", "供用中頭数", "構成割合", "自身重賞勝", "産駒重賞勝", "産駒通算勝数"
+        ])
+        self.tree_lineage_sires.setAlternatingRowColors(True)
+        self.tree_lineage_sires.setRootIsDecorated(True)
+        self.tree_lineage_sires.setAnimated(True)
+        self.tree_lineage_sires.setStyleSheet("""
+            QTreeWidget {
+                background-color: #12161f;
+                alternate-background-color: #1a202c;
+                color: #f8fafc;
+                border: 1px solid #242c3d;
+                border-radius: 6px;
+                font-size: 12px;
+            }
+            QTreeWidget::item {
+                padding: 5px 2px;
+                background-color: transparent;
+            }
+            QTreeWidget::item:hover {
+                background-color: #1e293b;
+            }
+            QTreeWidget::item:selected {
+                background-color: #2563eb;
+                color: #ffffff;
+                font-weight: bold;
+            }
+            QHeaderView::section {
+                background-color: #0b0f17;
+                color: #cbd5e1;
+                padding: 6px 4px;
+                border: none;
+                border-bottom: 2px solid #334155;
+                border-right: 1px solid #1e293b;
+                font-weight: 700;
+            }
+        """)
+        h_tree = self.tree_lineage_sires.header()
+        h_tree.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for i in range(1, 6):
+            h_tree.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree_lineage_sires.itemClicked.connect(self._on_lineage_sires_tree_clicked)
+        top_layout.addWidget(self.tree_lineage_sires)
+        layout.addWidget(top_box, stretch=1)
+
+        # 下部: 選択された系統の所属種牡馬一覧
+        bot_box = QGroupBox("🐴 所属種牡馬一覧 (行をクリックして選択)")
+        bot_layout = QVBoxLayout(bot_box)
+        bot_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.table_lineage_sires_detail = QTableWidget()
+        self.table_lineage_sires_detail.setColumnCount(9)
+        self.table_lineage_sires_detail.setHorizontalHeaderLabels([
+            "種牡馬名", "年齢", "世代", "繋養年数", "種付け料", "産駒数", "勝馬数", "重賞勝数", "カルテ"
+        ])
+        b_hdr = self.table_lineage_sires_detail.horizontalHeader()
+        b_hdr.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table_lineage_sires_detail.setColumnWidth(0, 160)
+        self.table_lineage_sires_detail.setColumnWidth(1, 55)
+        self.table_lineage_sires_detail.setColumnWidth(2, 55)
+        self.table_lineage_sires_detail.setColumnWidth(3, 75)
+        self.table_lineage_sires_detail.setColumnWidth(4, 95)
+        self.table_lineage_sires_detail.setColumnWidth(5, 65)
+        self.table_lineage_sires_detail.setColumnWidth(6, 65)
+        b_hdr.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        self.table_lineage_sires_detail.setColumnWidth(8, 60)
+
+        self.table_lineage_sires_detail.setAlternatingRowColors(True)
+        self.table_lineage_sires_detail.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        bot_layout.addWidget(self.table_lineage_sires_detail)
+        layout.addWidget(bot_box, stretch=1)
+
+        return widget
+
+    # 4-4. サイアーライン別 繁殖牝馬 サブタブ
+    def _create_lineage_dams_subtab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
+
+        # 上部: 系統別繁殖牝馬集計ツリー (初代種牡馬から段下げ)
+        top_box = QGroupBox("🌸 現在のサイアーライン (父系) 別 繁殖牝馬数・構成割合 (行を選択して下部一覧を表示)")
+        top_layout = QVBoxLayout(top_box)
+        top_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.tree_lineage_dams = QTreeWidget()
+        self.tree_lineage_dams.setHeaderLabels([
+            "サイアーライン (父系)", "繁殖牝馬数", "構成割合", "産駒総勝利数", "勝馬数", "勝ち上がり率", "代表繁殖牝馬"
+        ])
+        self.tree_lineage_dams.setAlternatingRowColors(True)
+        self.tree_lineage_dams.setRootIsDecorated(True)
+        self.tree_lineage_dams.setAnimated(True)
+        self.tree_lineage_dams.setStyleSheet("""
+            QTreeWidget {
+                background-color: #12161f;
+                alternate-background-color: #1a202c;
+                color: #f8fafc;
+                border: 1px solid #242c3d;
+                border-radius: 6px;
+                font-size: 12px;
+            }
+            QTreeWidget::item {
+                padding: 5px 2px;
+                background-color: transparent;
+            }
+            QTreeWidget::item:hover {
+                background-color: #1e293b;
+            }
+            QTreeWidget::item:selected {
+                background-color: #be185d;
+                color: #ffffff;
+                font-weight: bold;
+            }
+            QHeaderView::section {
+                background-color: #0b0f17;
+                color: #cbd5e1;
+                padding: 6px 4px;
+                border: none;
+                border-bottom: 2px solid #334155;
+                border-right: 1px solid #1e293b;
+                font-weight: 700;
+            }
+        """)
+        h_tree = self.tree_lineage_dams.header()
+        h_tree.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for i in range(1, 6):
+            h_tree.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+        h_tree.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        self.tree_lineage_dams.itemClicked.connect(self._on_lineage_dams_tree_clicked)
+        top_layout.addWidget(self.tree_lineage_dams)
+        layout.addWidget(top_box, stretch=1)
+
+        # 下部: 選択された系統の所属繁殖牝馬一覧
+        bot_box = QGroupBox("🌸 所属繁殖牝馬一覧 (行をクリックして選択)")
+        bot_layout = QVBoxLayout(bot_box)
+        bot_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.table_lineage_dams_detail = QTableWidget()
+        self.table_lineage_dams_detail.setColumnCount(9)
+        self.table_lineage_dams_detail.setHorizontalHeaderLabels([
+            "牝馬名", "年齢", "世代", "父馬", "母馬", "産駒数", "勝馬数", "勝ち上がり率", "カルテ"
+        ])
+        b_hdr = self.table_lineage_dams_detail.horizontalHeader()
+        b_hdr.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table_lineage_dams_detail.setColumnWidth(0, 160)
+        self.table_lineage_dams_detail.setColumnWidth(1, 55)
+        self.table_lineage_dams_detail.setColumnWidth(2, 55)
+        self.table_lineage_dams_detail.setColumnWidth(3, 130)
+        self.table_lineage_dams_detail.setColumnWidth(4, 130)
+        self.table_lineage_dams_detail.setColumnWidth(5, 65)
+        self.table_lineage_dams_detail.setColumnWidth(6, 65)
+        b_hdr.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        self.table_lineage_dams_detail.setColumnWidth(8, 60)
+
+        self.table_lineage_dams_detail.setAlternatingRowColors(True)
+        self.table_lineage_dams_detail.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        bot_layout.addWidget(self.table_lineage_dams_detail)
+        layout.addWidget(bot_box, stretch=1)
 
         return widget
 
@@ -911,10 +1290,13 @@ class DatabaseView(QWidget):
             cur_year = (max_y_row["max_year"] or 1) if max_y_row else 1
 
             query = """
-                SELECT s.sire_id, s.horse_id, s.sire_line, s.is_active, s.is_foreign, s.is_new,
-                       sh.name as name, sh.age as age, sh.birth_year, sh.retired_year,
+                SELECT s.sire_id, s.horse_id, s.sire_line, s.start_year, s.is_active, s.is_foreign, s.is_new,
+                       s.generation as s_generation,
+                       sh.name as name, sh.age as age, sh.birth_year, sh.retired_year, sh.generation as h_generation,
                        COUNT(DISTINCT ph.horse_id) as progeny_count,
-                       SUM(CASE WHEN (ph.career_wins > 0) THEN 1 ELSE 0 END) as winners_count,
+                       COUNT(DISTINCT CASE WHEN ph.is_active = 1 THEN ph.horse_id END) as active_progeny_count,
+                       SUM(CASE WHEN (ph.is_active = 1 AND ph.career_wins > 0) THEN 1 ELSE 0 END) as winners_count,
+                       SUM(CASE WHEN (ph.career_wins > 0) THEN 1 ELSE 0 END) as total_winners_count,
                        SUM(ph.g1_wins + ph.g2_wins + ph.g3_wins) as graded_wins,
                        MAX(ph.prize_money) as max_prize
                 FROM sires s
@@ -933,18 +1315,14 @@ class DatabaseView(QWidget):
             for r in rows:
                 p_dict = dict(r)
                 p_cnt = p_dict["progeny_count"] or 0
-                w_cnt = p_dict["winners_count"] or 0
-                p_dict["win_rate_val"] = (w_cnt / p_cnt) if p_cnt > 0 else 0.0
+                act_cnt = p_dict["active_progeny_count"] or 0
+                w_cnt = p_dict["winners_count"] or 0  # 現役馬での勝馬頭数
+                p_dict["win_rate_val"] = (w_cnt / act_cnt) if act_cnt > 0 else 0.0
                 p_dict["graded_wins"] = p_dict["graded_wins"] or 0
 
-                # 繋養年数計算 (debut_year または retired_year または age - 4)
-                ret_year = p_dict.get("retired_year")
-                if ret_year and ret_year > 0:
-                    years_in_service = max(1, cur_year - ret_year + 1)
-                else:
-                    # 初期種牡馬: 年齢等から算出
-                    years_in_service = max(1, cur_year)
-                p_dict["years_in_service"] = years_in_service
+                st_yr = p_dict.get("start_year", 1) or 1
+                p_dict["start_year_val"] = st_yr
+                p_dict["years_in_service"] = max(1, cur_year - st_yr + 1)
                 processed_rows.append(p_dict)
 
             # ソート適用
@@ -961,75 +1339,1227 @@ class DatabaseView(QWidget):
             else:  # progeny_desc (デフォルト)
                 processed_rows.sort(key=lambda x: (not x["is_active"], -x["progeny_count"], -x["winners_count"], x["name"]))
 
+            # 代表産駒を一括取得 (N+1解消)
+            top_prog_map = {}
+            top_prog_rows = conn.execute("""
+                SELECT horse_id, sire_id, name, prize_money, generation
+                FROM horses
+                WHERE sire_id IS NOT NULL AND prize_money > 0
+                ORDER BY prize_money DESC
+            """).fetchall()
+            for pr in top_prog_rows:
+                sid = pr["sire_id"]
+                if sid not in top_prog_map:
+                    top_prog_map[sid] = {
+                        "name": f"{pr['name']} ({(pr['prize_money'] // 10000):,}万円)",
+                        "horse_id": pr["horse_id"],
+                        "generation": pr["generation"] or 1
+                    }
+
         self.table_sires.setRowCount(len(processed_rows))
 
         for idx, r in enumerate(processed_rows):
             s_name = r["name"]
-            if r["is_foreign"]:
-                s_name_display = f"{s_name} [外]"
-                name_col = "#ef4444"
-            elif r["is_new"]:
-                s_name_display = f"{s_name} [新]"
-                name_col = "#22c55e"
+            is_foreign = bool(r.get("is_foreign", 0))
+            is_new = bool(r.get("is_new", 0))
+            gen = r.get("s_generation") or r.get("h_generation") or 1
+
+            if is_foreign:
+                s_name_display = f"🔍 {s_name}(外)"
+                name_col = "#ef4444"  # 海外種牡馬: 赤
             else:
-                s_name_display = s_name
-                name_col = "#f8fafc"
+                s_name_display = f"🔍 {s_name}"
+                name_col = get_generation_color(gen, is_breeding=True, start_year=r.get("start_year_val"))
 
             age_str = f"{r['age']}歳" if r["age"] else "-"
+            st_yr_str = f"{r['start_year_val']}年"
             years_str = f"{r['years_in_service']}年目"
             lineage = r["sire_line"] or "-"
             p_cnt = r["progeny_count"] or 0
             w_cnt = r["winners_count"] or 0
             win_rate = f"{(r['win_rate_val'] * 100):.1f}%" if p_cnt > 0 else "0.0%"
             g_wins = r["graded_wins"] or 0
-
-            # 代表産駒
-            top_prog_name = "-"
-            with self.db.session() as conn:
-                top_prog = conn.execute("""
-                    SELECT name, prize_money FROM horses
-                    WHERE sire_id = ? ORDER BY prize_money DESC LIMIT 1
-                """, (r["horse_id"],)).fetchone()
-                if top_prog and top_prog["prize_money"] > 0:
-                    top_prog_name = f"{top_prog['name']} ({(top_prog['prize_money'] // 10000):,}万円)"
+            
+            top_prog_info = top_prog_map.get(r["horse_id"], {})
+            top_prog_name = top_prog_info.get("name", "-")
+            top_prog_hid = top_prog_info.get("horse_id")
+            top_prog_gen = top_prog_info.get("generation", 1)
 
             name_item = QTableWidgetItem(s_name_display)
             name_item.setForeground(QColor(name_col))
             f = name_item.font()
             f.setBold(True)
             name_item.setFont(f)
+            name_item.setData(Qt.ItemDataRole.UserRole, r["horse_id"])
+
+            rep_item = QTableWidgetItem(top_prog_name)
+            if top_prog_hid:
+                prog_color = get_generation_color(top_prog_gen)
+                rep_item.setForeground(QColor(prog_color))
+                rep_item.setData(Qt.ItemDataRole.UserRole, top_prog_hid)
 
             items = [
                 name_item,
                 QTableWidgetItem(age_str),
+                QTableWidgetItem(st_yr_str),
                 QTableWidgetItem(years_str),
                 QTableWidgetItem(lineage),
                 QTableWidgetItem(str(p_cnt)),
                 QTableWidgetItem(str(w_cnt)),
                 QTableWidgetItem(win_rate),
                 QTableWidgetItem(str(g_wins)),
-                QTableWidgetItem(top_prog_name),
+                rep_item,
             ]
 
             for c_idx, item in enumerate(items):
-                if c_idx not in (0, 8):
+                if c_idx not in (0, 9):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table_sires.setItem(idx, c_idx, item)
 
             hid = r["horse_id"]
+            # カルテ詳細ボタン
+            btn_karte = QPushButton("カルテ")
+            btn_karte.setStyleSheet("background-color: #0284c7; color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 3px; font-weight: bold;")
+            btn_karte.clicked.connect(lambda checked, h_id=hid: self._open_sire_detail(h_id))
+            self.table_sires.setCellWidget(idx, 10, btn_karte)
+
+            # 産駒一覧ボタン
             btn_prog = QPushButton("産駒一覧")
-            btn_prog.setStyleSheet("background-color: #1e293b; color: #38bdf8; font-size: 11px; padding: 2px 6px; border: 1px solid #0284c7; border-radius: 3px;")
+            btn_prog.setStyleSheet("background-color: #1e293b; color: #38bdf8; font-size: 11px; padding: 2px 4px; border: 1px solid #0284c7; border-radius: 3px;")
             btn_prog.clicked.connect(lambda checked, h_id=hid: self._open_progeny_dialog(h_id, is_sire=True))
-            self.table_sires.setCellWidget(idx, 9, btn_prog)
+            self.table_sires.setCellWidget(idx, 11, btn_prog)
 
     # ==========================================
-    # 5. 繁殖牝馬リストタブ (新設)
+    # サイアーライン別 競走馬・種牡馬・繁殖牝馬 集計ロード処理
+    # ==========================================
+    def refresh_lineage_horses(self) -> None:
+        """現在のサイアーライン別 競走馬集計ロード (初代種牡馬から段下げ階層ツリー)"""
+        with self.db.session() as conn:
+            h_rows = conn.execute("SELECT * FROM horses").fetchall()
+            h_cols = [d[0] for d in conn.execute("SELECT * FROM horses LIMIT 1").description]
+            horses_map = {r[h_cols.index("horse_id")]: dict(zip(h_cols, r)) for r in h_rows}
+
+            s_rows = conn.execute("SELECT * FROM sires").fetchall()
+            if s_rows:
+                s_cols = [d[0] for d in conn.execute("SELECT * FROM sires LIMIT 1").description]
+                sires_map = {r[s_cols.index("horse_id")]: dict(zip(s_cols, r)) for r in s_rows}
+            else:
+                sires_map = {}
+
+        # 1. 親子マップと深さ
+        sire_sons_map = defaultdict(list)
+        for hid in sires_map:
+            h = horses_map.get(hid)
+            if h and h.get("sire_id") and h["sire_id"] in sires_map:
+                sire_sons_map[h["sire_id"]].append(hid)
+
+        depth_cache = {}
+        visited_depth = set()
+        def calc_depth(hid):
+            if hid in depth_cache: return depth_cache[hid]
+            if hid in visited_depth: return 0
+            visited_depth.add(hid)
+            sons = sire_sons_map.get(hid, [])
+            if not sons:
+                depth_cache[hid] = 0
+                return 0
+            d = 1 + max(calc_depth(sid) for sid in sons)
+            depth_cache[hid] = d
+            return d
+
+        for hid in sires_map:
+            visited_depth.clear()
+            calc_depth(hid)
+
+        # 始祖
+        root_sires = [
+            hid for hid in sires_map
+            if not horses_map.get(hid, {}).get("sire_id") or horses_map[hid]["sire_id"] not in sires_map
+        ]
+        root_sires.sort(key=lambda x: (horses_map.get(x, {}).get("birth_year", 0), horses_map.get(x, {}).get("name", "")))
+
+        # 2. 現役競走馬の集計
+        active_horses = [h for h in horses_map.values() if h.get("is_active") == 1 and h.get("age", 0) >= 2]
+        total_active_horses = len(active_horses) or 1
+
+        def get_all_sub_sire_ids(target_hid: int) -> Set[int]:
+            res = {target_hid}
+            for sid in sire_sons_map.get(target_hid, []):
+                res.update(get_all_sub_sire_ids(sid))
+            return res
+
+        self._lineage_horses_sub_sires_map = {hid: get_all_sub_sire_ids(hid) for hid in sires_map}
+        self._lineage_horses_data_cache = defaultdict(list)
+        for h in active_horses:
+            f_id = h.get("sire_id")
+            if f_id:
+                for target_hid, sub_ids in self._lineage_horses_sub_sires_map.items():
+                    if f_id in sub_ids:
+                        self._lineage_horses_data_cache[target_hid].append(h)
+
+        self._lineage_horses_root_sires = root_sires
+        self._lineage_horses_horses_map = horses_map
+        self._lineage_horses_depth_cache = depth_cache
+        self._lineage_horses_sire_sons_map = sire_sons_map
+        self._lineage_horses_total_cnt = total_active_horses
+
+        self.tree_lineage_horses.clear()
+
+        for root_id in root_sires:
+            h = horses_map.get(root_id)
+            if not h: continue
+
+            root_name = h.get("name", "不明")
+            h_list = self._lineage_horses_data_cache.get(root_id, [])
+            cnt = len(h_list)
+            # 断絶（所属現役競走馬が0頭）の系統は表示しない
+            if cnt == 0:
+                continue
+
+            share_pct = f"{(cnt / total_active_horses * 100):.1f}%"
+            wins = sum(x.get("career_wins", 0) for x in h_list)
+            g1 = sum(x.get("g1_wins", 0) for x in h_list)
+            graded = sum((x.get("g1_wins", 0) + x.get("g2_wins", 0) + x.get("g3_wins", 0)) for x in h_list)
+            prz_str = f"{(sum(x.get('prize_money', 0) for x in h_list) // 10000):,}万円"
+
+            root_item = QTreeWidgetItem()
+            root_item.setText(0, f"🧬 {root_name}系")
+            root_item.setText(1, f"{cnt:,}頭")
+            root_item.setText(2, share_pct)
+            root_item.setText(3, f"{wins}勝")
+            root_item.setText(4, f"{g1}勝")
+            root_item.setText(5, f"{graded}勝")
+            root_item.setText(6, prz_str)
+            root_item.setData(0, Qt.ItemDataRole.UserRole, root_id)
+
+            for col in range(1, 7):
+                root_item.setTextAlignment(col, Qt.AlignmentFlag.AlignCenter)
+
+            visited_sub = set()
+            def add_child_lines(parent_item, parent_hid):
+                def find_next_lines(curr_hid):
+                    lines = []
+                    for son_id in sire_sons_map.get(curr_hid, []):
+                        if son_id in visited_sub: continue
+                        visited_sub.add(son_id)
+                        if depth_cache.get(son_id, 0) >= 2:
+                            lines.append(son_id)
+                        else:
+                            lines.extend(find_next_lines(son_id))
+                    return lines
+
+                sub_line_ids = find_next_lines(parent_hid)
+                for sub_id in sub_line_ids:
+                    sub_h = horses_map.get(sub_id)
+                    if not sub_h: continue
+                    sub_list = self._lineage_horses_data_cache.get(sub_id, [])
+                    sub_cnt = len(sub_list)
+                    # 断絶（所属頭数0頭）の子系統は表示しない
+                    if sub_cnt == 0:
+                        continue
+
+                    sub_share = f"{(sub_cnt / total_active_horses * 100):.1f}%"
+                    sub_wins = sum(x.get("career_wins", 0) for x in sub_list)
+                    sub_g1 = sum(x.get("g1_wins", 0) for x in sub_list)
+                    sub_graded = sum((x.get("g1_wins", 0) + x.get("g2_wins", 0) + x.get("g3_wins", 0)) for x in sub_list)
+                    sub_prz = f"{(sum(x.get('prize_money', 0) for x in sub_list) // 10000):,}万円"
+
+                    sub_item = QTreeWidgetItem(parent_item)
+                    sub_item.setText(0, f"└ {sub_h.get('name', '')}系")
+                    sub_item.setText(1, f"{sub_cnt:,}頭")
+                    sub_item.setText(2, sub_share)
+                    sub_item.setText(3, f"{sub_wins}勝")
+                    sub_item.setText(4, f"{sub_g1}勝")
+                    sub_item.setText(5, f"{sub_graded}勝")
+                    sub_item.setText(6, sub_prz)
+                    sub_item.setData(0, Qt.ItemDataRole.UserRole, sub_id)
+
+                    for col in range(1, 7):
+                        sub_item.setTextAlignment(col, Qt.AlignmentFlag.AlignCenter)
+
+                    add_child_lines(sub_item, sub_id)
+
+            add_child_lines(root_item, root_id)
+            self.tree_lineage_horses.addTopLevelItem(root_item)
+            root_item.setExpanded(True)
+
+        if self.tree_lineage_horses.topLevelItemCount() > 0:
+            first_it = self.tree_lineage_horses.topLevelItem(0)
+            self.tree_lineage_horses.setCurrentItem(first_it)
+            hid = first_it.data(0, Qt.ItemDataRole.UserRole)
+            if hid: self._load_lineage_horses_by_hid(hid)
+
+    def _on_lineage_horses_tree_clicked(self, item: QTreeWidgetItem, col: int) -> None:
+        hid = item.data(0, Qt.ItemDataRole.UserRole)
+        if hid:
+            self._load_lineage_horses_by_hid(hid)
+
+    def _load_lineage_horses_by_hid(self, hid: int) -> None:
+        """選択された系統の所属現役競走馬一覧を表示"""
+        h_info = getattr(self, "_lineage_horses_horses_map", {}).get(hid, {})
+        line_name = f"{h_info.get('name', '不明')}系"
+
+        horses_list = getattr(self, "_lineage_horses_data_cache", {}).get(hid, [])
+        horses_list = sorted(horses_list, key=lambda x: (-(x.get("prize_money") or 0), -(x.get("career_wins") or 0)))
+
+        sex_map = {"colt": "牡", "filly": "牝", "horse": "牡", "mare": "牝", "gelding": "セ"}
+        self.table_lineage_horses_detail.setRowCount(len(horses_list))
+
+        for idx, r in enumerate(horses_list):
+            h_name = r.get("name", "")
+            gen = r.get("generation", 1) or 1
+            name_col = get_generation_color(gen)
+            sex_age = f"{sex_map.get(r.get('sex'), '')}{r.get('age', '')}"
+            gen_str = f"第{gen}世代"
+
+            wins = r.get("career_wins", 0) or 0
+            cond_prz = r.get("condition_prize_money", 0) or 0
+            if (r.get("g1_wins") or 0) > 0 or (r.get("g2_wins") or 0) > 0 or (r.get("g3_wins") or 0) > 0 or wins >= 4 or cond_prz >= 16_000_000:
+                cls_str = "オープン"
+                cls_col = "#facc15"
+            elif wins >= 3 or cond_prz >= 10_000_000:
+                cls_str = "3勝クラス"
+                cls_col = "#c084fc"
+            elif wins >= 2 or cond_prz >= 5_000_000:
+                cls_str = "2勝クラス"
+                cls_col = "#4ade80"
+            elif wins >= 1:
+                cls_str = "1勝クラス"
+                cls_col = "#60a5fa"
+            else:
+                cls_str = "未勝利"
+                cls_col = "#94a3b8"
+
+            s_id = r.get("sire_id")
+            s_name = self._lineage_horses_horses_map.get(s_id, {}).get("name", "-") if s_id else "-"
+            d_id = r.get("dam_id")
+            d_name = self._lineage_horses_horses_map.get(d_id, {}).get("name", "-") if d_id else "-"
+            rec_str = f"{r.get('career_starts', 0)}戦{wins}勝"
+            prize_str = f"{(r.get('prize_money', 0) or 0) // 10000:,} 万円"
+
+            name_item = QTableWidgetItem(h_name)
+            name_item.setForeground(QColor(name_col))
+            f = name_item.font()
+            f.setBold(True)
+            name_item.setFont(f)
+            name_item.setData(Qt.ItemDataRole.UserRole, r.get("horse_id"))
+
+            cls_item = QTableWidgetItem(cls_str)
+            cls_item.setForeground(QColor(cls_col))
+            f_c = cls_item.font()
+            f_c.setBold(True)
+            cls_item.setFont(f_c)
+
+            items = [
+                name_item,
+                QTableWidgetItem(sex_age),
+                QTableWidgetItem(gen_str),
+                cls_item,
+                QTableWidgetItem(s_name),
+                QTableWidgetItem(d_name),
+                QTableWidgetItem(rec_str),
+                QTableWidgetItem(prize_str),
+            ]
+            for c_idx, it in enumerate(items):
+                if c_idx not in (0, 4, 5):
+                    it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table_lineage_horses_detail.setItem(idx, c_idx, it)
+
+            hid_target = r.get("horse_id")
+            btn_det = QPushButton("詳細")
+            btn_det.setStyleSheet("background-color: #1e293b; color: #38bdf8; font-size: 11px; padding: 2px 6px; border: 1px solid #0284c7; border-radius: 3px;")
+            btn_det.clicked.connect(lambda checked, h_id=hid_target: self._open_horse_detail(h_id))
+            self.table_lineage_horses_detail.setCellWidget(idx, 8, btn_det)
+
+    def _on_lineage_horses_detail_double_clicked(self, row: int, col: int) -> None:
+        item = self.table_lineage_horses_detail.item(row, 0)
+        if item:
+            hid = item.data(Qt.ItemDataRole.UserRole)
+            if hid:
+                self._open_horse_detail(hid)
+
+    def refresh_lineage_sires(self) -> None:
+        """現在のサイアーライン別 種牡馬集計ロード (初代種牡馬から段下げ階層ツリー)"""
+        with self.db.session() as conn:
+            h_rows = conn.execute("SELECT * FROM horses").fetchall()
+            h_cols = [d[0] for d in conn.execute("SELECT * FROM horses LIMIT 1").description]
+            horses_map = {r[h_cols.index("horse_id")]: dict(zip(h_cols, r)) for r in h_rows}
+
+            s_rows = conn.execute("SELECT * FROM sires").fetchall()
+            if s_rows:
+                s_cols = [d[0] for d in conn.execute("SELECT * FROM sires LIMIT 1").description]
+                sires_map = {r[s_cols.index("horse_id")]: dict(zip(s_cols, r)) for r in s_rows}
+            else:
+                sires_map = {}
+
+            prog_stat_rows = conn.execute("""
+                SELECT sire_id,
+                       COUNT(DISTINCT horse_id) as progeny_count,
+                       SUM(CASE WHEN career_wins > 0 THEN 1 ELSE 0 END) as winners_count,
+                       SUM(career_wins) as p_wins,
+                       SUM(g1_wins + g2_wins + g3_wins) as graded_wins
+                FROM horses
+                WHERE sire_id IS NOT NULL
+                GROUP BY sire_id
+            """).fetchall()
+            prog_map = {r["sire_id"]: dict(r) for r in prog_stat_rows}
+
+        # 1. 親子マップと深さ
+        sire_sons_map = defaultdict(list)
+        for hid in sires_map:
+            h = horses_map.get(hid)
+            if h and h.get("sire_id") and h["sire_id"] in sires_map:
+                sire_sons_map[h["sire_id"]].append(hid)
+
+        depth_cache = {}
+        visited_depth = set()
+        def calc_depth(hid):
+            if hid in depth_cache: return depth_cache[hid]
+            if hid in visited_depth: return 0
+            visited_depth.add(hid)
+            sons = sire_sons_map.get(hid, [])
+            if not sons:
+                depth_cache[hid] = 0
+                return 0
+            d = 1 + max(calc_depth(sid) for sid in sons)
+            depth_cache[hid] = d
+            return d
+
+        for hid in sires_map:
+            visited_depth.clear()
+            calc_depth(hid)
+
+        root_sires = [
+            hid for hid in sires_map
+            if not horses_map.get(hid, {}).get("sire_id") or horses_map[hid]["sire_id"] not in sires_map
+        ]
+        root_sires.sort(key=lambda x: (horses_map.get(x, {}).get("birth_year", 0), horses_map.get(x, {}).get("name", "")))
+
+        def get_all_sub_sire_ids(target_hid: int) -> Set[int]:
+            res = {target_hid}
+            for sid in sire_sons_map.get(target_hid, []):
+                res.update(get_all_sub_sire_ids(sid))
+            return res
+
+        self._lineage_sires_sub_sires_map = {hid: get_all_sub_sire_ids(hid) for hid in sires_map}
+        self._lineage_sires_data_cache = defaultdict(list)
+        for hid, s in sires_map.items():
+            if s.get("is_active"):
+                for target_hid, sub_ids in self._lineage_sires_sub_sires_map.items():
+                    if hid in sub_ids:
+                        h_data = horses_map.get(hid, {})
+                        p_info = prog_map.get(hid, {})
+                        self._lineage_sires_data_cache[target_hid].append({
+                            **h_data, **s,
+                            "p_cnt": p_info.get("progeny_count", 0),
+                            "w_cnt": p_info.get("winners_count", 0),
+                            "p_wins": p_info.get("p_wins", 0),
+                            "p_graded": p_info.get("graded_wins", 0),
+                        })
+
+        active_sires_total = sum(1 for s in sires_map.values() if s.get("is_active")) or 1
+
+        self._lineage_sires_root_sires = root_sires
+        self._lineage_sires_sires_map = sires_map
+        self._lineage_sires_horses_map = horses_map
+        self._lineage_sires_depth_cache = depth_cache
+        self._lineage_sires_sire_sons_map = sire_sons_map
+        self._lineage_sires_total_cnt = active_sires_total
+
+        self.tree_lineage_sires.clear()
+
+        for root_id in root_sires:
+            h = horses_map.get(root_id)
+            if not h: continue
+
+            root_name = h.get("name", "不明")
+            s_list = self._lineage_sires_data_cache.get(root_id, [])
+            cnt = len(s_list)
+            # 断絶（供用中種牡馬が0頭）の系統は表示しない
+            if cnt == 0:
+                continue
+
+            share_pct = f"{(cnt / active_sires_total * 100):.1f}%"
+            self_g = sum((x.get("g1_wins", 0) + x.get("g2_wins", 0) + x.get("g3_wins", 0)) for x in s_list)
+            p_g = sum(x.get("p_graded", 0) for x in s_list)
+            p_wins = sum(x.get("p_wins", 0) for x in s_list)
+
+            root_item = QTreeWidgetItem()
+            root_item.setText(0, f"🐴 {root_name}系")
+            root_item.setText(1, f"{cnt:,}頭")
+            root_item.setText(2, share_pct)
+            root_item.setText(3, f"{self_g}勝")
+            root_item.setText(4, f"{p_g}勝")
+            root_item.setText(5, f"{p_wins}勝")
+            root_item.setData(0, Qt.ItemDataRole.UserRole, root_id)
+
+            for col in range(1, 6):
+                root_item.setTextAlignment(col, Qt.AlignmentFlag.AlignCenter)
+
+            visited_sub = set()
+            def add_child_lines(parent_item, parent_hid):
+                def find_next_lines(curr_hid):
+                    lines = []
+                    for son_id in sire_sons_map.get(curr_hid, []):
+                        if son_id in visited_sub: continue
+                        visited_sub.add(son_id)
+                        if depth_cache.get(son_id, 0) >= 2:
+                            lines.append(son_id)
+                        else:
+                            lines.extend(find_next_lines(son_id))
+                    return lines
+
+                sub_line_ids = find_next_lines(parent_hid)
+                for sub_id in sub_line_ids:
+                    sub_h = horses_map.get(sub_id)
+                    if not sub_h: continue
+                    sub_list = self._lineage_sires_data_cache.get(sub_id, [])
+                    sub_cnt = len(sub_list)
+                    # 断絶（供用中種牡馬が0頭）の子系統は表示しない
+                    if sub_cnt == 0:
+                        continue
+
+                    sub_share = f"{(sub_cnt / active_sires_total * 100):.1f}%"
+                    sub_self_g = sum((x.get("g1_wins", 0) + x.get("g2_wins", 0) + x.get("g3_wins", 0)) for x in sub_list)
+                    sub_p_g = sum(x.get("p_graded", 0) for x in sub_list)
+                    sub_p_wins = sum(x.get("p_wins", 0) for x in sub_list)
+
+                    sub_item = QTreeWidgetItem(parent_item)
+                    sub_item.setText(0, f"└ {sub_h.get('name', '')}系")
+                    sub_item.setText(1, f"{sub_cnt:,}頭")
+                    sub_item.setText(2, sub_share)
+                    sub_item.setText(3, f"{sub_self_g}勝")
+                    sub_item.setText(4, f"{sub_p_g}勝")
+                    sub_item.setText(5, f"{sub_p_wins}勝")
+                    sub_item.setData(0, Qt.ItemDataRole.UserRole, sub_id)
+
+                    for col in range(1, 6):
+                        sub_item.setTextAlignment(col, Qt.AlignmentFlag.AlignCenter)
+
+                    add_child_lines(sub_item, sub_id)
+
+            add_child_lines(root_item, root_id)
+            self.tree_lineage_sires.addTopLevelItem(root_item)
+            root_item.setExpanded(True)
+
+        if self.tree_lineage_sires.topLevelItemCount() > 0:
+            first_it = self.tree_lineage_sires.topLevelItem(0)
+            self.tree_lineage_sires.setCurrentItem(first_it)
+            hid = first_it.data(0, Qt.ItemDataRole.UserRole)
+            if hid: self._load_lineage_sires_by_hid(hid)
+
+    def _on_lineage_sires_tree_clicked(self, item: QTreeWidgetItem, col: int) -> None:
+        hid = item.data(0, Qt.ItemDataRole.UserRole)
+        if hid:
+            self._load_lineage_sires_by_hid(hid)
+
+    def _load_lineage_sires_by_hid(self, hid: int) -> None:
+        """選択された系統の所属種牡馬一覧を表示"""
+        h_info = getattr(self, "_lineage_sires_horses_map", {}).get(hid, {})
+        line_name = f"{h_info.get('name', '不明')}系"
+
+        sires_list = getattr(self, "_lineage_sires_data_cache", {}).get(hid, [])
+        sires_list = sorted(sires_list, key=lambda x: -(x.get("stud_fee") or 0))
+
+        with self.db.session() as conn:
+            max_y_row = conn.execute("SELECT MAX(year) as max_year FROM races").fetchone()
+            cur_year = (max_y_row["max_year"] or 1) if max_y_row else 1
+
+        self.table_lineage_sires_detail.setRowCount(len(sires_list))
+        for idx, r in enumerate(sires_list):
+            s_name = r.get("name", "")
+            gen = r.get("generation", 1) or 1
+            st_yr = r.get("start_year", 1) or 1
+            name_col = get_generation_color(gen, is_breeding=True, start_year=st_yr)
+            age_str = f"{r.get('age')}歳" if r.get("age") else "-"
+            gen_str = f"第{gen}世代"
+            years_str = f"{max(1, cur_year - st_yr + 1)}年目"
+            fee_str = f"{(r.get('stud_fee') or 0) // 10000:,} 万円"
+            p_cnt = str(r.get("p_cnt", 0))
+            w_cnt = str(r.get("w_cnt", 0))
+            g_wins = str(r.get("p_graded", 0))
+
+            name_item = QTableWidgetItem(f"🐴 {s_name}")
+            name_item.setForeground(QColor(name_col))
+            f = name_item.font()
+            f.setBold(True)
+            name_item.setFont(f)
+            name_item.setData(Qt.ItemDataRole.UserRole, r.get("horse_id"))
+
+            items = [
+                name_item,
+                QTableWidgetItem(age_str),
+                QTableWidgetItem(gen_str),
+                QTableWidgetItem(years_str),
+                QTableWidgetItem(fee_str),
+                QTableWidgetItem(p_cnt),
+                QTableWidgetItem(w_cnt),
+                QTableWidgetItem(g_wins),
+            ]
+            for c_idx, it in enumerate(items):
+                if c_idx != 0:
+                    it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table_lineage_sires_detail.setItem(idx, c_idx, it)
+
+            hid_target = r.get("horse_id")
+            btn_karte = QPushButton("カルテ")
+            btn_karte.setStyleSheet("background-color: #0284c7; color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 3px; font-weight: bold;")
+            btn_karte.clicked.connect(lambda checked, h_id=hid_target: self._open_sire_detail(h_id))
+            self.table_lineage_sires_detail.setCellWidget(idx, 8, btn_karte)
+
+    def refresh_lineage_dams(self) -> None:
+        """現在のサイアーライン別 繁殖牝馬集計ロード (初代種牡馬から段下げ階層ツリー)"""
+        with self.db.session() as conn:
+            h_rows = conn.execute("SELECT * FROM horses").fetchall()
+            h_cols = [d[0] for d in conn.execute("SELECT * FROM horses LIMIT 1").description]
+            horses_map = {r[h_cols.index("horse_id")]: dict(zip(h_cols, r)) for r in h_rows}
+
+            s_rows = conn.execute("SELECT * FROM sires").fetchall()
+            sires_map = {r["horse_id"]: dict(r) for r in s_rows} if s_rows else {}
+
+            d_rows = conn.execute("SELECT * FROM dams WHERE is_active = 1").fetchall()
+            dams_list = [dict(r) for r in d_rows] if d_rows else []
+
+            # 産駒成績の集計
+            prog_stat_rows = conn.execute("""
+                SELECT dam_id,
+                       COUNT(horse_id) as p_count,
+                       COUNT(CASE WHEN is_active = 1 THEN horse_id END) as p_active_count,
+                       SUM(career_wins) as p_wins,
+                       SUM(CASE WHEN is_active = 1 AND career_wins > 0 THEN 1 ELSE 0 END) as p_winners
+                FROM horses
+                WHERE dam_id IS NOT NULL
+                GROUP BY dam_id
+            """).fetchall()
+            prog_map = {r["dam_id"]: dict(r) for r in prog_stat_rows}
+
+        # 1. 親子マップと深さ
+        sire_sons_map = defaultdict(list)
+        for hid in sires_map:
+            h = horses_map.get(hid)
+            if h and h.get("sire_id") and h["sire_id"] in sires_map:
+                sire_sons_map[h["sire_id"]].append(hid)
+
+        depth_cache = {}
+        visited_depth = set()
+        def calc_depth(hid):
+            if hid in depth_cache: return depth_cache[hid]
+            if hid in visited_depth: return 0
+            visited_depth.add(hid)
+            sons = sire_sons_map.get(hid, [])
+            if not sons:
+                depth_cache[hid] = 0
+                return 0
+            d = 1 + max(calc_depth(sid) for sid in sons)
+            depth_cache[hid] = d
+            return d
+
+        for hid in sires_map:
+            visited_depth.clear()
+            calc_depth(hid)
+
+        root_sires = [
+            hid for hid in sires_map
+            if not horses_map.get(hid, {}).get("sire_id") or horses_map[hid]["sire_id"] not in sires_map
+        ]
+        root_sires.sort(key=lambda x: (horses_map.get(x, {}).get("birth_year", 0), horses_map.get(x, {}).get("name", "")))
+
+        def get_all_sub_sire_ids(target_hid: int) -> Set[int]:
+            res = {target_hid}
+            for sid in sire_sons_map.get(target_hid, []):
+                res.update(get_all_sub_sire_ids(sid))
+            return res
+
+        self._lineage_dams_sub_sires_map = {hid: get_all_sub_sire_ids(hid) for hid in sires_map}
+        self._lineage_dams_data_cache = defaultdict(list)
+
+        for d in dams_list:
+            dh = horses_map.get(d["horse_id"], {})
+            f_id = dh.get("sire_id")
+            p_info = prog_map.get(d["horse_id"], {})
+            dam_entry = {
+                **dh, **d,
+                "p_cnt": p_info.get("p_count", 0),
+                "act_p_cnt": p_info.get("p_active_count", 0),
+                "p_wins": p_info.get("p_wins", 0),
+                "w_cnt": p_info.get("p_winners", 0),
+            }
+            if f_id:
+                for target_hid, sub_ids in self._lineage_dams_sub_sires_map.items():
+                    if f_id in sub_ids:
+                        self._lineage_dams_data_cache[target_hid].append(dam_entry)
+
+        total_active_dams = len(dams_list) or 1
+        self._lineage_dams_root_sires = root_sires
+        self._lineage_dams_horses_map = horses_map
+        self._lineage_dams_depth_cache = depth_cache
+        self._lineage_dams_sire_sons_map = sire_sons_map
+        self._lineage_dams_total_cnt = total_active_dams
+
+        self.tree_lineage_dams.clear()
+
+        for root_id in root_sires:
+            h = horses_map.get(root_id)
+            if not h: continue
+
+            root_name = h.get("name", "不明")
+            d_list = self._lineage_dams_data_cache.get(root_id, [])
+            cnt = len(d_list)
+            # 断絶（供用中繁殖牝馬が0頭）の系統は表示しない
+            if cnt == 0:
+                continue
+
+            share_pct = f"{(cnt / total_active_dams * 100):.1f}%"
+            p_wins = sum(x.get("p_wins", 0) for x in d_list)
+            w_cnt = sum(x.get("w_cnt", 0) for x in d_list)
+            act_p_cnt = sum(x.get("act_p_cnt", 0) for x in d_list)
+            win_rate = f"{(w_cnt / act_p_cnt * 100):.1f}%" if act_p_cnt > 0 else "0.0%"
+
+            rep_dam_str = "-"
+            if d_list:
+                rep_dam = max(d_list, key=lambda x: (x.get("p_wins", 0), x.get("p_cnt", 0)))
+                rep_dam_str = f"{rep_dam.get('name', '')} (産駒{rep_dam.get('p_wins', 0)}勝)"
+
+            root_item = QTreeWidgetItem()
+            root_item.setText(0, f"🌸 {root_name}系")
+            root_item.setText(1, f"{cnt:,}頭")
+            root_item.setText(2, share_pct)
+            root_item.setText(3, f"{p_wins}勝")
+            root_item.setText(4, f"{w_cnt}頭")
+            root_item.setText(5, win_rate)
+            root_item.setText(6, rep_dam_str)
+            root_item.setData(0, Qt.ItemDataRole.UserRole, root_id)
+
+            for col in range(1, 6):
+                root_item.setTextAlignment(col, Qt.AlignmentFlag.AlignCenter)
+
+            visited_sub = set()
+            def add_child_lines(parent_item, parent_hid):
+                def find_next_lines(curr_hid):
+                    lines = []
+                    for son_id in sire_sons_map.get(curr_hid, []):
+                        if son_id in visited_sub: continue
+                        visited_sub.add(son_id)
+                        if depth_cache.get(son_id, 0) >= 2:
+                            lines.append(son_id)
+                        else:
+                            lines.extend(find_next_lines(son_id))
+                    return lines
+
+                sub_line_ids = find_next_lines(parent_hid)
+                for sub_id in sub_line_ids:
+                    sub_h = horses_map.get(sub_id)
+                    if not sub_h: continue
+                    sub_list = self._lineage_dams_data_cache.get(sub_id, [])
+                    sub_cnt = len(sub_list)
+                    # 断絶（供用中繁殖牝馬が0頭）の子系統は表示しない
+                    if sub_cnt == 0:
+                        continue
+
+                    sub_share = f"{(sub_cnt / total_active_dams * 100):.1f}%"
+                    sub_p_wins = sum(x.get("p_wins", 0) for x in sub_list)
+                    sub_w_cnt = sum(x.get("w_cnt", 0) for x in sub_list)
+                    sub_act_p = sum(x.get("act_p_cnt", 0) for x in sub_list)
+                    sub_win_rate = f"{(sub_w_cnt / sub_act_p * 100):.1f}%" if sub_act_p > 0 else "0.0%"
+
+                    sub_rep = "-"
+                    if sub_list:
+                        rep_d = max(sub_list, key=lambda x: (x.get("p_wins", 0), x.get("p_cnt", 0)))
+                        sub_rep = f"{rep_d.get('name', '')} (産駒{rep_d.get('p_wins', 0)}勝)"
+
+                    sub_item = QTreeWidgetItem(parent_item)
+                    sub_item.setText(0, f"└ {sub_h.get('name', '')}系")
+                    sub_item.setText(1, f"{sub_cnt:,}頭")
+                    sub_item.setText(2, sub_share)
+                    sub_item.setText(3, f"{sub_p_wins}勝")
+                    sub_item.setText(4, f"{sub_w_cnt}頭")
+                    sub_item.setText(5, sub_win_rate)
+                    sub_item.setText(6, sub_rep)
+                    sub_item.setData(0, Qt.ItemDataRole.UserRole, sub_id)
+
+                    for col in range(1, 6):
+                        sub_item.setTextAlignment(col, Qt.AlignmentFlag.AlignCenter)
+
+                    add_child_lines(sub_item, sub_id)
+
+            add_child_lines(root_item, root_id)
+            self.tree_lineage_dams.addTopLevelItem(root_item)
+            root_item.setExpanded(True)
+
+        if self.tree_lineage_dams.topLevelItemCount() > 0:
+            first_it = self.tree_lineage_dams.topLevelItem(0)
+            self.tree_lineage_dams.setCurrentItem(first_it)
+            hid = first_it.data(0, Qt.ItemDataRole.UserRole)
+            if hid: self._load_lineage_dams_by_hid(hid)
+
+    def _on_lineage_dams_tree_clicked(self, item: QTreeWidgetItem, col: int) -> None:
+        hid = item.data(0, Qt.ItemDataRole.UserRole)
+        if hid:
+            self._load_lineage_dams_by_hid(hid)
+
+    def _load_lineage_dams_by_hid(self, hid: int) -> None:
+        """選択された系統の所属繁殖牝馬一覧を表示"""
+        dams_list = getattr(self, "_lineage_dams_data_cache", {}).get(hid, [])
+        dams_list = sorted(dams_list, key=lambda x: (-(x.get("p_wins") or 0), -(x.get("p_cnt") or 0)))
+
+        self.table_lineage_dams_detail.setRowCount(len(dams_list))
+        for idx, r in enumerate(dams_list):
+            d_name = r.get("name", "")
+            gen = r.get("d_generation") or r.get("generation") or 1
+            st_yr = r.get("start_year") or 1
+            name_col = get_generation_color(gen, is_breeding=True, start_year=st_yr)
+            age_str = f"{r.get('age')}歳" if r.get("age") else "-"
+            gen_str = f"第{gen}世代"
+
+            s_id = r.get("sire_id")
+            s_name = self._lineage_dams_horses_map.get(s_id, {}).get("name", "-") if s_id else "-"
+            d_id = r.get("dam_id")
+            dam_mother_name = self._lineage_dams_horses_map.get(d_id, {}).get("name", "-") if d_id else "-"
+
+            p_cnt = r.get("p_cnt", 0)
+            w_cnt = r.get("w_cnt", 0)
+            act_cnt = r.get("act_p_cnt", 0)
+            win_rate = f"{(w_cnt / act_cnt * 100):.1f}%" if act_cnt > 0 else "0.0%"
+
+            name_item = QTableWidgetItem(f"🌸 {d_name}")
+            name_item.setForeground(QColor(name_col))
+            f = name_item.font()
+            f.setBold(True)
+            name_item.setFont(f)
+            name_item.setData(Qt.ItemDataRole.UserRole, r.get("horse_id"))
+
+            items = [
+                name_item,
+                QTableWidgetItem(age_str),
+                QTableWidgetItem(gen_str),
+                QTableWidgetItem(s_name),
+                QTableWidgetItem(dam_mother_name),
+                QTableWidgetItem(str(p_cnt)),
+                QTableWidgetItem(str(w_cnt)),
+                QTableWidgetItem(win_rate),
+            ]
+            for c_idx, it in enumerate(items):
+                if c_idx not in (0, 3, 4):
+                    it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table_lineage_dams_detail.setItem(idx, c_idx, it)
+
+            hid_target = r.get("horse_id")
+            btn_karte = QPushButton("カルテ")
+            btn_karte.setStyleSheet("background-color: #db2777; color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 3px; font-weight: bold;")
+            btn_karte.clicked.connect(lambda checked, h_id=hid_target: self._open_dam_detail(h_id))
+            self.table_lineage_dams_detail.setCellWidget(idx, 8, btn_karte)
+
+    # ==========================================
+    # 5-3. ファミリーナンバー別 繁殖牝馬 サブタブ & 集計処理 (新設)
+    # ==========================================
+    def _create_family_dams_subtab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
+
+        # 上部: ファミリーナンバー(族)別 繁殖牝馬集計ツリー (始祖馬が族名)
+        top_box = QGroupBox("🌸 現在のファミリーナンバー (族) 別 繁殖牝馬数・構成割合 (行を選択して下部一覧を表示)")
+        top_layout = QVBoxLayout(top_box)
+        top_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.tree_family_dams = QTreeWidget()
+        self.tree_family_dams.setHeaderLabels([
+            "ファミリーナンバー (族)", "繁殖牝馬数", "構成割合", "深さ(世代)", "産駒総勝利数", "勝馬数", "勝ち上がり率", "代表繁殖牝馬"
+        ])
+        self.tree_family_dams.setAlternatingRowColors(True)
+        self.tree_family_dams.setRootIsDecorated(True)
+        self.tree_family_dams.setAnimated(True)
+        self.tree_family_dams.setStyleSheet("""
+            QTreeWidget {
+                background-color: #12161f;
+                alternate-background-color: #1a202c;
+                color: #f8fafc;
+                border: 1px solid #242c3d;
+                border-radius: 6px;
+                font-size: 12px;
+            }
+            QTreeWidget::item {
+                padding: 5px 2px;
+                background-color: transparent;
+            }
+            QTreeWidget::item:hover {
+                background-color: #1e293b;
+            }
+            QTreeWidget::item:selected {
+                background-color: #be185d;
+                color: #ffffff;
+                font-weight: bold;
+            }
+            QHeaderView::section {
+                background-color: #0b0f17;
+                color: #cbd5e1;
+                padding: 6px 4px;
+                border: none;
+                border-bottom: 2px solid #334155;
+                border-right: 1px solid #1e293b;
+                font-weight: 700;
+            }
+        """)
+        h_tree = self.tree_family_dams.header()
+        h_tree.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for i in range(1, 7):
+            h_tree.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+        h_tree.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        self.tree_family_dams.itemClicked.connect(self._on_family_dams_tree_clicked)
+        top_layout.addWidget(self.tree_family_dams)
+        layout.addWidget(top_box, stretch=1)
+
+        # 下部: 選択された族の所属繁殖牝馬一覧
+        bot_box = QGroupBox("🌸 所属繁殖牝馬一覧 (行をクリックして選択)")
+        bot_layout = QVBoxLayout(bot_box)
+        bot_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.table_family_dams_detail = QTableWidget()
+        self.table_family_dams_detail.setColumnCount(9)
+        self.table_family_dams_detail.setHorizontalHeaderLabels([
+            "牝馬名", "年齢", "世代", "父馬", "母馬", "産駒数", "勝馬数", "勝ち上がり率", "カルテ"
+        ])
+        b_hdr = self.table_family_dams_detail.horizontalHeader()
+        b_hdr.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table_family_dams_detail.setColumnWidth(0, 160)
+        self.table_family_dams_detail.setColumnWidth(1, 55)
+        self.table_family_dams_detail.setColumnWidth(2, 55)
+        self.table_family_dams_detail.setColumnWidth(3, 130)
+        self.table_family_dams_detail.setColumnWidth(4, 130)
+        self.table_family_dams_detail.setColumnWidth(5, 65)
+        self.table_family_dams_detail.setColumnWidth(6, 65)
+        b_hdr.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        self.table_family_dams_detail.setColumnWidth(8, 60)
+
+        self.table_family_dams_detail.setAlternatingRowColors(True)
+        self.table_family_dams_detail.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        bot_layout.addWidget(self.table_family_dams_detail)
+        layout.addWidget(bot_box, stretch=1)
+
+        return widget
+
+    def refresh_family_dams(self) -> None:
+        """現在のファミリーナンバー別 繁殖牝馬集計ロード"""
+        with self.db.session() as conn:
+            h_rows = conn.execute("SELECT * FROM horses").fetchall()
+            h_cols = [d[0] for d in conn.execute("SELECT * FROM horses LIMIT 1").description]
+            horses_map = {r[h_cols.index("horse_id")]: dict(zip(h_cols, r)) for r in h_rows}
+
+            d_all_rows = conn.execute("SELECT * FROM dams").fetchall()
+            d_cols = [d[0] for d in conn.execute("SELECT * FROM dams LIMIT 1").description]
+            dams_map = {r[d_cols.index("horse_id")]: dict(zip(d_cols, r)) for r in d_all_rows}
+
+            # 産駒成績の集計
+            prog_stat_rows = conn.execute("""
+                SELECT dam_id,
+                       COUNT(horse_id) as p_count,
+                       COUNT(CASE WHEN is_active = 1 THEN horse_id END) as p_active_count,
+                       SUM(career_wins) as p_wins,
+                       SUM(CASE WHEN is_active = 1 AND career_wins > 0 THEN 1 ELSE 0 END) as p_winners
+                FROM horses
+                WHERE dam_id IS NOT NULL
+                GROUP BY dam_id
+            """).fetchall()
+            prog_map = {r["dam_id"]: dict(r) for r in prog_stat_rows}
+
+        # 1. 繁殖牝馬間の親子マップ構築
+        dam_daughters_map = defaultdict(list)
+        for hid in dams_map:
+            h = horses_map.get(hid)
+            if not h: continue
+            mid = h.get("dam_id")
+            if mid and mid in dams_map:
+                dam_daughters_map[mid].append(hid)
+
+        # 2. 深さキャッシュ
+        depth_cache = {}
+        visited_depth = set()
+        def calc_depth(hid):
+            if hid in depth_cache: return depth_cache[hid]
+            if hid in visited_depth: return 0
+            visited_depth.add(hid)
+            daughters = dam_daughters_map.get(hid, [])
+            if not daughters:
+                depth_cache[hid] = 0
+                return 0
+            d = 1 + max(calc_depth(did) for did in daughters)
+            depth_cache[hid] = d
+            return d
+
+        for hid in dams_map:
+            visited_depth.clear()
+            calc_depth(hid)
+
+        # 3. 祖先を遡って始祖（Root Dam）特定
+        dam_to_root_map = {}
+        for hid in dams_map:
+            curr = hid
+            visited_anc = set()
+            while curr in dams_map and curr not in visited_anc:
+                visited_anc.add(curr)
+                h = horses_map.get(curr)
+                if not h: break
+                mid = h.get("dam_id")
+                if mid and mid in dams_map:
+                    curr = mid
+                else:
+                    break
+            dam_to_root_map[hid] = curr
+
+        root_dams = sorted(
+            list(set(dam_to_root_map.values())),
+            key=lambda x: (horses_map.get(x, {}).get("birth_year", 9999), horses_map.get(x, {}).get("name", ""))
+        )
+
+        # 4. 各族に属する現役繁殖牝馬のマッピング
+        self._family_dams_data_cache = defaultdict(list)
+        for hid, d in dams_map.items():
+            if d.get("is_active"):
+                root_id = dam_to_root_map.get(hid, hid)
+                dh = horses_map.get(hid, {})
+                p_info = prog_map.get(hid, {})
+                self._family_dams_data_cache[root_id].append({
+                    **dh, **d,
+                    "p_cnt": p_info.get("p_count", 0),
+                    "act_p_cnt": p_info.get("p_active_count", 0),
+                    "p_wins": p_info.get("p_wins", 0),
+                    "w_cnt": p_info.get("p_winners", 0),
+                })
+
+        total_active_dams = sum(1 for d in dams_map.values() if d.get("is_active")) or 1
+        self._family_dams_horses_map = horses_map
+        self._family_dams_dams_map = dams_map
+        self._family_dams_dam_daughters_map = dam_daughters_map
+        self._family_dams_depth_cache = depth_cache
+
+        self.tree_family_dams.clear()
+
+        for root_id in root_dams:
+            h = horses_map.get(root_id)
+            if not h: continue
+
+            d_list = self._family_dams_data_cache.get(root_id, [])
+            cnt = len(d_list)
+            # 断絶（現在供用中の繁殖牝馬が0頭）の族は表示しない
+            if cnt == 0:
+                continue
+
+            share_pct = f"{(cnt / total_active_dams * 100):.1f}%"
+            depth = depth_cache.get(root_id, 0)
+            p_wins = sum(x.get("p_wins", 0) for x in d_list)
+            w_cnt = sum(x.get("w_cnt", 0) for x in d_list)
+            act_p_cnt = sum(x.get("act_p_cnt", 0) for x in d_list)
+            win_rate = f"{(w_cnt / act_p_cnt * 100):.1f}%" if act_p_cnt > 0 else "0.0%"
+
+            rep_dam_str = "-"
+            if d_list:
+                rep_dam = max(d_list, key=lambda x: (x.get("p_wins", 0), x.get("p_cnt", 0)))
+                rep_dam_str = f"{rep_dam.get('name', '')} (産駒{rep_dam.get('p_wins', 0)}勝)"
+
+            root_name = h.get("name", "始祖牝馬")
+            root_item = QTreeWidgetItem()
+            root_item.setText(0, f"🌸 {root_name}族")
+            root_item.setText(1, f"{cnt:,}頭")
+            root_item.setText(2, share_pct)
+            root_item.setText(3, f"世代:{depth}")
+            root_item.setText(4, f"{p_wins}勝")
+            root_item.setText(5, f"{w_cnt}頭")
+            root_item.setText(6, win_rate)
+            root_item.setText(7, rep_dam_str)
+            root_item.setData(0, Qt.ItemDataRole.UserRole, root_id)
+
+            for col in range(1, 7):
+                root_item.setTextAlignment(col, Qt.AlignmentFlag.AlignCenter)
+
+            # 後継繁殖牝馬の階層展開（自身または子孫に供用中牝馬がいる枝のみ）
+            visited_sub = set()
+            active_descendant_cache = {}
+
+            def has_active_descendant(target_did: int) -> bool:
+                if target_did in active_descendant_cache:
+                    return active_descendant_cache[target_did]
+                if bool(dams_map.get(target_did, {}).get("is_active", 0)):
+                    active_descendant_cache[target_did] = True
+                    return True
+                for child_did in dam_daughters_map.get(target_did, []):
+                    if has_active_descendant(child_did):
+                        active_descendant_cache[target_did] = True
+                        return True
+                active_descendant_cache[target_did] = False
+                return False
+
+            def add_child_dams(parent_item, parent_hid):
+                for did in dam_daughters_map.get(parent_hid, []):
+                    if did in visited_sub: continue
+                    visited_sub.add(did)
+                    # 自身または子孫に供用中牝馬がいない枝は除外
+                    if not has_active_descendant(did):
+                        continue
+                    dh = horses_map.get(did)
+                    if not dh: continue
+                    d_item = QTreeWidgetItem(parent_item)
+                    d_name = dh.get("name", "不明")
+                    d_depth = depth_cache.get(did, 0)
+                    p_info = prog_map.get(did, {})
+                    d_wins = p_info.get("p_wins", 0)
+                    d_winners = p_info.get("p_winners", 0)
+                    d_act_p = p_info.get("p_active_count", 0)
+                    d_win_rate = f"{(d_winners / d_act_p * 100):.1f}%" if d_act_p > 0 else "0.0%"
+                    d_act_badge = " [供用中]" if bool(dams_map.get(did, {}).get("is_active", 0)) else ""
+
+                    d_item.setText(0, f"└ {d_name}{d_act_badge}")
+                    d_item.setText(3, f"世代:{d_depth}")
+                    d_item.setText(4, f"{d_wins}勝")
+                    d_item.setText(5, f"{d_winners}頭")
+                    d_item.setText(6, d_win_rate)
+                    d_item.setData(0, Qt.ItemDataRole.UserRole, root_id)
+
+                    for col in range(1, 7):
+                        d_item.setTextAlignment(col, Qt.AlignmentFlag.AlignCenter)
+
+                    add_child_dams(d_item, did)
+
+            add_child_dams(root_item, root_id)
+            self.tree_family_dams.addTopLevelItem(root_item)
+
+        if self.tree_family_dams.topLevelItemCount() > 0:
+            first_it = self.tree_family_dams.topLevelItem(0)
+            self.tree_family_dams.setCurrentItem(first_it)
+            hid = first_it.data(0, Qt.ItemDataRole.UserRole)
+            if hid: self._load_family_dams_by_hid(hid)
+
+    def _on_family_dams_tree_clicked(self, item: QTreeWidgetItem, col: int) -> None:
+        root_id = item.data(0, Qt.ItemDataRole.UserRole)
+        if root_id:
+            self._load_family_dams_by_hid(root_id)
+
+    def _load_family_dams_by_hid(self, root_id: int) -> None:
+        """選択された族の所属繁殖牝馬一覧を表示"""
+        dams_list = getattr(self, "_family_dams_data_cache", {}).get(root_id, [])
+        dams_list = sorted(dams_list, key=lambda x: (-(x.get("p_wins") or 0), -(x.get("p_cnt") or 0)))
+
+        self.table_family_dams_detail.setRowCount(len(dams_list))
+        for idx, r in enumerate(dams_list):
+            d_name = r.get("name", "")
+            gen = r.get("d_generation") or r.get("generation") or 1
+            st_yr = r.get("start_year") or 1
+            name_col = get_generation_color(gen, is_breeding=True, start_year=st_yr)
+            age_str = f"{r.get('age')}歳" if r.get("age") else "-"
+            gen_str = f"第{gen}世代"
+
+            s_id = r.get("sire_id")
+            s_name = self._family_dams_horses_map.get(s_id, {}).get("name", "-") if s_id else "-"
+            d_id = r.get("dam_id")
+            dam_mother_name = self._family_dams_horses_map.get(d_id, {}).get("name", "-") if d_id else "-"
+
+            p_cnt = r.get("p_cnt", 0)
+            w_cnt = r.get("w_cnt", 0)
+            act_cnt = r.get("act_p_cnt", 0)
+            win_rate = f"{(w_cnt / act_cnt * 100):.1f}%" if act_cnt > 0 else "0.0%"
+
+            name_item = QTableWidgetItem(f"🌸 {d_name}")
+            name_item.setForeground(QColor(name_col))
+            f = name_item.font()
+            f.setBold(True)
+            name_item.setFont(f)
+            name_item.setData(Qt.ItemDataRole.UserRole, r.get("horse_id"))
+
+            items = [
+                name_item,
+                QTableWidgetItem(age_str),
+                QTableWidgetItem(gen_str),
+                QTableWidgetItem(s_name),
+                QTableWidgetItem(dam_mother_name),
+                QTableWidgetItem(str(p_cnt)),
+                QTableWidgetItem(str(w_cnt)),
+                QTableWidgetItem(win_rate),
+            ]
+            for c_idx, it in enumerate(items):
+                if c_idx not in (0, 3, 4):
+                    it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table_family_dams_detail.setItem(idx, c_idx, it)
+
+            hid_target = r.get("horse_id")
+            btn_karte = QPushButton("カルテ")
+            btn_karte.setStyleSheet("background-color: #db2777; color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 3px; font-weight: bold;")
+            btn_karte.clicked.connect(lambda checked, h_id=hid_target: self._open_dam_detail(h_id))
+            self.table_family_dams_detail.setCellWidget(idx, 8, btn_karte)
+
+    def _on_sire_cell_clicked(self, row: int, col: int) -> None:
+        """種牡馬リストセルクリック"""
+        if col == 0:
+            item = self.table_sires.item(row, 0)
+            if item:
+                hid = item.data(Qt.ItemDataRole.UserRole)
+                if hid:
+                    self._open_sire_detail(hid)
+        elif col == 9:  # 代表産駒
+            item = self.table_sires.item(row, 9)
+            if item:
+                hid = item.data(Qt.ItemDataRole.UserRole)
+                if hid:
+                    self._open_horse_detail(hid)
+
+    def _open_sire_detail(self, sire_horse_id: int) -> None:
+        """種牡馬カルテ表示"""
+        dlg = SireDetailDialog(self.db, sire_horse_id, parent=self)
+        dlg.exec()
+
+    def _open_dam_detail(self, dam_horse_id: int) -> None:
+        """繁殖牝馬カルテ表示"""
+        dlg = DamDetailDialog(self.db, dam_horse_id, parent=self)
+        dlg.exec()
+
+    # ==========================================
+    # 5. 繁殖牝馬リストタブ
     # ==========================================
     def _create_broodmares_list_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(8)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
+
+        self.dams_sub_tabs = QTabWidget()
+        self.dams_sub_tabs.setStyleSheet("""
+            QTabBar::tab {
+                font-weight: bold;
+                font-size: 12px;
+                padding: 6px 14px;
+            }
+        """)
+
+        # サブタブ1: 全繁殖牝馬一覧
+        self.tab_dams_all = self._create_dam_all_list_subtab()
+        self.dams_sub_tabs.addTab(self.tab_dams_all, "🌸 全繁殖牝馬一覧")
+
+        # サブタブ2: サイアーライン別 繁殖牝馬リスト
+        self.tab_lineage_dams = self._create_lineage_dams_subtab()
+        self.dams_sub_tabs.addTab(self.tab_lineage_dams, "🌸 サイアーライン別 繁殖牝馬")
+
+        # サブタブ3: ファミリーナンバー別 繁殖牝馬リスト (新設！)
+        self.tab_family_dams = self._create_family_dams_subtab()
+        self.dams_sub_tabs.addTab(self.tab_family_dams, "🌸 ファミリーナンバー別 繁殖牝馬")
+
+        layout.addWidget(self.dams_sub_tabs)
+        self.dams_sub_tabs.currentChanged.connect(self._on_dams_subtab_changed)
+
+        return widget
+
+    def _on_dams_subtab_changed(self, index: int) -> None:
+        if index == 0:
+            self.refresh_broodmares_list()
+        elif index == 1:
+            self.refresh_lineage_dams()
+        elif index == 2:
+            self.refresh_family_dams()
+
+    # 5-1. 全繁殖牝馬一覧 サブタブ
+    def _create_dam_all_list_subtab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
 
         filter_bar = QFrame()
         filter_bar.setStyleSheet("background-color: #161b26; border: 1px solid #242c3d; border-radius: 6px;")
@@ -1039,7 +2569,7 @@ class DatabaseView(QWidget):
 
         f_layout.addWidget(QLabel("状態:"))
         self.combo_dam_status = QComboBox()
-        self.combo_dam_status.addItem("現役繁殖牝馬のみ (600頭)", "active")
+        self.combo_dam_status.addItem("供用中のみ", "active")
         self.combo_dam_status.addItem("全繁殖牝馬 (引退含む)", "all")
         self.combo_dam_status.currentIndexChanged.connect(self.refresh_broodmares_list)
         f_layout.addWidget(self.combo_dam_status)
@@ -1063,24 +2593,27 @@ class DatabaseView(QWidget):
         layout.addWidget(filter_bar)
 
         self.table_dams = QTableWidget()
-        self.table_dams.setColumnCount(9)
+        self.table_dams.setColumnCount(11)
         self.table_dams.setHorizontalHeaderLabels([
-            "繁殖牝馬名", "年齢", "繋養年数", "父馬 (サイヤー)", "産駒頭数", "勝馬数", "勝ち上がり率", "代表産駒", "産駒一覧"
+            "繁殖牝馬名", "年齢", "繋養開始", "繋養年数", "父馬 (サイヤー)", "産駒頭数", "勝馬数", "勝ち上がり率", "代表産駒", "カルテ", "産駒一覧"
         ])
         header = self.table_dams.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table_dams.setColumnWidth(0, 170)
-        self.table_dams.setColumnWidth(1, 55)
-        self.table_dams.setColumnWidth(2, 75)
-        self.table_dams.setColumnWidth(3, 130)
-        self.table_dams.setColumnWidth(4, 70)
-        self.table_dams.setColumnWidth(5, 70)
-        self.table_dams.setColumnWidth(6, 90)
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
-        self.table_dams.setColumnWidth(8, 85)
+        self.table_dams.setColumnWidth(0, 160)
+        self.table_dams.setColumnWidth(1, 50)
+        self.table_dams.setColumnWidth(2, 65)
+        self.table_dams.setColumnWidth(3, 65)
+        self.table_dams.setColumnWidth(4, 120)
+        self.table_dams.setColumnWidth(5, 65)
+        self.table_dams.setColumnWidth(6, 65)
+        self.table_dams.setColumnWidth(7, 85)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
+        self.table_dams.setColumnWidth(9, 60)
+        self.table_dams.setColumnWidth(10, 75)
 
         self.table_dams.setAlternatingRowColors(True)
         self.table_dams.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table_dams.cellClicked.connect(self._on_dam_cell_clicked)
         layout.addWidget(self.table_dams)
 
         return widget
@@ -1096,11 +2629,15 @@ class DatabaseView(QWidget):
             cur_year = (max_y_row["max_year"] or 1) if max_y_row else 1
 
             query = """
-                SELECT d.dam_id, d.horse_id, d.is_active,
+                SELECT d.dam_id, d.horse_id, d.start_year, d.is_active,
+                       d.generation as d_generation,
                        dh.name as name, dh.age as age, dh.birth_year, dh.retired_year,
+                       dh.generation as h_generation,
                        sh.name as sire_name,
                        COUNT(DISTINCT ph.horse_id) as progeny_count,
-                       SUM(CASE WHEN (ph.career_wins > 0) THEN 1 ELSE 0 END) as winners_count
+                       COUNT(DISTINCT CASE WHEN ph.is_active = 1 THEN ph.horse_id END) as active_progeny_count,
+                       SUM(CASE WHEN (ph.is_active = 1 AND ph.career_wins > 0) THEN 1 ELSE 0 END) as winners_count,
+                       SUM(CASE WHEN (ph.career_wins > 0) THEN 1 ELSE 0 END) as total_winners_count
                 FROM dams d
                 JOIN horses dh ON d.horse_id = dh.horse_id
                 LEFT JOIN horses sh ON dh.sire_id = sh.horse_id
@@ -1113,21 +2650,35 @@ class DatabaseView(QWidget):
 
             rows = conn.execute(query).fetchall()
 
+            # 代表産駒を一括取得 (N+1解消)
+            top_prog_map = {}
+            top_prog_rows = conn.execute("""
+                SELECT horse_id, dam_id, name, prize_money, generation
+                FROM horses
+                WHERE dam_id IS NOT NULL AND prize_money > 0
+                ORDER BY prize_money DESC
+            """).fetchall()
+            for pr in top_prog_rows:
+                did = pr["dam_id"]
+                if did not in top_prog_map:
+                    top_prog_map[did] = {
+                        "name": f"{pr['name']} ({(pr['prize_money'] // 10000):,}万円)",
+                        "horse_id": pr["horse_id"],
+                        "generation": pr["generation"] or 1
+                    }
+
             # 各行の加工と繋養年数の算出
             processed_rows = []
             for r in rows:
                 p_dict = dict(r)
                 p_cnt = p_dict["progeny_count"] or 0
-                w_cnt = p_dict["winners_count"] or 0
-                p_dict["win_rate_val"] = (w_cnt / p_cnt) if p_cnt > 0 else 0.0
+                act_cnt = p_dict["active_progeny_count"] or 0
+                w_cnt = p_dict["winners_count"] or 0  # 現役馬での勝馬頭数
+                p_dict["win_rate_val"] = (w_cnt / act_cnt) if act_cnt > 0 else 0.0
 
-                # 繋養年数計算 (debut_year または retired_year または 1)
-                ret_year = p_dict.get("retired_year")
-                if ret_year and ret_year > 0:
-                    years_in_service = max(1, cur_year - ret_year + 1)
-                else:
-                    years_in_service = max(1, cur_year)
-                p_dict["years_in_service"] = years_in_service
+                st_yr = p_dict.get("start_year", 1) or 1
+                p_dict["start_year_val"] = st_yr
+                p_dict["years_in_service"] = max(1, cur_year - st_yr + 1)
                 processed_rows.append(p_dict)
 
             # ソート適用
@@ -1146,47 +2697,79 @@ class DatabaseView(QWidget):
 
         for idx, r in enumerate(processed_rows):
             d_name = r["name"]
+            gen = r.get("d_generation") or r.get("h_generation") or 1
+            name_col = get_generation_color(gen, is_breeding=True, start_year=r.get("start_year_val"))
+
             age_str = f"{r['age']}歳" if r["age"] else "-"
+            st_yr_str = f"{r['start_year_val']}年"
             years_str = f"{r['years_in_service']}年目"
             s_name = r["sire_name"] or "-"
             p_cnt = r["progeny_count"] or 0
             w_cnt = r["winners_count"] or 0
             win_rate = f"{(r['win_rate_val'] * 100):.1f}%" if p_cnt > 0 else "0.0%"
 
-            # 代表産駒
-            top_prog_name = "-"
-            with self.db.session() as conn:
-                top_prog = conn.execute("""
-                    SELECT name, prize_money FROM horses
-                    WHERE dam_id = ? ORDER BY prize_money DESC LIMIT 1
-                """, (r["horse_id"],)).fetchone()
-                if top_prog and top_prog["prize_money"] > 0:
-                    top_prog_name = f"{top_prog['name']} ({(top_prog['prize_money'] // 10000):,}万円)"
+            top_prog_info = top_prog_map.get(r["horse_id"], {})
+            top_prog_name = top_prog_info.get("name", "-")
+            top_prog_hid = top_prog_info.get("horse_id")
+            top_prog_gen = top_prog_info.get("generation", 1)
 
-            name_item = QTableWidgetItem(d_name)
-            name_item.setForeground(QColor("#f472b6"))
+            name_item = QTableWidgetItem(f"🌸 {d_name}")
+            name_item.setForeground(QColor(name_col))
+            f = name_item.font()
+            f.setBold(True)
+            name_item.setFont(f)
+            name_item.setData(Qt.ItemDataRole.UserRole, r["horse_id"])
+
+            rep_item = QTableWidgetItem(top_prog_name)
+            if top_prog_hid:
+                prog_color = get_generation_color(top_prog_gen)
+                rep_item.setForeground(QColor(prog_color))
+                rep_item.setData(Qt.ItemDataRole.UserRole, top_prog_hid)
 
             items = [
                 name_item,
                 QTableWidgetItem(age_str),
+                QTableWidgetItem(st_yr_str),
                 QTableWidgetItem(years_str),
                 QTableWidgetItem(s_name),
                 QTableWidgetItem(str(p_cnt)),
                 QTableWidgetItem(str(w_cnt)),
                 QTableWidgetItem(win_rate),
-                QTableWidgetItem(top_prog_name),
+                rep_item,
             ]
 
             for c_idx, item in enumerate(items):
-                if c_idx not in (0, 7):
+                if c_idx not in (0, 8):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table_dams.setItem(idx, c_idx, item)
 
             hid = r["horse_id"]
+            # カルテ詳細ボタン
+            btn_karte = QPushButton("カルテ")
+            btn_karte.setStyleSheet("background-color: #db2777; color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 3px; font-weight: bold;")
+            btn_karte.clicked.connect(lambda checked, h_id=hid: self._open_dam_detail(h_id))
+            self.table_dams.setCellWidget(idx, 9, btn_karte)
+
+            # 産駒一覧ボタン
             btn_prog = QPushButton("産駒一覧")
-            btn_prog.setStyleSheet("background-color: #1e293b; color: #38bdf8; font-size: 11px; padding: 2px 6px; border: 1px solid #0284c7; border-radius: 3px;")
+            btn_prog.setStyleSheet("background-color: #1e293b; color: #38bdf8; font-size: 11px; padding: 2px 4px; border: 1px solid #0284c7; border-radius: 3px;")
             btn_prog.clicked.connect(lambda checked, h_id=hid: self._open_progeny_dialog(h_id, is_sire=False))
-            self.table_dams.setCellWidget(idx, 8, btn_prog)
+            self.table_dams.setCellWidget(idx, 10, btn_prog)
+
+    def _on_dam_cell_clicked(self, row: int, col: int) -> None:
+        """繁殖牝馬リストセルクリック"""
+        if col == 0:
+            item = self.table_dams.item(row, 0)
+            if item:
+                hid = item.data(Qt.ItemDataRole.UserRole)
+                if hid:
+                    self._open_dam_detail(hid)
+        elif col == 8:  # 代表産駒
+            item = self.table_dams.item(row, 8)
+            if item:
+                hid = item.data(Qt.ItemDataRole.UserRole)
+                if hid:
+                    self._open_horse_detail(hid)
 
     def _open_progeny_dialog(self, parent_id: int, is_sire: bool = True) -> None:
         dlg = ProgenyListDialog(self.db, parent_id, is_sire=is_sire, parent=self)

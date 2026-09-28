@@ -33,14 +33,16 @@ class RankingManager:
                 return int(row["max_y"])
             return 1
 
-    def get_jockey_rankings(self, is_career: bool = False, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_jockey_rankings(self, is_career: bool = False, limit: Optional[int] = None, year: Optional[int] = None) -> List[Dict[str, Any]]:
         """騎手リーディング"""
-        cur_year = self._get_current_year()
+        cur_year = year if year is not None else self._get_current_year()
+        limit_clause = f"LIMIT {limit}" if limit is not None else ""
 
         if is_career:
-            query = """
+            query = f"""
             SELECT
-                j.jockey_id, j.name, j.age, j.location, j.is_free, j.career_wins, j.career_earnings,
+                j.jockey_id, j.name, j.age, j.location, j.is_free, j.trainer_id, j.debut_year, j.career_wins, j.career_earnings,
+                t.name AS trainer_name,
                 COALESCE(SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END), 0) AS win_1,
                 COALESCE(SUM(CASE WHEN res.finish_position = 2 THEN 1 ELSE 0 END), 0) AS win_2,
                 COALESCE(SUM(CASE WHEN res.finish_position = 3 THEN 1 ELSE 0 END), 0) AS win_3,
@@ -51,18 +53,20 @@ class RankingManager:
                 COALESCE(SUM(res.prize_awarded), 0) AS total_earnings,
                 COUNT(res.result_id) AS total_starts
             FROM jockeys j
+            LEFT JOIN trainers t ON j.trainer_id = t.trainer_id
             LEFT JOIN results res ON j.jockey_id = res.jockey_id
             LEFT JOIN races r ON res.race_id = r.race_id
+            WHERE j.is_active = 1
             GROUP BY j.jockey_id
-            HAVING total_starts > 0 OR win_1 > 0 OR j.is_active = 1
             ORDER BY win_1 DESC, win_2 DESC, win_3 DESC, total_earnings DESC
-            LIMIT ?
+            {limit_clause}
             """
-            params = (limit,)
+            params = ()
         else:
-            query = """
+            query = f"""
             SELECT
-                j.jockey_id, j.name, j.age, j.location, j.is_free, j.career_wins, j.career_earnings,
+                j.jockey_id, j.name, j.age, j.location, j.is_free, j.trainer_id, j.debut_year, j.career_wins, j.career_earnings,
+                t.name AS trainer_name,
                 COALESCE(SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END), 0) AS win_1,
                 COALESCE(SUM(CASE WHEN res.finish_position = 2 THEN 1 ELSE 0 END), 0) AS win_2,
                 COALESCE(SUM(CASE WHEN res.finish_position = 3 THEN 1 ELSE 0 END), 0) AS win_3,
@@ -73,6 +77,7 @@ class RankingManager:
                 COALESCE(SUM(res.prize_awarded), 0) AS total_earnings,
                 COUNT(res.result_id) AS total_starts
             FROM jockeys j
+            LEFT JOIN trainers t ON j.trainer_id = t.trainer_id
             LEFT JOIN (
                 SELECT res_inner.*, r_inner.grade, r_inner.year
                 FROM results res_inner
@@ -80,12 +85,12 @@ class RankingManager:
                 WHERE r_inner.year = ?
             ) res ON j.jockey_id = res.jockey_id
             LEFT JOIN races r ON res.race_id = r.race_id
+            WHERE j.is_active = 1
             GROUP BY j.jockey_id
-            HAVING total_starts > 0 OR win_1 > 0 OR j.is_active = 1
             ORDER BY win_1 DESC, win_2 DESC, win_3 DESC, total_earnings DESC
-            LIMIT ?
+            {limit_clause}
             """
-            params = (cur_year, limit)
+            params = (cur_year,)
 
         with self.db.session() as conn:
             rows = conn.execute(query, params).fetchall()
@@ -99,7 +104,7 @@ class RankingManager:
                 # 代表乗鞍 (重賞勝ちのある現役馬、最大3頭)
                 rep_horses = conn.execute(
                     """
-                    SELECT DISTINCT h.name, h.g1_wins, (h.g1_wins + h.g2_wins + h.g3_wins) as total_graded, h.prize_money
+                    SELECT DISTINCT h.horse_id, h.name, h.g1_wins, (h.g1_wins + h.g2_wins + h.g3_wins) as total_graded, h.prize_money
                     FROM horses h
                     WHERE h.is_active = 1
                       AND (h.jockey_id = ? OR h.horse_id IN (SELECT horse_id FROM results WHERE jockey_id = ?))
@@ -110,16 +115,18 @@ class RankingManager:
                     (d["jockey_id"], d["jockey_id"]),
                 ).fetchall()
                 d["representative_horses"] = [h["name"] for h in rep_horses]
+                d["representative_horse_ids"] = [h["horse_id"] for h in rep_horses]
                 results.append(d)
 
             return results
 
-    def get_trainer_rankings(self, is_career: bool = False, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_trainer_rankings(self, is_career: bool = False, limit: Optional[int] = None, year: Optional[int] = None) -> List[Dict[str, Any]]:
         """調教師リーディング"""
-        cur_year = self._get_current_year()
+        cur_year = year if year is not None else self._get_current_year()
+        limit_clause = f"LIMIT {limit}" if limit is not None else ""
 
         if is_career:
-            query = """
+            query = f"""
             SELECT
                 t.trainer_id, t.name, t.age, t.location, t.specialty, t.skill_level, t.career_wins, t.career_earnings,
                 COALESCE(SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END), 0) AS win_1,
@@ -137,11 +144,11 @@ class RankingManager:
             GROUP BY t.trainer_id
             HAVING total_starts > 0 OR win_1 > 0 OR t.trainer_id IS NOT NULL
             ORDER BY win_1 DESC, win_2 DESC, win_3 DESC, total_earnings DESC
-            LIMIT ?
+            {limit_clause}
             """
-            params = (limit,)
+            params = ()
         else:
-            query = """
+            query = f"""
             SELECT
                 t.trainer_id, t.name, t.age, t.location, t.specialty, t.skill_level, t.career_wins, t.career_earnings,
                 COALESCE(SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END), 0) AS win_1,
@@ -164,9 +171,9 @@ class RankingManager:
             GROUP BY t.trainer_id
             HAVING total_starts > 0 OR win_1 > 0 OR t.trainer_id IS NOT NULL
             ORDER BY win_1 DESC, win_2 DESC, win_3 DESC, total_earnings DESC
-            LIMIT ?
+            {limit_clause}
             """
-            params = (cur_year, limit)
+            params = (cur_year,)
 
         with self.db.session() as conn:
             rows = conn.execute(query, params).fetchall()
@@ -177,10 +184,10 @@ class RankingManager:
                 d["starts"] = starts
                 d["win_rate"] = round(d["win_1"] / starts, 3) if starts > 0 else 0.0
 
-                # 代表持ち馬 (重賞勝ちのある現役管理馬、最大3頭)
+                # 代表持ち馬 (重賞勝ちのある現役馬、最大3頭)
                 rep_horses = conn.execute(
                     """
-                    SELECT h.name, h.g1_wins, (h.g1_wins + h.g2_wins + h.g3_wins) as total_graded, h.prize_money
+                    SELECT h.horse_id, h.name, h.g1_wins, (h.g1_wins + h.g2_wins + h.g3_wins) as total_graded, h.prize_money
                     FROM horses h
                     WHERE h.is_active = 1
                       AND h.trainer_id = ?
@@ -191,6 +198,7 @@ class RankingManager:
                     (d["trainer_id"],),
                 ).fetchall()
                 d["representative_horses"] = [h["name"] for h in rep_horses]
+                d["representative_horse_ids"] = [h["horse_id"] for h in rep_horses]
 
                 # 持ち馬数 & 勝ち馬数
                 counts = conn.execute(
@@ -209,12 +217,13 @@ class RankingManager:
 
             return results
 
-    def get_owner_rankings(self, is_career: bool = False, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_owner_rankings(self, is_career: bool = False, limit: Optional[int] = None, year: Optional[int] = None) -> List[Dict[str, Any]]:
         """馬主リーディング"""
-        cur_year = self._get_current_year()
+        cur_year = year if year is not None else self._get_current_year()
+        limit_clause = f"LIMIT {limit}" if limit is not None else ""
 
         if is_career:
-            query = """
+            query = f"""
             SELECT
                 o.owner_id, o.name, o.prefix, o.funds,
                 COALESCE(SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END), 0) AS win_1,
@@ -233,11 +242,11 @@ class RankingManager:
             GROUP BY o.owner_id
             HAVING total_starts > 0 OR total_earnings > 0 OR o.owner_id IS NOT NULL
             ORDER BY win_1 DESC, win_2 DESC, win_3 DESC, total_earnings DESC
-            LIMIT ?
+            {limit_clause}
             """
-            params = (limit,)
+            params = ()
         else:
-            query = """
+            query = f"""
             SELECT
                 o.owner_id, o.name, o.prefix, o.funds,
                 COALESCE(SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END), 0) AS win_1,
@@ -261,9 +270,9 @@ class RankingManager:
             GROUP BY o.owner_id
             HAVING total_starts > 0 OR total_earnings > 0 OR o.owner_id IS NOT NULL
             ORDER BY win_1 DESC, win_2 DESC, win_3 DESC, total_earnings DESC
-            LIMIT ?
+            {limit_clause}
             """
-            params = (cur_year, limit)
+            params = (cur_year,)
 
         with self.db.session() as conn:
             rows = conn.execute(query, params).fetchall()
@@ -276,7 +285,7 @@ class RankingManager:
                 # 代表持ち馬 (重賞勝ちのある現役所有馬、最大3頭)
                 rep_horses = conn.execute(
                     """
-                    SELECT h.name, h.g1_wins, (h.g1_wins + h.g2_wins + h.g3_wins) as total_graded, h.prize_money
+                    SELECT h.horse_id, h.name, h.g1_wins, (h.g1_wins + h.g2_wins + h.g3_wins) as total_graded, h.prize_money
                     FROM horses h
                     WHERE h.is_active = 1
                       AND h.owner_id = ?
@@ -287,6 +296,7 @@ class RankingManager:
                     (d["owner_id"],),
                 ).fetchall()
                 d["representative_horses"] = [h["name"] for h in rep_horses]
+                d["representative_horse_ids"] = [h["horse_id"] for h in rep_horses]
 
                 # 持ち馬数 & 勝ち馬数
                 counts = conn.execute(
@@ -305,12 +315,13 @@ class RankingManager:
 
             return results
 
-    def get_breeder_rankings(self, is_career: bool = False, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_breeder_rankings(self, is_career: bool = False, limit: Optional[int] = None, year: Optional[int] = None) -> List[Dict[str, Any]]:
         """生産牧場リーディング"""
-        cur_year = self._get_current_year()
+        cur_year = year if year is not None else self._get_current_year()
+        limit_clause = f"LIMIT {limit}" if limit is not None else ""
 
         if is_career:
-            query = """
+            query = f"""
             SELECT
                 b.breeder_id, b.name, b.region, b.funds,
                 (SELECT COUNT(*) FROM horses h_sire WHERE h_sire.breeder_id = b.breeder_id AND h_sire.is_sire = 1) AS sire_count,
@@ -331,11 +342,11 @@ class RankingManager:
             GROUP BY b.breeder_id
             HAVING total_starts > 0 OR total_earnings > 0 OR b.breeder_id IS NOT NULL
             ORDER BY win_1 DESC, win_2 DESC, win_3 DESC, total_earnings DESC
-            LIMIT ?
+            {limit_clause}
             """
-            params = (limit,)
+            params = ()
         else:
-            query = """
+            query = f"""
             SELECT
                 b.breeder_id, b.name, b.region, b.funds,
                 (SELECT COUNT(*) FROM horses h_sire WHERE h_sire.breeder_id = b.breeder_id AND h_sire.is_sire = 1) AS sire_count,
@@ -361,9 +372,9 @@ class RankingManager:
             GROUP BY b.breeder_id
             HAVING total_starts > 0 OR total_earnings > 0 OR b.breeder_id IS NOT NULL
             ORDER BY win_1 DESC, win_2 DESC, win_3 DESC, total_earnings DESC
-            LIMIT ?
+            {limit_clause}
             """
-            params = (cur_year, limit)
+            params = (cur_year,)
 
         with self.db.session() as conn:
             rows = conn.execute(query, params).fetchall()
@@ -376,7 +387,7 @@ class RankingManager:
                 # 代表産駒 (重賞勝ちのある現役生産馬、最大3頭)
                 rep_horses = conn.execute(
                     """
-                    SELECT h.name, h.g1_wins, (h.g1_wins + h.g2_wins + h.g3_wins) as total_graded, h.prize_money
+                    SELECT h.horse_id, h.name, h.g1_wins, (h.g1_wins + h.g2_wins + h.g3_wins) as total_graded, h.prize_money
                     FROM horses h
                     WHERE h.is_active = 1
                       AND h.breeder_id = ?
@@ -387,6 +398,7 @@ class RankingManager:
                     (d["breeder_id"],),
                 ).fetchall()
                 d["representative_horses"] = [h["name"] for h in rep_horses]
+                d["representative_horse_ids"] = [h["horse_id"] for h in rep_horses]
 
                 # 持ち馬数 & 勝ち馬数 (生産馬ベース)
                 counts = conn.execute(
@@ -406,13 +418,14 @@ class RankingManager:
             return results
 
     def get_sire_rankings(
-        self, is_career: bool = False, limit: int = 20, age_filter: Optional[int] = None
+        self, is_career: bool = False, limit: Optional[int] = None, age_filter: Optional[int] = None, year: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
         サイアー（種牡馬）リーディング
         - age_filter: None=総合, 2=2歳馬, 3=3歳馬
         """
-        cur_year = self._get_current_year()
+        cur_year = year if year is not None else self._get_current_year()
+        limit_clause = f"LIMIT {limit}" if limit is not None else ""
 
         if is_career:
             age_clause = "AND (r.year - h_progeny.birth_year + 1) = ?" if age_filter else ""
@@ -422,6 +435,11 @@ class RankingManager:
                 s.horse_id AS sire_horse_id,
                 s.sire_line,
                 s.stud_fee,
+                s.start_year,
+                s.is_foreign,
+                s.is_new,
+                s.generation AS sire_generation,
+                h_sire.generation AS horse_generation,
                 h_sire.name AS sire_name,
                 (SELECT COUNT(*) FROM horses h_act WHERE h_act.sire_id = s.horse_id AND h_act.is_active = 1) AS active_progeny_count,
                 COUNT(DISTINCT h_progeny.horse_id) AS progeny_count,
@@ -438,13 +456,13 @@ class RankingManager:
             JOIN horses h_sire ON s.horse_id = h_sire.horse_id
             LEFT JOIN horses h_progeny ON h_progeny.sire_id = s.horse_id
             LEFT JOIN results res ON h_progeny.horse_id = res.horse_id
-            LEFT JOIN races r ON res.race_id = r.race_id {age_clause}
+            LEFT JOIN races r ON res.race_id = r.race_id
+            WHERE s.is_active = 1 {age_clause}
             GROUP BY s.sire_id
-            HAVING total_earnings > 0 OR win_1 > 0 OR s.sire_id IS NOT NULL
             ORDER BY win_1 DESC, win_2 DESC, win_3 DESC, total_earnings DESC
-            LIMIT ?
+            {limit_clause}
             """
-            params = (age_filter, limit) if age_filter else (limit,)
+            params = (age_filter,) if age_filter else ()
         else:
             age_clause = "AND (res.year - h_progeny.birth_year + 1) = ?" if age_filter else ""
             query = f"""
@@ -453,6 +471,11 @@ class RankingManager:
                 s.horse_id AS sire_horse_id,
                 s.sire_line,
                 s.stud_fee,
+                s.start_year,
+                s.is_foreign,
+                s.is_new,
+                s.generation AS sire_generation,
+                h_sire.generation AS horse_generation,
                 h_sire.name AS sire_name,
                 (SELECT COUNT(*) FROM horses h_act WHERE h_act.sire_id = s.horse_id AND h_act.is_active = 1) AS active_progeny_count,
                 COUNT(DISTINCT h_progeny.horse_id) AS progeny_count,
@@ -475,13 +498,12 @@ class RankingManager:
                 WHERE r_inner.year = ?
             ) res ON h_progeny.horse_id = res.horse_id
             LEFT JOIN races r ON res.race_id = r.race_id
-            WHERE 1=1 {age_clause}
+            WHERE s.is_active = 1 {age_clause}
             GROUP BY s.sire_id
-            HAVING total_earnings > 0 OR win_1 > 0 OR s.sire_id IS NOT NULL
             ORDER BY win_1 DESC, win_2 DESC, win_3 DESC, total_earnings DESC
-            LIMIT ?
+            {limit_clause}
             """
-            params = (cur_year, age_filter, limit) if age_filter else (cur_year, limit)
+            params = (cur_year, age_filter) if age_filter else (cur_year,)
 
         with self.db.session() as conn:
             cur_avg = conn.execute(
@@ -507,7 +529,7 @@ class RankingManager:
                 # 代表産駒 (重賞勝ちのある現役産駒、最大3頭)
                 rep_horses = conn.execute(
                     """
-                    SELECT h.name, h.g1_wins, (h.g1_wins + h.g2_wins + h.g3_wins) as total_graded, h.prize_money
+                    SELECT h.horse_id, h.name, h.g1_wins, (h.g1_wins + h.g2_wins + h.g3_wins) as total_graded, h.prize_money
                     FROM horses h
                     WHERE h.is_active = 1
                       AND h.sire_id = ?
@@ -518,6 +540,7 @@ class RankingManager:
                     (data["sire_horse_id"],),
                 ).fetchall()
                 data["representative_horses"] = [h["name"] for h in rep_horses]
+                data["representative_horse_ids"] = [h["horse_id"] for h in rep_horses]
                 rankings.append(data)
 
             return rankings
@@ -530,6 +553,7 @@ class RankingManager:
             h.name,
             h.sex,
             h.age,
+            h.generation,
             h.running_style,
             t.name AS trainer_name,
             o.name AS owner_name,
@@ -539,11 +563,17 @@ class RankingManager:
             h.g2_wins,
             h.g3_wins,
             h.major_wins,
-            h.prize_money
+            h.prize_money,
+            COALESCE(SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END), 0) AS pos1,
+            COALESCE(SUM(CASE WHEN res.finish_position = 2 THEN 1 ELSE 0 END), 0) AS pos2,
+            COALESCE(SUM(CASE WHEN res.finish_position = 3 THEN 1 ELSE 0 END), 0) AS pos3,
+            COALESCE(SUM(CASE WHEN res.finish_position > 3 THEN 1 ELSE 0 END), 0) AS pos_out
         FROM horses h
         LEFT JOIN trainers t ON h.trainer_id = t.trainer_id
         LEFT JOIN owners o ON h.owner_id = o.owner_id
+        LEFT JOIN results res ON h.horse_id = res.horse_id
         WHERE h.sire_id = ? AND h.is_active = 1
+        GROUP BY h.horse_id
         ORDER BY h.prize_money DESC, h.career_wins DESC, h.horse_id ASC
         """
         with self.db.session() as conn:
@@ -553,17 +583,20 @@ class RankingManager:
     def get_ranking_history(self, category: str, entity_id: int) -> List[Dict[str, Any]]:
         """
         指定エンティティ（騎手・調教師・馬主・牧場・種牡馬）の各年度における順位推移履歴を取得
+        ※「前年度」までの成績のみを対象とする
         category: 'jockey', 'trainer', 'owner', 'breeder', 'sire'
         戻り値: [{'year': 1, 'rank': 3, 'wins': 45, 'earnings': 850000000, 'name': '...'}, ...]
         """
+        cur_year = self._get_current_year()
         with self.db.session() as conn:
-            # 全開催年度を取得
+            # 全開催年度のうち前年度までを取得
             years_rows = conn.execute(
-                "SELECT DISTINCT year FROM races ORDER BY year ASC"
+                "SELECT DISTINCT year FROM races WHERE year < ? ORDER BY year ASC",
+                (cur_year,)
             ).fetchall()
             years = [r["year"] for r in years_rows]
             if not years:
-                years = [1]
+                return []
 
             history = []
 

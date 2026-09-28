@@ -168,6 +168,78 @@ class HorseNameGenerator:
         """互換用"""
         self.used_active_words.discard(word)
 
+    FOREIGN_CITIES = [
+        "ロンドン", "パリ", "ローマ", "ミラノ", "マドリード", "ボストン", "シカゴ",
+        "デンバー", "シアトル", "マイアミ", "リオ", "リマ", "カイロ", "ダカール",
+        "シドニー", "ウィーン", "プラハ", "オスロ", "ベルリン", "ダブリン", "リヨン",
+        "ニース", "ミュンヘン", "ジュネーブ", "リスボン", "ポルト", "セビリア", "トロント",
+        "バンクーバー", "オースティン", "ダラス", "フェニックス", "アトランタ", "サンティアゴ",
+        "ボゴタ", "ハバナ", "ラゴス", "ナイロビ", "アクラ", "ルアンダ"
+    ]
+
+    FOREIGN_MALE_NAMES = [
+        # 西欧・北中米
+        "アーサー", "ヘンリー", "オリバー", "ルーカス", "レオ", "アラン", "ブルーノ",
+        "マルセル", "フェリックス", "エリック", "マックス", "ヒューゴ", "オスカー",
+        "ノア", "リアム", "イーサン", "メイソン", "ローガン", "ジェームズ",
+        # 南米・スペイン・ポルトガル系
+        "マテオ", "ディエゴ", "カルロス", "マヌエル", "ラファエル", "チアゴ", "エンツォ",
+        "ホアキン", "ルカス", "ハビエル", "アンドレス", "ガブリエル",
+        # アフリカ起源
+        "アマドゥ", "クワメ", "コフィ", "セク", "バカリ", "サディオ", "タファリ",
+        "モディボ", "イドリス", "マリック", "アジズ", "エマニュエル"
+    ]
+
+    FOREIGN_FEMALE_NAMES = [
+        "エマ", "オリビア", "ミア", "ソフィア", "ルナ", "イザベラ", "カミラ",
+        "クロエ", "ステラ", "エレナ", "アリア", "ニーナ", "レイラ", "アミナ",
+        "ファトゥ", "ザラ", "クララ", "ジュリア", "アンナ", "マリア"
+    ]
+
+    def generate_foreign_sire_name(self) -> str:
+        """
+        外国種牡馬の名前生成: 「都市名」+「男性名前」
+        カタカナ9文字以内、数字なし
+        """
+        for _ in range(500):
+            city = random.choice(self.FOREIGN_CITIES)
+            male = random.choice(self.FOREIGN_MALE_NAMES)
+            full_name = f"{city}{male}"
+            if len(full_name) <= 9 and full_name not in self.used_names:
+                self.register_name(full_name)
+                return full_name
+
+        for _ in range(200):
+            short_cities = [c for c in self.FOREIGN_CITIES if len(c) <= 4]
+            short_males = [m for m in self.FOREIGN_MALE_NAMES if len(m) <= 4]
+            c = random.choice(short_cities)
+            m = random.choice(short_males)
+            name = f"{c}{m}"
+            if len(name) <= 9 and name not in self.used_names:
+                self.register_name(name)
+                return name
+
+        fallback = f"ロンドン{random.choice(self.FOREIGN_MALE_NAMES)}"[:9]
+        self.register_name(fallback)
+        return fallback
+
+    def generate_foreign_ancestor_name(self, sex: str = "horse") -> str:
+        """外国馬の父・母の名前をランダム生成（カタカナ9文字以内）"""
+        if sex in ("horse", "colt", "male"):
+            city = random.choice(self.FOREIGN_CITIES)
+            male = random.choice(self.FOREIGN_MALE_NAMES)
+            name = f"{city}{male}"
+            if len(name) > 9:
+                name = male if len(male) <= 9 else male[:9]
+            return name
+        else:
+            city = random.choice(self.FOREIGN_CITIES)
+            female = random.choice(self.FOREIGN_FEMALE_NAMES)
+            name = f"{city}{female}"
+            if len(name) > 9:
+                name = female if len(female) <= 9 else female[:9]
+            return name
+
     def is_name_available(self, name: str) -> bool:
         """使用可能かチェック（未登録かつ2文字以上）"""
         if len(name) < 2:

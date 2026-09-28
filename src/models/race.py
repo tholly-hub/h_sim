@@ -71,6 +71,7 @@ class Race:
     distance: int                      # 1000〜3600m
     age_restriction: AgeRestriction
     sex_restriction: SexRestriction = SexRestriction.MIXED
+    weight_type: str = '定量'          # '定量', '別定', 'ハンデ'
     condition: str = 'good'            # 良馬場固定
     full_gate: int = 8                 # 8頭限定
     is_trial: int = 0                  # 1: トライアル競走
@@ -89,6 +90,25 @@ class Race:
         base_prize = row['base_prize'] if 'base_prize' in keys and row['base_prize'] else default_base
         condition_prize = row['condition_prize'] if 'condition_prize' in keys and row['condition_prize'] else default_cond
 
+        # weight_type の判定
+        if 'weight_type' in keys and row['weight_type']:
+            w_type = row['weight_type']
+        else:
+            # 自動判定
+            age_r = row['age_restriction']
+            if age_r in ('2yo', AgeRestriction.TWO_YO):
+                w_type = '定量'
+            elif age_r in ('3yo', AgeRestriction.THREE_YO):
+                w_type = '定量'
+            elif grade == RaceGrade.G1:
+                w_type = '定量'
+            elif grade == RaceGrade.G2:
+                w_type = '別定'
+            elif grade == RaceGrade.G3:
+                w_type = 'ハンデ'
+            else:
+                w_type = '定量'
+
         return cls(
             race_id=row['race_id'] if 'race_id' in keys else None,
             year=row['year'] if 'year' in keys else 1,
@@ -101,6 +121,7 @@ class Race:
             distance=row['distance'],
             age_restriction=AgeRestriction(row['age_restriction']),
             sex_restriction=SexRestriction(row['sex_restriction']),
+            weight_type=w_type,
             condition=row['condition'] if 'condition' in keys else 'good',
             full_gate=row['full_gate'] if 'full_gate' in keys else 18,
             is_trial=row['is_trial'] if 'is_trial' in keys else 0,
@@ -121,6 +142,7 @@ class RaceResultRecord:
     margin: str
     prize_awarded: int
     condition_prize_awarded: int = 0
+    carried_weight: float = 55.0
     jockey_id: Optional[int] = None
     trainer_id: Optional[int] = None
     running_style_used: str = 'leading'

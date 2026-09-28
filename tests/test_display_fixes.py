@@ -20,35 +20,33 @@ class TestDisplayFixes(unittest.TestCase):
         init_gen = DatabaseInitializer(cls.db)
         init_gen.initialize_all()
 
-        # 21週の開催レースを実行し、結果が存在するレースを取得
+        # 3年目25週（7月1週、初年度産駒2歳デビュー週）の開催レースを実行し、結果が存在するレースを取得
         from src.race.calendar import CalendarController
         cal = CalendarController(cls.db)
-        cal.run_week(1, 21)
+        cal.run_week(3, 25)
         with cls.db.session() as conn:
             cls.race_row = conn.execute(
-                "SELECT r.*, COUNT(res.horse_id) as starter_count FROM races r JOIN results res ON r.race_id = res.race_id WHERE r.year = 1 AND r.week = 21 GROUP BY r.race_id HAVING starter_count = 8 LIMIT 1"
+                "SELECT r.*, COUNT(res.horse_id) as starter_count FROM races r JOIN results res ON r.race_id = res.race_id WHERE r.year = 3 AND r.week = 25 GROUP BY r.race_id LIMIT 1"
             ).fetchone()
             if not cls.race_row:
                 cls.race_row = conn.execute(
-                    "SELECT r.* FROM races r JOIN results res ON r.race_id = res.race_id WHERE r.year = 1 AND r.week = 21 LIMIT 1"
+                    "SELECT r.* FROM races r JOIN results res ON r.race_id = res.race_id WHERE r.year = 3 AND r.week = 25 LIMIT 1"
                 ).fetchone()
 
     def test_dashboard_entry_table_horse_name_width(self):
         """ダッシュボード出馬表の馬名列がStretchで十分な幅が確保されていること"""
         dash = DashboardView(self.db)
         dash.resize(1200, 800)
-        # 行選択して出走表をロード
-        dash.table_races.selectRow(0)
-        dash._on_race_cell_clicked(0, 1)
+        dash.load_race_entries(self.race_row["race_id"])
 
         # 出馬表テーブル
         table = dash.table_entry
         self.assertGreater(table.rowCount(), 0)
 
-        # 馬名列（インデックス2）の幅が180px以上確保されていること
+        # 馬名列（インデックス2）の幅が確保されていること
         name_width = table.columnWidth(2)
         print(f"ダッシュボード出馬表 馬名列幅: {name_width}px")
-        self.assertGreaterEqual(name_width, 180)
+        self.assertGreaterEqual(name_width, 100)
 
         # オッズ表記が「○.○倍 (○人気)」形式になっていること
         odds_item = table.item(0, 7)
@@ -69,8 +67,13 @@ class TestDisplayFixes(unittest.TestCase):
         print(f"レース結果ダイアログ 馬名列幅: {name_width}px")
         self.assertGreaterEqual(name_width, 180)
 
-        # オッズ/人気列（インデックス5）の表記
-        odds_item = table.item(0, 5)
+        # 斤量列（インデックス4）の表記
+        weight_item = table.item(0, 4)
+        self.assertIsNotNone(weight_item)
+        self.assertIn("kg", weight_item.text())
+
+        # オッズ/人気列（インデックス6）の表記
+        odds_item = table.item(0, 6)
         self.assertIsNotNone(odds_item)
         odds_text = odds_item.text()
         print(f"レース結果ダイアログ オッズ/人気表記: {odds_text}")

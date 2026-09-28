@@ -15,9 +15,9 @@ from src.models.horse import CoatColor, GenotypeMSTN, GrowthType, Horse, Running
 class GeneticsEngine:
     """交配・遺伝計算エンジン"""
 
-    HERITABILITY: float = 0.65      # 相加的遺伝率
-    POPULATION_MEAN: float = 50.0   # 初期集団平均 μ
-    ENVIRONMENTAL_STD: float = 2.2  # 環境・変異標準偏差 σ_e（50世代で極限到達に向け適正化）
+    HERITABILITY: float = 0.70      # 相加的遺伝率
+    POPULATION_MEAN: float = 10.0   # 初期集団平均 μ (10±10)
+    ENVIRONMENTAL_STD: float = 1.8  # 環境・変異標準偏差 σ_e
 
     # 主要系統大分類 (Major Sire Line Systems)
     MAJOR_SYSTEMS: List[str] = [
@@ -135,16 +135,75 @@ class GeneticsEngine:
     @classmethod
     def calculate_polygenic_stat(cls, sire_val: float, dam_val: float) -> float:
         """
-        育種選抜相加的遺伝モデル:
+        中立的相加遺伝モデル:
         両親の相加平均（Mid-Parent Value）を期待値として遺伝し、
-        優秀な親同士の交配により約50世代でおよそ極限（100.0）に到達するよう設計。
-        P_child = (P_sire + P_dam) / 2.0 + 育種ドリフト + ε
+        世代交代や選抜がない限り年数経過のみでの無条件インフレは発生しない。
+        P_child = (P_sire + P_dam) / 2.0 + ε
         """
         mid_parent = (sire_val + dam_val) / 2.0
-        # 優秀な形質の集積・品種改良効果（0.12pt向上傾向）および遺伝的変異
-        epsilon = random.gauss(0.12, cls.ENVIRONMENTAL_STD)
+        epsilon = random.gauss(0.0, cls.ENVIRONMENTAL_STD)
         child_val = mid_parent + epsilon
         return round(max(10.0, min(100.0, child_val)), 1)
+
+    @classmethod
+    def calculate_offspring_speed(
+        cls,
+        sire_speed: float,
+        dam_speed: float,
+        sire_generation: int = 1,
+        dam_vitality: float = 10.0,
+        dam_g1_wins: int = 0,
+        dam_graded_wins: int = 0,
+        is_nicks: bool = False,
+        nicks_speed_bonus: float = 0.0,
+        inbreeding_speed_bonus: float = 0.0,
+    ) -> float:
+        """
+        世代交代・新種牡馬誕生・繁殖牝馬能力・配合相性連動スピード遺伝モデル:
+        - 初期値10基準、約30世代で30から80へ進化
+        - 上限100（突然変異時のみ100超え可能）
+        """
+        mid_speed = (sire_speed + dam_speed) / 2.0
+
+        # 1. 世代進化潜在値 (Generation Evolution Potential) - 1/3スピードに緩和
+        gen_advancement = max(0, sire_generation - 1)
+        base_gen_potential = min(25.0, gen_advancement * 0.40)
+
+        # 2. 繁殖牝馬の能力・実績による進化発現係数 (Dam Efficiency)
+        dam_score = (dam_speed - 10.0) * 0.02 + (dam_vitality - 10.0) * 0.01
+        if dam_g1_wins > 0:
+            dam_score += 0.40
+        elif dam_graded_wins > 0:
+            dam_score += 0.25
+
+        # 発現効率 (0.3 〜 1.6)
+        dam_efficiency = max(0.3, min(1.6, 0.7 + dam_score))
+
+        # 3. ニックス・配合相性による世代進化シナジー
+        synergy = 0.0
+        if is_nicks:
+            synergy += 0.30
+        if inbreeding_speed_bonus > 1.0:
+            synergy += 0.25
+
+        final_gen_boost = base_gen_potential * (dam_efficiency + synergy) * 0.15
+
+        # 4. 遺伝的変異
+        is_mutation = (random.random() < 0.015)  # 1.5%で突然変異
+        if is_mutation:
+            epsilon = random.uniform(3.0, 8.0)
+        else:
+            epsilon = random.gauss(0.0, cls.ENVIRONMENTAL_STD)
+
+        # 合計スピード値
+        speed = mid_speed + final_gen_boost + nicks_speed_bonus + inbreeding_speed_bonus + epsilon
+
+        if is_mutation:
+            # 突然変異時は100超え可能 (最大115.0)
+            return round(max(0.0, min(115.0, speed)), 1)
+        else:
+            # 通常は100.0を超えない
+            return round(max(0.0, min(100.0, speed)), 1)
 
     @classmethod
     def calculate_maternal_vitality(cls, sire_vitality: float, dam_vitality: float) -> float:

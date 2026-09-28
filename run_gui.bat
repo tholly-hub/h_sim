@@ -1,34 +1,31 @@
 @echo off
-@setlocal
+setlocal
 cd /d "%~dp0"
 
-:: 文字コードをUTF-8に設定
-chcp 65001 > nul
-set PYTHONIOENCODING=utf-8
+set "PYTHON_CMD="
+if exist ".venv\Scripts\python.exe" set "PYTHON_CMD=.venv\Scripts\python.exe"
+if not defined PYTHON_CMD (
+    where py >nul 2>nul && set "PYTHON_CMD=py"
+)
+if not defined PYTHON_CMD (
+    where python >nul 2>nul && set "PYTHON_CMD=python"
+)
+
+if not defined PYTHON_CMD (
+    echo [ERROR] Python not found.
+    echo Please install Python 3.10 or higher and add it to PATH.
+    pause
+    exit /b 1
+)
+
 set PYTHONPATH=.
+set PYTHONIOENCODING=utf-8
+set PYTHONUNBUFFERED=1
 
-echo ============================================================
-echo   競馬シミュレーションエンジン - GUIデータ可視化システム
-echo ============================================================
-echo 起動中... しばらくお待ちください。
-
-:: Pythonの検索と実行 (py ランチャー優先、次に python)
-where py >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    py main.py --gui %*
-    goto :done
+echo Starting GUI...
+%PYTHON_CMD% main.py --gui %*
+if errorlevel 1 (
+    echo.
+    echo [Application finished with error level: %ERRORLEVEL%]
+    pause
 )
-
-where python >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    python main.py --gui %*
-    goto :done
-)
-
-echo [エラー] Python が見つかりませんでした。
-echo Python 3.10以上をインストールし、PATHに追加してください。
-echo https://www.python.org/
-pause
-
-:done
-endlocal

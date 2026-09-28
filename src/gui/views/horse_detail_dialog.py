@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.db.database import Database, get_db
+from src.gui.styles import get_generation_color
 from src.gui.widgets.html_delegate import HTMLDelegate
 from src.gui.widgets.pedigree_widget import PedigreeWidget
 from src.models.horse import Horse
@@ -383,11 +384,17 @@ class HorseDetailDialog(QDialog):
             horse = Horse.from_row(h_row)
 
             # 厩舎名
-            trainer_name = "未所属"
-            if horse.trainer_id:
+            if horse.age <= 1:
+                trainer_name = "入厩前"
+            elif horse.trainer_id:
                 tr = conn.execute("SELECT name, location FROM trainers WHERE trainer_id = ?", (horse.trainer_id,)).fetchone()
                 if tr:
-                    trainer_name = f"{tr['name']} ({tr['location']})"
+                    loc = tr["location"] or ""
+                    trainer_name = f"{tr['name']} ({loc})" if loc else tr["name"]
+                else:
+                    trainer_name = "未定"
+            else:
+                trainer_name = "未定"
 
             # 生産牧場
             breeder_name = "不明"
@@ -403,10 +410,13 @@ class HorseDetailDialog(QDialog):
 
             # 主戦騎手
             jockey_name = "未定"
-            if horse.jockey_id:
-                jk = conn.execute("SELECT name FROM jockeys WHERE jockey_id = ?", (horse.jockey_id,)).fetchone()
+            if horse.age <= 1:
+                jockey_name = "未定"
+            elif horse.jockey_id:
+                jk = conn.execute("SELECT name, location FROM jockeys WHERE jockey_id = ?", (horse.jockey_id,)).fetchone()
                 if jk:
-                    jockey_name = jk["name"]
+                    loc = jk["location"] or ""
+                    jockey_name = f"{jk['name']} ({loc})" if loc else jk["name"]
 
             # レース履歴（直近順・降順で表示）
             # 各レースでの勝ちタイムと過去レコードの比較用サブクエリ、および人気順サブクエリを含む
@@ -465,6 +475,18 @@ class HorseDetailDialog(QDialog):
                 adjusted_prize = horse.prize_money
 
 
+            # サイヤーライン（父系系統）
+            sire_line_str = "不明"
+            if horse.sire_id:
+                s_info = conn.execute("SELECT sire_line FROM sires WHERE horse_id = ?", (horse.sire_id,)).fetchone()
+                if s_info and s_info["sire_line"]:
+                    sire_line_str = s_info["sire_line"]
+                else:
+                    # sires にない場合は父馬の名前等から推測
+                    p_info = conn.execute("SELECT name, sire_id FROM horses WHERE horse_id = ?", (horse.sire_id,)).fetchone()
+                    if p_info:
+                        sire_line_str = f"{p_info['name']}系"
+
         # 1,2,3,着外の着順内訳計算
         wins_1 = sum(1 for r in results if r["finish_position"] == 1)
         wins_2 = sum(1 for r in results if r["finish_position"] == 2)
@@ -478,7 +500,36 @@ class HorseDetailDialog(QDialog):
         surf_jp = "芝" if horse.surface_aptitude == "turf" else ("ダート" if horse.surface_aptitude == "dirt" else "芝・ダート兼用")
         mstn_str = horse.mstn_type.value if hasattr(horse.mstn_type, "value") else str(horse.mstn_type)
 
-        self.lbl_name.setText(f"{horse.name} ({sex_str}{horse.age}歳・【{horse.class_name}】・毛色: {horse.coat_color}・{mstn_str})")
+        if not horse.is_active:
+            age_display = "引退"
+            if horse.is_sire:
+                class_display = "種牡馬"
+            elif horse.is_dam:
+                class_display = "繁殖牝馬"
+            else:
+                g_wins = horse.g1_wins + horse.g2_wins + horse.g3_wins
+                if horse.career_starts == 0:
+                    class_display = "未出走"
+                elif horse.career_wins == 0:
+                    class_display = "未勝利"
+                elif g_wins > 0 or horse.career_wins >= 4 or horse.condition_prize_money >= 16_000_000:
+                    class_display = "オープン"
+                elif horse.career_wins == 3:
+                    class_display = "3勝クラス"
+                elif horse.career_wins == 2:
+                    class_display = "2勝クラス"
+                elif horse.career_wins == 1:
+                    class_display = "1勝クラス"
+                else:
+                    class_display = "未勝利"
+        else:
+            age_display = f"{sex_str}{horse.age}歳"
+            class_display = horse.class_name
+
+        h_gen = getattr(horse, "generation", 1) or 1
+        name_col = get_generation_color(h_gen)
+        self.lbl_name.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {name_col};")
+        self.lbl_name.setText(f"{horse.name} ({age_display}・【{class_display}】・父系: {sire_line_str}・毛色: {horse.coat_color}・{mstn_str})")
         self.lbl_trainer.setText(f"所属: {trainer_name}")
         self.lbl_breeder.setText(f"牧場: {breeder_name}")
         self.lbl_owner.setText(f"馬主: {owner_name}")

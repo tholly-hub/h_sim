@@ -21,7 +21,10 @@ G1_ALIAS_MAP: Dict[str, str] = {
     'チャンピオンズC': 'チャンピオンズカップ',
     'マイルCS': 'マイルチャンピオンシップ',
     '全日本2歳優駿': '全日本２歳優駿',
-    '日本ダービー': '東京優駿',
+    '日本ダービー': '東京優駿（日本ダービー）',
+    '東京優駿': '東京優駿（日本ダービー）',
+    'オークス': '優駿牝馬（オークス）',
+    '優駿牝馬': '優駿牝馬（オークス）',
 }
 
 
@@ -36,37 +39,156 @@ def normalize_g1_name(name: Optional[str]) -> Optional[str]:
 def calculate_carried_weight(race: Race, horse: Horse) -> float:
     """
     負担重量（斤量）の算出 (kg)
-    - 2歳戦: 55.0kg (牝馬 54.0kg)
-    - 3歳戦 (春季 1〜20週): 56.0kg (G1 57.0kg)
-    - 3歳戦 (秋季 21週以降): 56.0kg / 57.0kg
-    - 4歳以上古馬戦: G1/G2 58.0kg, G3/L/OP 57.0kg
-    - 3歳以上混合戦: 3歳 56.0kg (秋57.0kg), 4歳以上 58.0kg
-    - 牝馬減量: 一律 -2.0kg
+    - 定量戦、別定戦、ハンデ戦を判定して適用
+    - 定量戦:
+        - 2歳戦: 牡馬55.0kg, 牝馬54.0kg
+        - 3歳戦: G1牡馬57.0kg, 春季牡馬56.0kg, 秋季牡馬57.0kg, 牝馬-2.0kg
+        - 3歳以上混合/古馬戦 (G1): 3歳牡馬56.0kg(秋57.0kg), 4歳以上牡馬58.0kg, 牝馬-2.0kg
+        - 3歳以上混合/古馬戦 (G2/G3/OP/条件): 4歳以上牡馬57.0kg, 牝馬-2.0kg
+    - 別定戦:
+        - 基準斤量（4歳牡57kg, 3歳牡55kg, 牝-2kg）＋重賞実績加増 (G1馬+2kg, G2馬+1kg)
+    - ハンデ戦:
+        - 馬の能力値・実績を数値化し、平均55.0kg、1.0kg刻み（最低48.0kg〜最高62.0kg）で割り振る
     """
     is_female = horse.sex in ('filly', 'mare', '牝')
     age = horse.age
+    w_type = getattr(race, 'weight_type', '定量') or '定量'
 
-    if race.age_restriction == AgeRestriction.TWO_YO or age == 2:
-        base_w = 55.0
-    elif race.age_restriction == AgeRestriction.THREE_YO:
-        if race.grade == RaceGrade.G1:
-            base_w = 57.0
-        elif race.week <= 20:
-            base_w = 56.0
+    if w_type == 'ハンデ':
+        # 単体計算時のハンデ算出（能力値と実績から55kg基準、48〜62kg、1kg刻み）
+        raw_ability = (
+            getattr(horse, 'speed', 50.0) * 0.35
+            + getattr(horse, 'acceleration', 50.0) * 0.25
+            + getattr(horse, 'stamina', 50.0) * 0.25
+            + getattr(horse, 'durability', 50.0) * 0.15
+        )
+        eff_rate = getattr(horse, 'current_ability_rate', 1.0)
+        ability_score = raw_ability * eff_rate
+
+        g1 = getattr(horse, 'g1_wins', 0) or 0
+        g2 = getattr(horse, 'g2_wins', 0) or 0
+        g3 = getattr(horse, 'g3_wins', 0) or 0
+        wins = getattr(horse, 'career_wins', 0) or 0
+        prize = getattr(horse, 'prize_money', 0) or 0
+
+        perf_score = (g1 * 3.0) + (g2 * 1.5) + (g3 * 0.8) + (wins * 0.2) + ((prize // 40_000_000) * 0.5)
+        # 基準（能力50、重賞未勝利）からの差分
+        total_score = ability_score + perf_score - 50.0
+        if is_female:
+            total_score -= 2.0
+
+        delta_kg = round(total_score / 3.5)
+        carried = 55.0 + delta_kg
+        return float(max(48.0, min(62.0, carried)))
+
+    elif w_type == '別定':
+        # 基準斤量
+        if race.age_restriction == AgeRestriction.THREE_YO_UP:
+            base_w = (55.0 if race.week <= 36 else 56.0) if age == 3 else 57.0
         else:
             base_w = 57.0
-    elif race.age_restriction == AgeRestriction.THREE_YO_UP:
-        if age == 3:
-            base_w = 56.0 if race.week <= 36 else 57.0
-        else:
-            base_w = 58.0
-    else:  # FOUR_YO_UP
-        base_w = 58.0 if race.grade in (RaceGrade.G1, RaceGrade.G2) else 57.0
 
-    if is_female:
-        base_w -= 2.0
+        if is_female:
+            base_w -= 2.0
 
-    return round(base_w, 1)
+        # 実績加増 (G1馬 +2kg, G2馬 +1kg)
+        g1 = getattr(horse, 'g1_wins', 0) or 0
+        g2 = getattr(horse, 'g2_wins', 0) or 0
+        if g1 > 0:
+            base_w += 2.0
+        elif g2 > 0:
+            base_w += 1.0
+
+        return round(base_w, 1)
+
+    else:
+        # 定量戦
+        if race.age_restriction == AgeRestriction.TWO_YO or age == 2:
+            base_w = 55.0
+            if is_female:
+                base_w = 54.0
+        elif race.age_restriction == AgeRestriction.THREE_YO:
+            if race.grade == RaceGrade.G1:
+                base_w = 57.0
+            elif race.week <= 20:
+                base_w = 56.0
+            else:
+                base_w = 57.0
+            if is_female:
+                base_w -= 2.0
+        elif race.age_restriction == AgeRestriction.THREE_YO_UP:
+            if age == 3:
+                base_w = 56.0 if race.week <= 36 else 57.0
+            else:
+                base_w = 58.0 if race.grade == RaceGrade.G1 else 57.0
+            if is_female:
+                base_w -= 2.0
+        else:  # FOUR_YO_UP
+            base_w = 58.0 if race.grade in (RaceGrade.G1, RaceGrade.G2) else 57.0
+            if is_female:
+                base_w -= 2.0
+
+        return round(base_w, 1)
+
+
+def calculate_race_carried_weights(race: Race, starters: List[Horse]) -> Dict[int, float]:
+    """
+    出走馬全体の斤量を一括算出
+    ハンデ戦の場合は、出走メンバー全体の能力・実績を数値化し、
+    平均がちょうど55.0kg（1.0kg刻み、48.0kg〜62.0kg）になるよう厳密に割り振る
+    """
+    weights: Dict[int, float] = {}
+    if not starters:
+        return weights
+
+    w_type = getattr(race, 'weight_type', '定量') or '定量'
+
+    if w_type == 'ハンデ' and len(starters) > 1:
+        # 1. 各出走馬の総合能力スコア算出
+        scores: Dict[int, float] = {}
+        for h in starters:
+            hid = h.horse_id
+            if hid is None:
+                continue
+            is_female = h.sex in ('filly', 'mare', '牝')
+            raw_ability = (
+                getattr(h, 'speed', 50.0) * 0.35
+                + getattr(h, 'acceleration', 50.0) * 0.25
+                + getattr(h, 'stamina', 50.0) * 0.25
+                + getattr(h, 'durability', 50.0) * 0.15
+            )
+            eff_rate = getattr(h, 'current_ability_rate', 1.0)
+            ability_score = raw_ability * eff_rate
+
+            g1 = getattr(h, 'g1_wins', 0) or 0
+            g2 = getattr(h, 'g2_wins', 0) or 0
+            g3 = getattr(h, 'g3_wins', 0) or 0
+            wins = getattr(h, 'career_wins', 0) or 0
+            prize = getattr(h, 'prize_money', 0) or 0
+
+            perf_score = (g1 * 3.0) + (g2 * 1.5) + (g3 * 0.8) + (wins * 0.2) + ((prize // 40_000_000) * 0.5)
+            total = ability_score + perf_score
+            if is_female:
+                total -= 2.0
+            scores[hid] = total
+
+        avg_score = sum(scores.values()) / len(scores)
+
+        for h in starters:
+            hid = h.horse_id
+            if hid is None:
+                continue
+            diff = scores[hid] - avg_score
+            delta_kg = round(diff / 3.0)  # 3.0pt差で約1.0kg
+            w = 55.0 + delta_kg
+            weights[hid] = float(max(48.0, min(62.0, w)))
+        return weights
+
+    # 定量戦・別定戦または単体計算
+    for h in starters:
+        if h.horse_id is not None:
+            weights[h.horse_id] = calculate_carried_weight(race, h)
+    return weights
 
 
 class RaceEntryManager:
@@ -358,21 +480,23 @@ class RaceEntryManager:
             score += 10.0
 
         # 2. 距離適性判定
-        opt_dist = 1800.0
-        if horse.mstn_type == GenotypeMSTN.CC:
-            opt_dist = 1200.0
-        elif horse.mstn_type == GenotypeMSTN.TT:
-            opt_dist = 2600.0
-
-        dist_diff = abs(race.distance - opt_dist)
-        if dist_diff <= 200:
-            score += 20.0
-        elif dist_diff <= 400:
-            score += 10.0
-        elif dist_diff <= 800:
-            score -= 10.0
+        min_apt_d, max_apt_d = horse.get_distance_aptitude()
+        if min_apt_d <= race.distance <= max_apt_d:
+            score += 25.0
         else:
-            score -= 30.0
+            if race.distance < min_apt_d:
+                dist_diff = min_apt_d - race.distance
+            else:
+                dist_diff = race.distance - max_apt_d
+
+            if dist_diff <= 200:
+                score += 5.0
+            elif dist_diff <= 400:
+                score -= 15.0
+            elif dist_diff <= 800:
+                score -= 35.0
+            else:
+                score -= 60.0
 
         # 3. 総合能力の加味
         overall = (horse.speed + horse.acceleration + horse.stamina) / 3.0
@@ -427,24 +551,52 @@ class RaceEntryManager:
         priority_horses = [h for h in valid_candidates if h.horse_id in priority_horse_ids]
         other_horses = [h for h in valid_candidates if h.horse_id not in priority_horse_ids]
 
+        is_condition_or_maiden = race.grade in (
+            RaceGrade.NEWCOMER, RaceGrade.MAIDEN,
+            RaceGrade.COND_1W, RaceGrade.COND_2W, RaceGrade.COND_3W
+        )
+
         scored_others = []
         for h in other_horses:
             suit = self.calculate_race_suitability(h, race, conn=conn)
             if suit >= 25.0 or len(other_horses) < 8:
-                scored_others.append((suit, h))
+                # 前走からの間隔（節数）ボーナス計算
+                h_id = h.horse_id
+                interval_weeks = 999
+                if last_runs_map and h_id is not None and h_id in last_runs_map:
+                    ly, lw = last_runs_map[h_id]
+                    interval_weeks = (race.year - ly) * 48 + (race.week - lw)
+
+                scored_others.append((suit, interval_weeks, h))
 
         random.shuffle(scored_others)
-        scored_others.sort(
-            key=lambda item: (
-                item[0] >= 50.0,
-                item[1].condition_prize_money,
-                item[0],
-                item[1].prize_money,
-            ),
-            reverse=True,
-        )
 
-        filtered_others = [item[1] for item in scored_others]
+        if is_condition_or_maiden:
+            # 条件戦・未勝利戦・新馬戦: 出走機会均等化（間隔が空いている馬・出走数が少ない馬を優先）
+            scored_others.sort(
+                key=lambda item: (
+                    item[0] >= 40.0,                    # 適性があるか
+                    item[1] >= 8,                       # 8週以上出走間隔が空いているか
+                    item[2].career_starts == 0,         # 未出走馬
+                    -item[2].career_starts,             # 出走数が少ない馬
+                    item[1],                            # 出走間隔の長さ
+                    item[0],                            # 適性スコア
+                ),
+                reverse=True,
+            )
+        else:
+            # 重賞・オープン: 賞金・実績上位馬を優先
+            scored_others.sort(
+                key=lambda item: (
+                    item[0] >= 50.0,
+                    item[2].condition_prize_money,
+                    item[0],
+                    item[2].prize_money,
+                ),
+                reverse=True,
+            )
+
+        filtered_others = [item[2] for item in scored_others]
         starters = priority_horses + filtered_others
 
         max_limit = min(8, race.full_gate if (hasattr(race, "full_gate") and race.full_gate) else 8)
@@ -455,27 +607,38 @@ class RaceEntryManager:
         starters: List[Horse],
         race: Race,
         all_jockeys: List[Jockey],
-        trainer_jockey_map: Dict[int, int],
+        trainer_jockey_map: Any,
     ) -> Dict[int, int]:
         """
         出走馬に対する騎手アサイン
-        - 条件戦（新馬・未勝利・1勝・2勝・3勝クラス）:
-          - まず自厩舎の所属騎手を最優先。
-          - 自厩舎所属騎手が既に同レース他馬に騎乗（バッティング）している場合や不在時は、馬の主戦騎手、または空いているフリー騎手・他騎手を割り当て。
-        - 重賞・リステッド・オープン（G1, G2, G3, L, OP）:
-          - 上位有力馬には実力上位のフリー騎手を優先起用可能。
+        - 厩舎所属騎手（通常2名）への均等・優先騎乗割り振り
+        - 条件戦・新馬戦・未勝利戦では自厩舎所属の騎手2名のうち、当年騎乗数が少ない方を優先して均等に配分
+        - 空き枠や他厩舎への騎乗依頼でも「当年騎乗数が少ない現役騎手」を優先起用し、年間騎乗数0の騎手を解消
+        - 重賞・オープン等の有力馬にはフリー騎手や実力上位騎手を起用
         """
         assigned: Dict[int, int] = {}
         busy_jockeys: Set[int] = set()
+        jockey_obj_map = {j.jockey_id: j for j in all_jockeys if j.jockey_id is not None}
+
+        # trainer_jockey_map の正規化（Dict[int, List[int]] に変換）
+        normalized_trainer_map: Dict[int, List[int]] = {}
+        if isinstance(trainer_jockey_map, dict):
+            for t_id, j_val in trainer_jockey_map.items():
+                if isinstance(j_val, list):
+                    normalized_trainer_map[t_id] = j_val
+                elif isinstance(j_val, int):
+                    normalized_trainer_map[t_id] = [j_val]
+                else:
+                    normalized_trainer_map[t_id] = []
+
+        is_graded_or_open = race.grade in (
+            RaceGrade.G1, RaceGrade.G2, RaceGrade.G3, RaceGrade.L, RaceGrade.OP
+        )
 
         free_jockeys = [j for j in all_jockeys if j.is_free == 1 and j.is_active == 1]
         free_jockeys.sort(
             key=lambda j: (j.experience * 0.3 + (j.skill + j.drive) * 0.7),
             reverse=True,
-        )
-
-        is_graded_or_open = race.grade in (
-            RaceGrade.G1, RaceGrade.G2, RaceGrade.G3, RaceGrade.L, RaceGrade.OP
         )
 
         sorted_starters = sorted(
@@ -490,7 +653,21 @@ class RaceEntryManager:
                 continue
 
             t_id = horse.trainer_id
-            stable_jockey_id = trainer_jockey_map.get(t_id) if t_id else None
+            stable_jockeys = normalized_trainer_map.get(t_id, []) if t_id else []
+            # 自厩舎所属の現役かつ空いている騎手
+            available_stable_jockeys = [
+                j_id for j_id in stable_jockeys
+                if j_id not in busy_jockeys and j_id in jockey_obj_map and jockey_obj_map[j_id].is_active == 1
+            ]
+            # 所属騎手2名の間で騎乗機会を均等化（当年騎乗数が少ない騎手を優先）
+            if available_stable_jockeys:
+                available_stable_jockeys.sort(
+                    key=lambda jid: (
+                        getattr(jockey_obj_map[jid], "current_year_starts", 0),
+                        -getattr(jockey_obj_map[jid], "skill", 50.0),
+                    )
+                )
+
             chosen_jockey_id: Optional[int] = None
 
             if is_graded_or_open:
@@ -502,24 +679,31 @@ class RaceEntryManager:
                             chosen_jockey_id = fj.jockey_id
                             break
 
-                # フリー騎手を使わない／空きがない場合は自厩舎騎手
-                if chosen_jockey_id is None and stable_jockey_id:
-                    if stable_jockey_id not in busy_jockeys:
-                        chosen_jockey_id = stable_jockey_id
+                # フリー騎手を使わない／空きがない場合は自厩舎所属騎手（均等配分）
+                if chosen_jockey_id is None and available_stable_jockeys:
+                    chosen_jockey_id = available_stable_jockeys[0]
 
                 # 馬の主戦騎手
                 if chosen_jockey_id is None and horse.jockey_id:
-                    if horse.jockey_id not in busy_jockeys:
+                    if (
+                        horse.jockey_id not in busy_jockeys
+                        and horse.jockey_id in jockey_obj_map
+                        and jockey_obj_map[horse.jockey_id].is_active == 1
+                    ):
                         chosen_jockey_id = horse.jockey_id
             else:
                 # 条件戦（新馬・未勝利・1〜3勝クラス）:
-                # 1. 自厩舎所属騎手を最優先
-                if stable_jockey_id and stable_jockey_id not in busy_jockeys:
-                    chosen_jockey_id = stable_jockey_id
+                # 1. 自厩舎所属騎手を最優先（2名の中で当年騎乗数が少ない方を優先して均等に配分）
+                if available_stable_jockeys:
+                    chosen_jockey_id = available_stable_jockeys[0]
 
                 # 2. 自厩舎所属騎手がバッティングしている等の場合は、馬の主戦騎手
                 if chosen_jockey_id is None and horse.jockey_id:
-                    if horse.jockey_id not in busy_jockeys:
+                    if (
+                        horse.jockey_id not in busy_jockeys
+                        and horse.jockey_id in jockey_obj_map
+                        and jockey_obj_map[horse.jockey_id].is_active == 1
+                    ):
                         chosen_jockey_id = horse.jockey_id
 
                 # 3. 馬の主戦騎手も不在・バッティングの場合は、フリー騎手
@@ -529,7 +713,8 @@ class RaceEntryManager:
                             chosen_jockey_id = fj.jockey_id
                             break
 
-            # 4. それでも決まらない場合は、まだ空いている騎手を割り当て
+            # 4. それでも決まらない場合は、まだ空いている現役騎手（全120名）の中から
+            # 「当年騎乗数が少ない騎手」を最優先で割り当て（騎乗機会の均等化・年間ゼロ騎乗の完全防止）
             if chosen_jockey_id is None:
                 available_jockeys = [
                     j for j in all_jockeys
@@ -537,13 +722,19 @@ class RaceEntryManager:
                 ]
                 if available_jockeys:
                     available_jockeys.sort(
-                        key=lambda j: (j.skill + j.drive),
-                        reverse=True,
+                        key=lambda j: (
+                            getattr(j, "current_year_starts", 0),
+                            -(j.skill + j.drive),
+                            -j.experience,
+                        )
                     )
                     chosen_jockey_id = available_jockeys[0].jockey_id
 
             if chosen_jockey_id is not None:
                 assigned[h_id] = chosen_jockey_id
                 busy_jockeys.add(chosen_jockey_id)
+                if chosen_jockey_id in jockey_obj_map:
+                    j_obj = jockey_obj_map[chosen_jockey_id]
+                    j_obj.current_year_starts = getattr(j_obj, "current_year_starts", 0) + 1
 
         return assigned

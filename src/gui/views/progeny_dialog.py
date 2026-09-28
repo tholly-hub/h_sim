@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.db.database import Database, get_db
+from src.gui.styles import get_generation_color
 from src.gui.views.horse_detail_dialog import HorseDetailDialog, GRADE_COLOR_MAP
 
 
@@ -51,6 +52,7 @@ class ProgenyListDialog(QDialog):
             }
             QTableWidget {
                 background-color: #1e293b;
+                alternate-background-color: #111827;
                 color: #f8fafc;
                 gridline-color: #334155;
                 border: 1px solid #334155;
@@ -100,20 +102,21 @@ class ProgenyListDialog(QDialog):
 
         # 産駒一覧テーブル
         self.table = QTableWidget()
-        self.table.setColumnCount(8)
+        self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels([
-            "産駒名 (詳細)", "生年", "性齢", "相手馬", "通算成績", "総賞金", "主な勝鞍", "状態"
+            "産駒名 (詳細)", "生年", "性齢", "相手馬", "通算成績 (1-2-3-外)", "重賞成績 (G1-G2-G3)", "主な勝鞍 (G1)", "総賞金", "状態"
         ])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table.setColumnWidth(0, 180)  # 馬名
+        self.table.setColumnWidth(0, 160)  # 馬名
         self.table.setColumnWidth(1, 55)   # 生年
         self.table.setColumnWidth(2, 55)   # 性齢
-        self.table.setColumnWidth(3, 150)  # 相手馬
-        self.table.setColumnWidth(4, 85)   # 成績
-        self.table.setColumnWidth(5, 100)  # 賞金
+        self.table.setColumnWidth(3, 140)  # 相手馬
+        self.table.setColumnWidth(4, 110)  # 通算成績
+        self.table.setColumnWidth(5, 120)  # 重賞成績
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)  # 主な勝鞍
-        self.table.setColumnWidth(7, 65)   # 状態
+        self.table.setColumnWidth(7, 95)   # 賞金
+        self.table.setColumnWidth(8, 65)   # 状態
         self.table.setAlternatingRowColors(True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -155,14 +158,16 @@ class ProgenyListDialog(QDialog):
                 progeny_rows = conn.execute("""
                     SELECT h.*, 
                            dh.name as mate_name,
-                           COUNT(res.result_id) as total_races,
-                           SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END) as wins
+                           COALESCE(SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END), 0) as pos1,
+                           COALESCE(SUM(CASE WHEN res.finish_position = 2 THEN 1 ELSE 0 END), 0) as pos2,
+                           COALESCE(SUM(CASE WHEN res.finish_position = 3 THEN 1 ELSE 0 END), 0) as pos3,
+                           COALESCE(SUM(CASE WHEN res.finish_position > 3 THEN 1 ELSE 0 END), 0) as pos_out
                     FROM horses h
                     LEFT JOIN horses dh ON h.dam_id = dh.horse_id
                     LEFT JOIN results res ON h.horse_id = res.horse_id
                     WHERE h.sire_id = ?
                     GROUP BY h.horse_id
-                    ORDER BY h.prize_money DESC, h.birth_year DESC
+                    ORDER BY h.is_active DESC, h.prize_money DESC, (h.g1_wins*100 + h.g2_wins*20 + h.g3_wins*5 + h.career_wins) DESC, h.birth_year DESC
                 """, (self.parent_id,)).fetchall()
             else:
                 parent_row = conn.execute("""
@@ -177,47 +182,60 @@ class ProgenyListDialog(QDialog):
                 progeny_rows = conn.execute("""
                     SELECT h.*, 
                            sh.name as mate_name,
-                           COUNT(res.result_id) as total_races,
-                           SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END) as wins
+                           COALESCE(SUM(CASE WHEN res.finish_position = 1 THEN 1 ELSE 0 END), 0) as pos1,
+                           COALESCE(SUM(CASE WHEN res.finish_position = 2 THEN 1 ELSE 0 END), 0) as pos2,
+                           COALESCE(SUM(CASE WHEN res.finish_position = 3 THEN 1 ELSE 0 END), 0) as pos3,
+                           COALESCE(SUM(CASE WHEN res.finish_position > 3 THEN 1 ELSE 0 END), 0) as pos_out
                     FROM horses h
                     LEFT JOIN horses sh ON h.sire_id = sh.horse_id
                     LEFT JOIN results res ON h.horse_id = res.horse_id
                     WHERE h.dam_id = ?
                     GROUP BY h.horse_id
-                    ORDER BY h.prize_money DESC, h.birth_year DESC
+                    ORDER BY h.is_active DESC, h.prize_money DESC, (h.g1_wins*100 + h.g2_wins*20 + h.g3_wins*5 + h.career_wins) DESC, h.birth_year DESC
                 """, (self.parent_id,)).fetchall()
 
         sex_map = {"colt": "牡", "filly": "牝", "horse": "牡", "mare": "牝", "gelding": "セ"}
         
         self.table.setRowCount(len(progeny_rows))
         total_p = len(progeny_rows)
-        win_p = sum(1 for r in progeny_rows if (r["wins"] or 0) > 0)
-        self.lbl_stats.setText(f"総頭数: {total_p}頭 / 勝ち上がり: {win_p}頭")
+        active_p = sum(1 for r in progeny_rows if r["is_active"] == 1)
+        win_p = sum(1 for r in progeny_rows if r["is_active"] == 1 and ((r["pos1"] or 0) > 0 or (r["career_wins"] or 0) > 0))
+        win_rate = (win_p / active_p * 100) if active_p > 0 else 0.0
+        self.lbl_stats.setText(f"産駒総数: {total_p}頭 (現役: {active_p}頭) / 現役勝ち上がり: {win_p}頭 (勝馬率: {win_rate:.1f}%)")
 
         for idx, r in enumerate(progeny_rows):
             h_name = r["name"]
             b_year = f"{r['birth_year']}年"
             sex_age = f"{sex_map.get(r['sex'], '')}{r['age']}"
             mate = r["mate_name"] or "不明"
-            races = r["total_races"] or 0
-            wins = r["wins"] or 0
-            rec_str = f"{races}戦{wins}勝"
+            
+            p1 = r["pos1"] or 0
+            p2 = r["pos2"] or 0
+            p3 = r["pos3"] or 0
+            p_out = r["pos_out"] or 0
+            rec_str = f"{p1}-{p2}-{p3}-{p_out}"
+
+            g1 = r["g1_wins"] or 0
+            g2 = r["g2_wins"] or 0
+            g3 = r["g3_wins"] or 0
+            graded_str = f"{g1}-{g2}-{g3}"
+
             prz_val = r["prize_money"] or 0
             if prz_val >= 100_000_000:
                 prize_str = f"{prz_val / 100_000_000:.2f}億円"
             else:
                 prize_str = f"{prz_val // 10000:,}万円"
-            if r["is_sire"]:
+            if r["age"] <= 1:
+                status_str = "当歳" if r["age"] == 0 else "1歳幼駒"
+                status_col = "#38bdf8"
+            elif r["is_sire"]:
                 status_str = "種牡馬"
                 status_col = "#facc15"
             elif r["is_dam"]:
                 status_str = "繁殖牝馬"
                 status_col = "#f472b6"
-            elif r["age"] <= 1:
-                status_str = "入厩前"
-                status_col = "#38bdf8"
             elif r["is_active"]:
-                if races == 0:
+                if (p1 + p2 + p3 + p_out) == 0:
                     status_str = "未出走"
                     status_col = "#34d399"
                 else:
@@ -227,23 +245,28 @@ class ProgenyListDialog(QDialog):
                 status_str = "引退"
                 status_col = "#94a3b8"
 
-            # 主な勝鞍を取得
+            # 主な勝鞍（G1限定）
             with self.db.session() as conn:
-                best_win = conn.execute("""
-                    SELECT rc.name, rc.grade
-                    FROM results res
-                    JOIN races rc ON res.race_id = rc.race_id
-                    WHERE res.horse_id = ? AND res.finish_position = 1
-                    ORDER BY CASE rc.grade
-                        WHEN 'G1' THEN 1 WHEN 'G2' THEN 2 WHEN 'G3' THEN 3
-                        WHEN 'L' THEN 4 WHEN 'OP' THEN 5 ELSE 6 END ASC
-                    LIMIT 1
-                """, (r["horse_id"],)).fetchone()
-                best_win_str = f"{best_win['name']} ({best_win['grade']})" if best_win else ("未勝利" if wins == 0 else "条件戦")
+                if g1 > 0:
+                    g1_rows = conn.execute("""
+                        SELECT rc.name FROM results res
+                        JOIN races rc ON res.race_id = rc.race_id
+                        WHERE res.horse_id = ? AND res.finish_position = 1 AND rc.grade = 'G1'
+                        ORDER BY rc.year ASC, rc.week ASC
+                    """, (r["horse_id"],)).fetchall()
+                    best_win_str = "、".join(g_r["name"] for g_r in g1_rows) if g1_rows else (r["major_wins"] or "-")
+                else:
+                    best_win_str = "-"
+
+            gen = dict(r).get("generation", 1) or 1
+            name_col = get_generation_color(gen)
 
             name_item = QTableWidgetItem(h_name)
             name_item.setData(Qt.ItemDataRole.UserRole, r["horse_id"])
-            name_item.setForeground(Qt.GlobalColor.cyan)
+            name_item.setForeground(QColor(name_col))
+            f = name_item.font()
+            f.setBold(True)
+            name_item.setFont(f)
 
             status_item = QTableWidgetItem(status_str)
             status_item.setForeground(QColor(status_col))
@@ -254,8 +277,9 @@ class ProgenyListDialog(QDialog):
                 QTableWidgetItem(sex_age),
                 QTableWidgetItem(mate),
                 QTableWidgetItem(rec_str),
-                QTableWidgetItem(prize_str),
+                QTableWidgetItem(graded_str),
                 QTableWidgetItem(best_win_str),
+                QTableWidgetItem(prize_str),
                 status_item,
             ]
 

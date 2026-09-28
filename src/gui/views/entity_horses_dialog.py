@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.db.database import Database
+from src.gui.styles import get_generation_color
 from src.gui.views.horse_detail_dialog import HorseDetailDialog
 
 
@@ -60,6 +61,7 @@ class EntityHorsesDialog(QDialog):
             }
             QTableWidget {
                 background-color: #1e293b;
+                alternate-background-color: #111827;
                 color: #f8fafc;
                 gridline-color: #334155;
                 border: 1px solid #334155;
@@ -178,15 +180,15 @@ class EntityHorsesDialog(QDialog):
             prz = r["prize_money"] or 0.0
             prz_str = f"{prz // 10000:,}万円"
             maj_str = r["major_wins"] or ("未勝利" if (r['total_wins'] or 0) == 0 else "条件戦")
-            if r["is_sire"]:
+            if r["age"] <= 1:
+                status_str = "当歳" if r["age"] == 0 else "1歳幼駒"
+                status_col = "#38bdf8"
+            elif r["is_sire"]:
                 status_str = "種牡馬"
                 status_col = "#facc15"
             elif r["is_dam"]:
                 status_str = "繁殖牝馬"
                 status_col = "#f472b6"
-            elif r["age"] <= 1:
-                status_str = "入厩前"
-                status_col = "#38bdf8"
             elif r["is_active"]:
                 if (r["total_starts"] or 0) == 0:
                     status_str = "未出走"
@@ -200,7 +202,9 @@ class EntityHorsesDialog(QDialog):
 
             name_item = QTableWidgetItem(h_name)
             name_item.setData(Qt.ItemDataRole.UserRole, r["horse_id"])
-            name_item.setForeground(QColor("#38bdf8"))
+            gen = dict(r).get("generation", 1) or 1
+            name_col = get_generation_color(gen)
+            name_item.setForeground(QColor(name_col))
 
             status_item = QTableWidgetItem(status_str)
             status_item.setForeground(QColor(status_col))

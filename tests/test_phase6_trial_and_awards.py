@@ -20,7 +20,7 @@ class TestPhase6TrialAndAwards(unittest.TestCase):
         self.db = Database(":memory:")
         init = DatabaseInitializer(self.db)
         init.initialize_all()
-        self.program = generate_full_program(1)
+        self.program = generate_full_program(3)
         self.awards_mgr = AwardsManager(self.db)
         self.entry_sys = RaceEntryManager(self.db)
 
@@ -31,7 +31,10 @@ class TestPhase6TrialAndAwards(unittest.TestCase):
         self.assertEqual(normalize_g1_name("マイルCS"), "マイルチャンピオンシップ")
         self.assertEqual(normalize_g1_name("チャンピオンズC"), "チャンピオンズカップ")
         self.assertEqual(normalize_g1_name("菊花賞"), "菊花賞")
-        self.assertEqual(normalize_g1_name("日本ダービー"), "東京優駿")
+        self.assertEqual(normalize_g1_name("日本ダービー"), "東京優駿（日本ダービー）")
+        self.assertEqual(normalize_g1_name("東京優駿"), "東京優駿（日本ダービー）")
+        self.assertEqual(normalize_g1_name("オークス"), "優駿牝馬（オークス）")
+        self.assertEqual(normalize_g1_name("優駿牝馬"), "優駿牝馬（オークス）")
 
     def test_trial_priority_qualification_rules(self):
         """トライアル優先権ルール（G2上位2頭、G3上位1頭、L上位1頭）の確認"""

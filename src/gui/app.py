@@ -49,8 +49,29 @@ from src.gui.views.analytics_view import AnalyticsView
 from src.gui.views.awards_view import AwardsView
 from src.gui.views.dashboard_view import DashboardView
 from src.gui.views.database_view import DatabaseView
+from src.gui.views.lineage_view import LineageView
 from src.gui.views.rankings_view import RankingsView
 from src.gui.views.simulation_status_view import SimulationStatusView
+
+
+class LazyTabContainer(QWidget):
+    """タブが選択された時に初めて内部Viewをインスタンス化する遅延コンテナ"""
+
+    def __init__(self, factory_fn, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.factory_fn = factory_fn
+        self.view: Optional[QWidget] = None
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+
+    def ensure_view(self) -> QWidget:
+        if self.view is None:
+            self.view = self.factory_fn()
+            self._layout.addWidget(self.view)
+        return self.view
+
+    def is_loaded(self) -> bool:
+        return self.view is not None
 
 
 class MainWindow(QMainWindow):
@@ -77,21 +98,24 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
 
-        # 各タブ画面のインスタンス化
+        # 第1タブ: ダッシュボード（起動時に即時生成・表示）
         self.view_dashboard = DashboardView(self.db)
-        self.view_rankings = RankingsView(self.db, parent=self)
-        self.view_awards = AwardsView(self.db, parent=self)
-        self.view_database = DatabaseView(self.db)
-        self.view_analytics = AnalyticsView(self.db)
-        self.view_sim_status = SimulationStatusView(self.db)
-
-        # タブへの追加（新タブ体系: シミュレーション状況を一番右・最後尾へ）
         self.tabs.addTab(self.view_dashboard, "📊 ダッシュボード")
-        self.tabs.addTab(self.view_rankings, "🏆 各種リーディング")
-        self.tabs.addTab(self.view_awards, "👑 表彰")
-        self.tabs.addTab(self.view_database, "📚 競馬データベース")
-        self.tabs.addTab(self.view_analytics, "📈 能力推移 & 走破タイム")
-        self.tabs.addTab(self.view_sim_status, "⚙️ シミュレーション状況")
+
+        # 第2〜7タブ: 遅延ロードコンテナ（タブ選択時に初めて初期化）
+        self.container_rankings = LazyTabContainer(lambda: RankingsView(self.db, parent=self), parent=self)
+        self.container_awards = LazyTabContainer(lambda: AwardsView(self.db, parent=self), parent=self)
+        self.container_database = LazyTabContainer(lambda: DatabaseView(self.db), parent=self)
+        self.container_lineage = LazyTabContainer(lambda: LineageView(self.db, parent=self), parent=self)
+        self.container_analytics = LazyTabContainer(lambda: AnalyticsView(self.db), parent=self)
+        self.container_sim_status = LazyTabContainer(lambda: SimulationStatusView(self.db), parent=self)
+
+        self.tabs.addTab(self.container_rankings, "🏆 各種リーディング")
+        self.tabs.addTab(self.container_awards, "👑 表彰")
+        self.tabs.addTab(self.container_database, "📚 競馬データベース")
+        self.tabs.addTab(self.container_lineage, "🌳 系統樹")
+        self.tabs.addTab(self.container_analytics, "📈 能力推移 & 走破タイム")
+        self.tabs.addTab(self.container_sim_status, "⚙️ シミュレーション状況")
 
         main_layout.addWidget(self.tabs)
 
@@ -100,50 +124,112 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage(f"データベース接続完了: {self.db.db_path}")
 
+    @property
+    def view_rankings(self) -> Optional[RankingsView]:
+        return self.container_rankings.view if self.container_rankings.is_loaded() else None
+
+    @property
+    def view_awards(self) -> Optional[AwardsView]:
+        return self.container_awards.view if self.container_awards.is_loaded() else None
+
+    @property
+    def view_database(self) -> Optional[DatabaseView]:
+        return self.container_database.view if self.container_database.is_loaded() else None
+
+    @property
+    def view_lineage(self) -> Optional[LineageView]:
+        return self.container_lineage.view if self.container_lineage.is_loaded() else None
+
+    @property
+    def view_analytics(self) -> Optional[AnalyticsView]:
+        return self.container_analytics.view if self.container_analytics.is_loaded() else None
+
+    @property
+    def view_sim_status(self) -> Optional[SimulationStatusView]:
+        return self.container_sim_status.view if self.container_sim_status.is_loaded() else None
+
     def _connect_signals(self) -> None:
         """シミュレーション状況またはダッシュボードで進行した際に全画面を自動更新"""
         self.view_dashboard.simulation_completed.connect(self._on_simulation_completed)
-        self.view_sim_status.simulation_completed.connect(self._on_simulation_completed)
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
     def _on_simulation_completed(self) -> None:
-        """シミュレーション進行完了時の全画面データ更新"""
+        """シミュレーション進行完了時の全画面データ更新（ロード済みのViewのみ更新）"""
         self.view_dashboard.refresh_dashboard()
-        self.view_rankings.refresh_data()
-        self.view_awards.refresh_all()
-        self.view_database.refresh_all()
-        self.view_analytics.refresh_charts()
-        self.view_sim_status.refresh_view()
+        if self.container_rankings.is_loaded() and self.container_rankings.view:
+            self.container_rankings.view.refresh_data()
+        if self.container_awards.is_loaded() and self.container_awards.view:
+            self.container_awards.view.refresh_all()
+        if self.container_database.is_loaded() and self.container_database.view:
+            self.container_database.view.refresh_all()
+        if self.container_lineage.is_loaded() and self.container_lineage.view:
+            self.container_lineage.view.refresh_all()
+        if self.container_analytics.is_loaded() and self.container_analytics.view:
+            self.container_analytics.view.refresh_charts()
+        if self.container_sim_status.is_loaded() and self.container_sim_status.view:
+            self.container_sim_status.view.refresh_view()
         self.status_bar.showMessage("シミュレーション進行が完了し、全データを更新しました。", 5000)
 
     def _on_tab_changed(self, index: int) -> None:
-        """タブ切り替え時に該当画面のデータを最新化"""
-        if index == 0:
-            self.view_dashboard.refresh_dashboard()
-        elif index == 1:
-            self.view_rankings.refresh_data()
-        elif index == 2:
-            self.view_awards.refresh_all()
-        elif index == 3:
-            self.view_database.refresh_all()
-        elif index == 4:
-            self.view_analytics.refresh_charts()
-        elif index == 5:
-            self.view_sim_status.refresh_view()
+        """タブ切り替え時に該当画面を遅延生成＆データ最新化"""
+        try:
+            if index == 0:
+                self.view_dashboard.refresh_dashboard()
+            elif index == 1:
+                v = self.container_rankings.ensure_view()
+                if hasattr(v, "ensure_loaded"):
+                    v.ensure_loaded()
+                else:
+                    v.refresh_data()
+            elif index == 2:
+                v = self.container_awards.ensure_view()
+                if hasattr(v, "ensure_loaded"):
+                    v.ensure_loaded()
+                else:
+                    v.refresh_all()
+            elif index == 3:
+                v = self.container_database.ensure_view()
+                v.refresh_all()
+            elif index == 4:
+                v = self.container_lineage.ensure_view()
+                v.ensure_loaded()
+            elif index == 5:
+                v = self.container_analytics.ensure_view()
+                if hasattr(v, "ensure_loaded"):
+                    v.ensure_loaded()
+                else:
+                    v.refresh_charts()
+            elif index == 6:
+                v = self.container_sim_status.ensure_view()
+                # シグナルを未接続なら接続
+                if not getattr(v, "_connected_to_main", False):
+                    v.simulation_completed.connect(self._on_simulation_completed)
+                    v._connected_to_main = True
+                v.refresh_view()
+        except Exception as e:
+            print(f"⚠️ [タブ切り替えエラー] index={index}: {e}", file=sys.stderr)
+            traceback.print_exc()
 
 
 def launch_gui(db_path: Optional[str] = None) -> None:
     """GUIアプリケーションの起動"""
     sys.excepthook = _global_exception_hook
 
+    print("[1/3] GUI環境を初期化中...", flush=True)
     app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
 
     app.setStyleSheet(MAIN_STYLESHEET)
 
+    print("[2/3] データベース接続中...", flush=True)
     db = Database(db_path) if db_path else get_db()
+    print(f"      対象DB: {db.db_path}", flush=True)
+
+    print("[3/3] メイン画面を構築中...", flush=True)
     window = MainWindow(db)
+    
+    print("[OK] メインウィンドウを表示します。", flush=True)
     window.show()
 
     sys.exit(app.exec())

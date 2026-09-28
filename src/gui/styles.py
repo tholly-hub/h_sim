@@ -2,6 +2,9 @@
 PyQt6用 モダン・ダークテーマ スタイルシート (QSS)
 """
 
+from __future__ import annotations
+from typing import Optional
+
 MAIN_STYLESHEET = """
 QMainWindow, QDialog {
     background-color: #12161f;
@@ -118,20 +121,41 @@ QComboBox QAbstractItemView {
     border: 1px solid #475569;
 }
 
-/* テーブルビュー */
-QTableWidget, QTableView {
-    background-color: #161b26;
+/* テーブルビュー・ツリービュー */
+QTableWidget, QTableView, QTreeWidget, QTreeView {
+    background-color: #12161f;
     alternate-background-color: #1a202c;
     gridline-color: #242c3d;
+    color: #f8fafc;
     border: 1px solid #242c3d;
     border-radius: 6px;
     selection-background-color: #1e3a8a;
     selection-color: #ffffff;
 }
 
+QTableWidget::item, QTableView::item, QTreeWidget::item, QTreeView::item {
+    background-color: transparent;
+    padding: 6px;
+    border: none;
+}
+
+QTableWidget::item:alternate, QTableView::item:alternate, QTreeWidget::item:alternate, QTreeView::item:alternate {
+    background-color: #1a202c;
+}
+
+QTableWidget::item:hover, QTableView::item:hover, QTreeWidget::item:hover, QTreeView::item:hover {
+    background-color: #1e293b;
+}
+
+QTableWidget::item:selected, QTableView::item:selected, QTreeWidget::item:selected, QTreeView::item:selected {
+    background-color: #2563eb;
+    color: #ffffff;
+    font-weight: bold;
+}
+
 QHeaderView::section {
-    background-color: #0f172a;
-    color: #94a3b8;
+    background-color: #0b0f17;
+    color: #cbd5e1;
     padding: 8px 6px;
     border: none;
     border-bottom: 2px solid #334155;
@@ -228,3 +252,69 @@ QLabel#subText {
     font-size: 11px;
 }
 """
+
+
+# 世代別カラーパレット (第1世代: 白, 第2世代以降は7色ローテーション)
+# 1: 白 (#ffffff)
+# 2: 水色 (#38bdf8)
+# 3: 黄緑 (#a3e635)
+# 4: 桃 (#f472b6)
+# 5: 青 (#60a5fa)
+# 6: 緑 (#4ade80)
+# 7: 黄 (#facc15)
+# 8: 紫 (#c084fc)
+GEN_COLOR_PALETTE = {
+    1: "#ffffff",  # 第1世代: 白
+    2: "#38bdf8",  # 第2世代: 水色
+    3: "#a3e635",  # 第3世代: 黄緑
+    4: "#f472b6",  # 第4世代: 桃
+    5: "#60a5fa",  # 第5世代: 青
+    6: "#4ade80",  # 第6世代: 緑
+    7: "#facc15",  # 第7世代: 黄
+    8: "#c084fc",  # 第8世代: 紫
+}
+
+GEN_ROTATION_CYCLE = [
+    "#38bdf8",  # 第2世代: 水色
+    "#a3e635",  # 第3世代: 黄緑
+    "#f472b6",  # 第4世代: 桃
+    "#60a5fa",  # 第5世代: 青
+    "#4ade80",  # 第6世代: 緑
+    "#facc15",  # 第7世代: 黄
+    "#c084fc",  # 第8世代: 紫
+]
+
+
+def get_generation_color(
+    generation: Optional[int], is_breeding: bool = False, start_year: Optional[int] = None
+) -> str:
+    """
+    世代番号に応じた表示カラーコード（HEX）を返却
+    - 初代 (第1世代, または初期導入種牡馬/繁殖牝馬 start_year <= 1): 白色 (#ffffff)
+    - 第2世代以降: 7色ローテーション
+      - 第2世代: 水色 (#38bdf8)
+      - 第3世代: 黄緑 (#a3e635)
+      - 第4世代: 桃 (#f472b6)
+      - 第5世代: 青 (#60a5fa)
+      - 第6世代: 緑 (#4ade80)
+      - 第7世代: 黄 (#facc15)
+      - 第8世代: 紫 (#c084fc)
+      - 第9世代以降: 水色からローテーション
+    """
+    if generation is None:
+        gen = 1
+    else:
+        try:
+            gen = int(generation)
+        except (ValueError, TypeError):
+            gen = 1
+
+    if is_breeding and start_year is not None and start_year <= 1:
+        return "#ffffff"
+
+    if gen <= 1:
+        return "#ffffff"
+
+    cycle_idx = (gen - 2) % len(GEN_ROTATION_CYCLE)
+    return GEN_ROTATION_CYCLE[cycle_idx]
+

@@ -397,7 +397,7 @@ class RaceReplayView(QWidget):
 
             # 2. 当該週のレース一覧を取得
             query = """
-                SELECT DISTINCT r.race_id, r.year, r.month, r.week, r.name, r.grade, r.distance, r.surface, r.track_id
+                SELECT DISTINCT r.race_id, r.year, r.month, r.week, r.name, r.grade, r.distance, r.surface, r.track_id, r.weight_type
                 FROM results res
                 JOIN races r ON res.race_id = r.race_id
                 WHERE 1=1
@@ -482,7 +482,8 @@ class RaceReplayView(QWidget):
             track_name = track.name.replace("競馬場", "").strip() if track else ""
             surf_jp = "芝" if str(r["surface"]).upper() == "TURF" else "ダート"
             r_name = clean_race_name(r["name"])
-            label = f"{track_name} {r_num}R: {r_name} ({r['grade']}) - {surf_jp}{r['distance']}m"
+            w_type = r["weight_type"] if ("weight_type" in r.keys() and r["weight_type"]) else "定量"
+            label = f"{track_name} {r_num}R: {r_name} ({r['grade']}) [{w_type}] - {surf_jp}{r['distance']}m"
             self.combo_races.addItem(label, r["race_id"])
             if self.current_race_id is not None and r["race_id"] == self.current_race_id:
                 selected_idx = idx

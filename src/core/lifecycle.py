@@ -10,7 +10,7 @@ import random
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.db.database import Database
-from src.generators.name_generator import PersonNameGenerator
+from src.generators.name_generator import HorseNameGenerator, PersonNameGenerator
 from src.management.jockey_manager import JockeyManager
 from src.models.horse import GrowthType
 from src.models.trainer import Trainer
@@ -25,15 +25,17 @@ class LifecycleEngine:
     FARM_DEFAULT_CAPACITY: int = 15     # 牧場初期収容頭数
     FARM_MAX_CAPACITY: int = 30         # 牧場拡張上限
     BROODMARE_TARGET_COUNT: int = 600   # 繁殖牝馬の年間目標維持頭数
+    SIRE_MAX_CAPACITY: int = 120        # 種牡馬の最大頭数上限 (120頭)
 
     def __init__(self, db: Database):
         self.db = db
+        self.horse_name_gen = HorseNameGenerator()
         self.person_name_gen = PersonNameGenerator()
         self.jockey_mgr = JockeyManager(db=db, quota_miho=45, quota_ritto=45)
         self._ensure_columns_exist()
 
     def _ensure_columns_exist(self) -> None:
-        """sires / dams テーブルに必要なPhase8カラムが存在することを確認"""
+        """sires / dams / horses テーブルに必要なPhase8および世代管理カラムが存在することを確認"""
         with self.db.session() as conn:
             try:
                 s_cols = [c[1] for c in conn.execute("PRAGMA table_info(sires)").fetchall()]
@@ -41,14 +43,54 @@ class LifecycleEngine:
                     conn.execute("ALTER TABLE sires ADD COLUMN is_imported INTEGER NOT NULL DEFAULT 0")
                 if "debut_year" not in s_cols:
                     conn.execute("ALTER TABLE sires ADD COLUMN debut_year INTEGER NOT NULL DEFAULT 1")
+                if "generation" not in s_cols:
+                    conn.execute("ALTER TABLE sires ADD COLUMN generation INTEGER NOT NULL DEFAULT 1")
             except Exception:
                 pass
             try:
                 d_cols = [c[1] for c in conn.execute("PRAGMA table_info(dams)").fetchall()]
                 if "debut_year" not in d_cols:
                     conn.execute("ALTER TABLE dams ADD COLUMN debut_year INTEGER NOT NULL DEFAULT 1")
+                if "generation" not in d_cols:
+                    conn.execute("ALTER TABLE dams ADD COLUMN generation INTEGER NOT NULL DEFAULT 1")
             except Exception:
                 pass
+            try:
+                h_cols = [c[1] for c in conn.execute("PRAGMA table_info(horses)").fetchall()]
+                if "generation" not in h_cols:
+                    conn.execute("ALTER TABLE horses ADD COLUMN generation INTEGER NOT NULL DEFAULT 1")
+            except Exception:
+                pass
+
+            # 世代番号（generation）の整合性を自動修復
+            try:
+                # 始祖（親なし）は generation = 1
+                conn.execute("UPDATE horses SET generation = 1 WHERE (sire_id IS NULL AND dam_id IS NULL) AND generation != 1")
+                # 父種牡馬から再帰的に世代番号を確実に同期（最大10世代まで伝播）
+                for _ in range(10):
+                    conn.execute("""
+                        UPDATE horses
+                        SET generation = (
+                            CASE
+                                WHEN horses.sire_id IS NULL THEN 1
+                                WHEN (SELECT s.sire_id FROM horses s WHERE s.horse_id = horses.sire_id) IS NULL THEN 1
+                                ELSE (SELECT s.generation + 1 FROM horses s WHERE s.horse_id = horses.sire_id)
+                            END
+                        )
+                        WHERE (sire_id IS NOT NULL OR dam_id IS NOT NULL)
+                          AND generation != (
+                            CASE
+                                WHEN horses.sire_id IS NULL THEN 1
+                                WHEN (SELECT s.sire_id FROM horses s WHERE s.horse_id = horses.sire_id) IS NULL THEN 1
+                                ELSE (SELECT s.generation + 1 FROM horses s WHERE s.horse_id = horses.sire_id)
+                            END
+                        )
+                    """)
+                # sires, dams テーブルと同期
+                conn.execute("UPDATE sires SET generation = (SELECT generation FROM horses WHERE horses.horse_id = sires.horse_id)")
+                conn.execute("UPDATE dams SET generation = (SELECT generation FROM horses WHERE horses.horse_id = dams.horse_id)")
+            except Exception as e:
+                print(f"[警告] 世代番号同期中に例外が発生しました: {e}")
 
     def advance_year(self, current_year: int, strict_free_jockey: bool = True) -> Dict[str, Any]:
         """
@@ -81,68 +123,69 @@ class LifecycleEngine:
                 # 牝馬は早熟傾向、牡馬は古馬になってから活躍する傾向
                 is_female = sex in ("mare", "filly", "牝")
 
-                # 成長型別ベース発揮率カーブ
+                # 成長型別ベース発揮率カーブ（馬自身の加齢成長によるタイム短縮幅を約1.5〜2.5秒程度に緩和し、世代交代のウェイトを主因とする）
                 if growth_type == GrowthType.EARLY.value or growth_type == "early":
                     if age <= 2:
-                        base_rate = 0.82 if is_female else 0.78
+                        base_rate = 0.96 if is_female else 0.94
                     elif age == 3:
                         base_rate = 1.00
                     elif age == 4:
-                        base_rate = 0.92 if is_female else 0.95
+                        base_rate = 0.98 if is_female else 0.99
                     elif age == 5:
-                        base_rate = 0.80 if is_female else 0.85
+                        base_rate = 0.95 if is_female else 0.96
                     elif age == 6:
-                        base_rate = 0.65 if is_female else 0.70
+                        base_rate = 0.91 if is_female else 0.93
                     else:
-                        base_rate = max(0.40, 0.65 - 0.12 * (age - 6))
+                        base_rate = max(0.75, 0.91 - 0.05 * (age - 6))
                 elif growth_type == GrowthType.LATE.value or growth_type == "late":
                     if age <= 2:
-                        base_rate = 0.58 if is_female else 0.55
+                        base_rate = 0.90 if is_female else 0.88
                     elif age == 3:
-                        base_rate = 0.78 if is_female else 0.75
+                        base_rate = 0.95 if is_female else 0.93
                     elif age == 4:
-                        base_rate = 0.92 if is_female else 0.90
+                        base_rate = 0.98 if is_female else 0.97
                     elif age in (5, 6):
                         base_rate = 1.00
                     elif age == 7:
-                        base_rate = 0.85 if is_female else 0.88
+                        base_rate = 0.96 if is_female else 0.97
                     else:
-                        base_rate = max(0.40, 0.75 - 0.12 * (age - 7))
+                        base_rate = max(0.75, 0.96 - 0.05 * (age - 7))
                 else:
                     if age <= 2:
-                        base_rate = 0.68 if is_female else 0.65
+                        base_rate = 0.93 if is_female else 0.91
                     elif age == 3:
-                        base_rate = 0.90 if is_female else 0.88
+                        base_rate = 0.98 if is_female else 0.96
                     elif age in (4, 5):
                         base_rate = 1.00
                     elif age == 6:
-                        base_rate = 0.85 if is_female else 0.88
+                        base_rate = 0.96 if is_female else 0.97
                     elif age == 7:
-                        base_rate = 0.70 if is_female else 0.72
+                        base_rate = 0.91 if is_female else 0.93
                     else:
-                        base_rate = max(0.40, 0.70 - 0.14 * (age - 7))
+                        base_rate = max(0.75, 0.91 - 0.05 * (age - 7))
 
                 trainer_bonus = 0.0
                 if h["trainer_skill"] is not None:
-                    trainer_bonus = (float(h["trainer_skill"]) - 50.0) / 100.0 * 0.06
+                    trainer_bonus = (float(h["trainer_skill"]) - 50.0) / 100.0 * 0.04
 
-                final_rate = round(min(1.05, max(0.40, base_rate + trainer_bonus)), 2)
+                final_rate = round(min(1.05, max(0.70, base_rate + trainer_bonus)), 2)
                 conn.execute(
                     "UPDATE horses SET current_ability_rate = ? WHERE horse_id = ?",
                     (final_rate, h["horse_id"]),
                 )
 
-            # 3. Phase 8 厳格な競走馬引退判定
-            # - 4歳末: 1勝馬（career_wins <= 1）は引退
-            # - 5歳末: 牝馬は全頭引退、牡馬条件馬（通算3勝以下かつ収得賞金1600万円未満）は引退
-            # - 4歳以上オープン馬: ピークアウトかつ近走不振で引退
-            # - 7歳末: 全頭引退 (MAX_RACING_AGE = 7)
+            # 3. 競走馬引退判定
+            # - 3歳末(加齢後age==4): 足切りなし(3歳9月4週の未勝利引退のみ)
+            # - 4歳末(加齢後age==5): 条件馬は100%引退。オープン馬は成績推移・成長曲線に応じて引退
+            # - 5歳末(加齢後age==6): 牝馬は100%全頭引退。牡馬条件馬は引退、牡馬オープン馬は成績推移・成長曲線に応じて引退
+            # - 6歳末(加齢後age==7): 成績推移・成長曲線に応じて引退判断
+            # - 7歳末(加齢後age>=8): 100%全頭引退 (MAX_RACING_AGE = 7)
             active_koba = conn.execute(
                 """
                 SELECT horse_id, name, sex, age, peak_age, current_ability_rate,
                        breeder_id, owner_id, g1_wins, g2_wins, g3_wins,
                        career_wins, career_starts, prize_money, condition_prize_money,
-                       speed, stamina, acceleration, maternal_vitality, sire_id
+                       speed, stamina, acceleration, maternal_vitality, sire_id, generation
                 FROM horses
                 WHERE is_active = 1 AND age >= 4
                 """
@@ -156,48 +199,75 @@ class LifecycleEngine:
                 sex = h["sex"]
                 wins = h["career_wins"] or 0
                 cond_prize = h["condition_prize_money"] or 0
-                is_open = (h["g1_wins"] > 0 or h["g2_wins"] > 0 or h["g3_wins"] > 0 or wins >= 4 or cond_prize >= 16_000_000)
+                is_open = (
+                    (h["g1_wins"] or 0) > 0
+                    or (h["g2_wins"] or 0) > 0
+                    or (h["g3_wins"] or 0) > 0
+                    or (wins >= 4)
+                    or (cond_prize >= 16_000_000)
+                )
                 is_female = sex in ("mare", "filly", "牝")
 
-                # (1) 7歳超過は100%全頭引退
+                # (1) 7歳末超過（加齢後8歳以上）は100%全頭引退
                 if age > self.MAX_RACING_AGE:
                     retired_horse_ids.add(h["horse_id"])
                     retired_horses.append(h)
                     continue
 
-                # (2) 4歳末で1勝以下は引退
-                if age == 4 and wins <= 1:
-                    retired_horse_ids.add(h["horse_id"])
-                    retired_horses.append(h)
+                # (2) 3歳末（加齢後4歳）は年末引退なし（3歳9月4週の未勝利引退のみ）
+                if age == 4:
                     continue
 
-                # (3) 5歳末で牝馬は全頭引退、牡馬条件馬は引退
+                peak = h["peak_age"] if h["peak_age"] else 4.5
+                rate = h["current_ability_rate"] if h["current_ability_rate"] else 0.80
+                # 加齢前の実年齢でピークアウト判定 (age - 1)
+                real_age = age - 1
+                is_peak_out = (real_age >= peak + 1.0) or (rate < 0.75)
+
+                # (3) 4歳末（加齢後5歳）: 条件クラスは100%引退、オープン馬は成績・成長曲線に応じて引退
                 if age == 5:
+                    if not is_open:
+                        retired_horse_ids.add(h["horse_id"])
+                        retired_horses.append(h)
+                        continue
+                    else:
+                        retire_prob = 0.70 if rate < 0.65 else (0.40 if is_peak_out else 0.05)
+                        if random.random() < retire_prob:
+                            retired_horse_ids.add(h["horse_id"])
+                            retired_horses.append(h)
+                            continue
+
+                # (4) 5歳末（加齢後6歳）: 牝馬は100%全頭引退、牡馬条件馬は100%引退、牡馬オープン馬は成績・成長曲線に応じ判断
+                if age == 6:
                     if is_female or (not is_open):
                         retired_horse_ids.add(h["horse_id"])
                         retired_horses.append(h)
                         continue
+                    else:
+                        retire_prob = 0.85 if rate < 0.65 else (0.65 if is_peak_out else 0.20)
+                        if random.random() < retire_prob:
+                            retired_horse_ids.add(h["horse_id"])
+                            retired_horses.append(h)
+                            continue
 
-                # (4) 6歳・7歳のオープン馬: ピークアウト・近走不振判定
-                peak = h["peak_age"]
-                rate = h["current_ability_rate"]
-                is_peak_out = (age >= peak + 1.5) or (rate < 0.72)
-
-                retire_prob = 0.0
-                if age == 6:
-                    retire_prob = 0.60 if is_peak_out else 0.25
-                elif age == 7:
-                    retire_prob = 0.90
-
-                if random.random() < retire_prob:
-                    retired_horse_ids.add(h["horse_id"])
-                    retired_horses.append(h)
+                # (5) 6歳末（加齢後7歳）: 条件馬は引退、オープン馬は成績・成長曲線に応じ判断
+                if age == 7:
+                    if not is_open:
+                        retired_horse_ids.add(h["horse_id"])
+                        retired_horses.append(h)
+                        continue
+                    else:
+                        retire_prob = 0.85 if is_peak_out else 0.50
+                        if random.random() < retire_prob:
+                            retired_horse_ids.add(h["horse_id"])
+                            retired_horses.append(h)
+                            continue
 
             print(f"[年進行] 2/8: 現役競走馬の引退処理（引退頭数: {len(retired_horses)}頭）...")
 
             for h in retired_horses:
                 conn.execute(
-                    "UPDATE horses SET is_active = 0, retired_year = ?, trainer_id = NULL, jockey_id = NULL WHERE horse_id = ?",
+                    "UPDATE horses SET is_active = 0, retired_year = ? WHERE horse_id = ?",
                     (current_year, h["horse_id"]),
                 )
 
@@ -371,16 +441,16 @@ class LifecycleEngine:
                 )
 
             retired_trainers = conn.execute(
-                "SELECT trainer_id, name, location, age FROM trainers WHERE age >= ?",
+                "SELECT trainer_id, name, location, age, trainer_years FROM trainers WHERE age >= ? OR trainer_years >= 30",
                 (self.TRAINER_RETIRE_AGE,),
             ).fetchall()
 
             existing_trainer_names: Set[str] = set(r["name"] for r in conn.execute("SELECT name FROM trainers").fetchall())
 
-            # 有力な引退フリー騎手の抽出（この年に引退したフリー騎手で通算100勝以上またはG1勝ち）
+            # 有力な引退フリー騎手の抽出
             top_retired_free_jockeys = [
                 rj for rj in ret_jockeys 
-                if (rj.get("trainer_id") is None and (rj["career_wins"] >= 100 or rj["g1_wins"] >= 1))
+                if ((rj.get("trainer_id") if isinstance(rj, dict) else (rj["trainer_id"] if "trainer_id" in rj.keys() else None)) is None and ((rj["career_wins"] or 0) >= 100 or (rj["g1_wins"] or 0) >= 1))
             ]
 
             for t in retired_trainers:
@@ -389,51 +459,69 @@ class LifecycleEngine:
                 initial_skill = 50.0
                 succ_reason = ""
 
-                # 優先1: 有力な引退フリー騎手（自厩舎に調教助手がいない場合、または優先割当）
-                # 自厩舎所属の調教助手をチェック
-                assistants = conn.execute(
-                    """
-                    SELECT assistant_id, jockey_id, name, age, career_wins, g1_wins 
-                    FROM assistant_trainers 
-                    WHERE trainer_id = ? AND is_active = 1
-                    ORDER BY career_wins DESC, g1_wins DESC, age ASC
-                    """,
-                    (t_id,),
-                ).fetchall()
-
-                if top_retired_free_jockeys and not assistants:
+                # 優先1: 引退フリー騎手
+                if top_retired_free_jockeys:
                     top_free = top_retired_free_jockeys.pop(0)
                     succ_jockey_id = top_free["jockey_id"]
                     succ_name = PersonNameGenerator.get_stable_name_from_jockey(
                         top_free["name"], existing_names=existing_trainer_names
                     )
-                    # フリー騎手実績に応じた初期厩舎スキルボーナス
                     initial_skill = round(50.0 + min(25.0, top_free["career_wins"] * 0.05 + top_free["g1_wins"] * 2.0), 1)
                     succ_reason = f"引退有力フリー騎手 {top_free['name']} (通算{top_free['career_wins']}勝/G1:{top_free['g1_wins']}勝) が承継"
-                elif assistants:
-                    # 優先2: 自厩舎所属の調教助手
-                    top_asst = assistants[0]
-                    succ_jockey_id = top_asst["jockey_id"]
-                    succ_name = PersonNameGenerator.get_stable_name_from_jockey(
-                        top_asst["name"], existing_names=existing_trainer_names
-                    )
-                    # 調教助手退任
-                    conn.execute("UPDATE assistant_trainers SET is_active = 0 WHERE assistant_id = ?", (top_asst["assistant_id"],))
-                    # 実績に応じた初期スキル
-                    initial_skill = round(50.0 + min(18.0, top_asst["career_wins"] * 0.04 + top_asst["g1_wins"] * 1.5), 1)
-                    succ_reason = f"自厩舎調教助手 {top_asst['name']} ({top_asst['age']}歳・通算{top_asst['career_wins']}勝) が承継"
                 else:
-                    # 優先3: 新規調教師
-                    while True:
-                        cand = self.person_name_gen.generate_trainer_name()
-                        if cand not in existing_trainer_names:
-                            succ_name = cand
-                            break
-                    initial_skill = 50.0
-                    succ_reason = f"新調教師 {succ_name} (60歳) が新規就任"
+                    # 優先2: 自厩舎所属の調教助手
+                    assistants = conn.execute(
+                        """
+                        SELECT assistant_id, jockey_id, name, age, career_wins, g1_wins 
+                        FROM assistant_trainers 
+                        WHERE trainer_id = ? AND is_active = 1
+                        ORDER BY career_wins DESC, g1_wins DESC, age ASC
+                        """,
+                        (t_id,),
+                    ).fetchall()
+
+                    if assistants:
+                        top_asst = assistants[0]
+                        succ_jockey_id = top_asst["jockey_id"]
+                        succ_name = PersonNameGenerator.get_stable_name_from_jockey(
+                            top_asst["name"], existing_names=existing_trainer_names
+                        )
+                        conn.execute("UPDATE assistant_trainers SET is_active = 0 WHERE assistant_id = ?", (top_asst["assistant_id"],))
+                        initial_skill = round(50.0 + min(18.0, top_asst["career_wins"] * 0.04 + top_asst["g1_wins"] * 1.5), 1)
+                        succ_reason = f"自厩舎調教助手 {top_asst['name']} ({top_asst['age']}歳・通算{top_asst['career_wins']}勝) が承継"
+                    else:
+                        # 優先3: 他厩舎の調教助手を引き抜き
+                        other_assts = conn.execute(
+                            """
+                            SELECT assistant_id, jockey_id, name, age, career_wins, g1_wins 
+                            FROM assistant_trainers 
+                            WHERE is_active = 1
+                            ORDER BY career_wins DESC, g1_wins DESC, age ASC
+                            """
+                        ).fetchall()
+                        if other_assts:
+                            top_asst = other_assts[0]
+                            succ_jockey_id = top_asst["jockey_id"]
+                            succ_name = PersonNameGenerator.get_stable_name_from_jockey(
+                                top_asst["name"], existing_names=existing_trainer_names
+                            )
+                            conn.execute("UPDATE assistant_trainers SET is_active = 0 WHERE assistant_id = ?", (top_asst["assistant_id"],))
+                            initial_skill = round(50.0 + min(18.0, top_asst["career_wins"] * 0.04 + top_asst["g1_wins"] * 1.5), 1)
+                            succ_reason = f"他厩舎調教助手 {top_asst['name']} ({top_asst['age']}歳・通算{top_asst['career_wins']}勝) を引き抜いて承継"
+                        else:
+                            # 優先4: 新規調教師
+                            while True:
+                                cand = self.person_name_gen.generate_trainer_name()
+                                if cand not in existing_trainer_names:
+                                    succ_name = cand
+                                    break
+                            initial_skill = 50.0
+                            succ_reason = f"新調教師 {succ_name} (60歳) が新規就任"
 
                 existing_trainer_names.add(succ_name)
                 self.person_name_gen.register_trainer_name(succ_name)
+
+                retire_why = "80歳定年引退" if t["age"] >= self.TRAINER_RETIRE_AGE else "開業30年引退"
 
                 # 厩舎の事業承継登録
                 conn.execute(
@@ -447,7 +535,7 @@ class LifecycleEngine:
                     """,
                     (succ_name, succ_jockey_id, initial_skill, t_id),
                 )
-                print(f"    - 【厩舎承継】{t['name']} (80歳定年引退) -> {succ_name} (初期スキル: {initial_skill}) / {succ_reason}")
+                print(f"    - 【厩舎承継】{t['name']} ({retire_why}) -> {succ_name} (初期スキル: {initial_skill}) / {succ_reason}")
 
             # 6. 生産牧場の動的分化・譲渡・拡張
             print("[年進行] 6/8: 生産牧場の動的収容バランス調整（最低1頭保証・あふれ移籍）中...")
@@ -483,6 +571,17 @@ class LifecycleEngine:
                     current_year_g2 = 0, current_year_g3 = 0, current_year_earnings = 0
                 """
             )
+            # 9. システム状態の年更新（新年度開幕・第1週未消化状態）
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO system_status (key, value_int) VALUES ('current_year', ?), ('current_week', 0)
+                    ON CONFLICT(key) DO UPDATE SET value_int = excluded.value_int, updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (next_year,),
+                )
+            except Exception:
+                pass
 
         print(f"【年進行 完了】{current_year}年度から {next_year}年度 への移行処理がすべて正常に完了しました！")
         print("=================================================================================\n")
@@ -538,7 +637,11 @@ class LifecycleEngine:
         """
         年次進行時の種牡馬種付け料の動的改定:
         当年の産駒実績（獲得賞金、G1/重賞勝利数、産駒勝数）に応じて翌年の種付け料を増減
+        ※ 1〜2年目は種付け料の改定を行わない（3年目終了時から改定開始）
         """
+        if current_year < 3:
+            return []
+
         rows = conn.execute(
             """
             SELECT
@@ -693,11 +796,16 @@ class LifecycleEngine:
     def _manage_sire_roster(self, conn: Any, current_year: int, retired_horses: List[Any]) -> int:
         """
         種牡馬の新陳代謝・引退判定・新種牡馬認定および海外種牡馬導入 (Phase 8)
+        ※ 1〜2年目は種牡馬の入れ替えを行わず、初期60頭を維持（3年目終了時から入れ替え開始）
         """
-        # 1. 既存稼働種牡馬の引退判定 (25歳定年、または産駒デビュー後3年間未勝利)
+        if current_year < 3:
+            print(f"    ※ 種牡馬入れ替え: 第{current_year}年度は初期種牡馬体制を維持（入れ替えなし）")
+            return 0
+
+        # 1. 既存稼働種牡馬の引退判定 (20歳定年、または就任6年目以降直近3年間の産駒勝利数0)
         active_sires = conn.execute(
             """
-            SELECT s.sire_id, s.horse_id, s.breeder_id, s.sire_line, h.name, h.age,
+            SELECT s.sire_id, s.horse_id, s.breeder_id, s.sire_line, h.name, h.age, s.start_year,
                    MAX(c.age) as max_child_age,
                    COALESCE(SUM(c.career_wins), 0) as total_child_wins
             FROM sires s
@@ -711,17 +819,31 @@ class LifecycleEngine:
         retired_sire_count = 0
         for s in active_sires:
             age = s["age"]
-            max_c_age = s["max_child_age"] or 0
-            child_wins = s["total_child_wins"] or 0
+            start_yr = s["start_year"] or 1
+            years_in_service = max(1, current_year - start_yr + 1)
             
             is_retire = False
             retire_reason = ""
-            if age >= 25:
+            if age >= 20:
                 is_retire = True
                 retire_reason = f"{age}歳定年"
-            elif max_c_age >= 4 and child_wins == 0:
-                is_retire = True
-                retire_reason = "産駒デビュー3年未勝利"
+            elif years_in_service >= 6:
+                # 6年目以降: 直近3年間 (current_year - 2 〜 current_year) の産駒勝利数が0
+                recent_wins = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM results res
+                    JOIN races r ON res.race_id = r.race_id
+                    JOIN horses ch ON res.horse_id = ch.horse_id
+                    WHERE ch.sire_id = ?
+                      AND res.finish_position = 1
+                      AND r.year BETWEEN ? AND ?
+                    """,
+                    (s["horse_id"], current_year - 2, current_year),
+                ).fetchone()[0]
+                if recent_wins == 0:
+                    is_retire = True
+                    retire_reason = f"就任{years_in_service}年目・直近3年間産駒勝利数0"
 
             if is_retire:
                 conn.execute("UPDATE sires SET is_active = 0 WHERE horse_id = ?", (s["horse_id"],))
@@ -729,70 +851,153 @@ class LifecycleEngine:
                 retired_sire_count += 1
                 print(f"    - 【種牡馬引退】{s['name']} ({s['sire_line']}) 引退理由: {retire_reason}")
 
-        # 2. 海外種牡馬の導入 (4年目以降、3年周期で1頭導入)
+        # 2. 海外種牡馬の導入 (7年目終了時以降、3年周期で1頭導入)
         imported_sire_count = 0
-        if current_year >= 4 and (current_year - 4) % 3 == 0:
-            avg_stats = conn.execute(
+        if current_year >= 7 and (current_year - 7) % 3 == 0:
+            top_sire_stats = conn.execute(
                 """
-                SELECT AVG(speed) as avg_spd, AVG(stamina) as avg_sta, AVG(acceleration) as avg_acc
-                FROM horses h
-                JOIN sires s ON h.horse_id = s.horse_id
+                SELECT h.speed, h.stamina, h.acceleration, h.maternal_vitality, h.temperament, h.durability, h.generation,
+                       COALESCE((SELECT SUM(pr.prize_money) FROM horses pr WHERE pr.sire_id = s.horse_id), 0) as total_prog_prize
+                FROM sires s
+                JOIN horses h ON s.horse_id = h.horse_id
+                WHERE s.is_active = 1
+                ORDER BY total_prog_prize DESC, (h.speed + h.stamina + h.acceleration) DESC
+                LIMIT 10
                 """
-            ).fetchone()
-            base_spd = avg_stats["avg_spd"] or 55.0
-            base_sta = avg_stats["avg_sta"] or 55.0
-            base_acc = avg_stats["avg_acc"] or 55.0
+            ).fetchall()
 
-            # 上位30%〜最大1.1倍の能力
-            imp_spd = round(min(95.0, (base_spd + 8.0) * random.uniform(1.0, 1.08)), 1)
-            imp_sta = round(min(95.0, (base_sta + 8.0) * random.uniform(1.0, 1.08)), 1)
-            imp_acc = round(min(95.0, (base_acc + 8.0) * random.uniform(1.0, 1.08)), 1)
+            if top_sire_stats:
+                base_spd = sum(r["speed"] for r in top_sire_stats) / len(top_sire_stats)
+                base_sta = sum(r["stamina"] for r in top_sire_stats) / len(top_sire_stats)
+                base_acc = sum(r["acceleration"] for r in top_sire_stats) / len(top_sire_stats)
+                base_vit = sum(r["maternal_vitality"] for r in top_sire_stats) / len(top_sire_stats)
+                base_temp = sum(r["temperament"] for r in top_sire_stats) / len(top_sire_stats)
+                base_dura = sum(r["durability"] for r in top_sire_stats) / len(top_sire_stats)
+                # 世代を当時の国内トップ種牡馬の最新世代に同期
+                max_gen = max((r["generation"] for r in top_sire_stats if r["generation"]), default=1)
+                imp_gen = max(1, max_gen)
+            else:
+                base_spd = 25.0
+                base_sta = 25.0
+                base_acc = 25.0
+                base_vit = 65.0
+                base_temp = 65.0
+                base_dura = 65.0
+                imp_gen = 1
+
+            # 海外種牡馬の能力: トップ10平均の1.05〜1.20倍（25%の確率で1.20〜1.25倍の超大物）
+            is_superstar = (random.random() < 0.25)
+            if is_superstar:
+                mult = random.uniform(1.20, 1.25)
+                tier_label = "【超大物・SS級】"
+                stud_fee = random.choice([6000000, 8000000, 10000000])
+            else:
+                mult = random.uniform(1.05, 1.20)
+                tier_label = "【有力・A級】"
+                stud_fee = random.choice([4000000, 5000000, 6000000])
+
+            imp_spd = round(min(100.0, max(15.0, base_spd * mult)), 1)
+            imp_sta = round(min(100.0, max(15.0, base_sta * mult)), 1)
+            imp_acc = round(min(100.0, max(15.0, base_acc * mult)), 1)
+
+            # サブパラメーター（母系活力・気性・耐久）も同様に1.05〜1.20倍（超大物は最大1.25倍）
+            imp_vit = round(min(100.0, max(20.0, base_vit * mult)), 1)
+            imp_temp = round(min(100.0, max(20.0, base_temp * mult)), 1)
+            imp_dura = round(min(100.0, max(20.0, base_dura * mult)), 1)
+
+            # 距離適性 (MSTN) を短距離・万能・長距離からサンプリング
+            imp_mstn = random.choices(["C/C", "C/T", "T/T"], weights=[0.25, 0.50, 0.25])[0]
             
-            foreign_names = ["ガリレオ", "フランケル", "ドバウィ", "ディープインパクト", "シーザスターズ", "キングマン", "ウートデトリアン", "ジャスティファイ", "フライトライン", "シャマルダル"]
-            random.shuffle(foreign_names)
-            imp_name = f"{foreign_names[0]}{random.randint(1, 99)}"
+            # 外国種牡馬の名前生成: 「都市名」+「男性名前」（数字なし）
+            imp_name = self.horse_name_gen.generate_foreign_sire_name()
+
+            # 外国種牡馬の父・母の名前をランダム生成して登録
+            sire_parent_name = self.horse_name_gen.generate_foreign_ancestor_name("horse")
+            dam_parent_name = self.horse_name_gen.generate_foreign_ancestor_name("mare")
 
             # 繋養牧場
             all_b_ids = [r["breeder_id"] for r in conn.execute("SELECT breeder_id FROM breeders").fetchall()]
             b_id = random.choice(all_b_ids) if all_b_ids else 1
-            sire_lines = ["ノーザンダンサー系", "ミスタープロスペクター系", "サンデーサイレンス系", "ナスルーラ系", "ロベルト系", "ダンジグ系"]
-            imp_sire_line = random.choice(sire_lines)
+            # サイアーラインは「父親の名前」系とする
+            imp_sire_line = f"{sire_parent_name}系"
+
+            # ダミーの父馬レコード
+            dummy_parent_gen = max(1, imp_gen - 1)
+            cur_p_sire = conn.execute(
+                """
+                INSERT INTO horses (
+                    name, sex, birth_year, age, breeder_id, owner_id, is_active, is_sire, is_dam,
+                    mstn_type, speed, stamina, acceleration, temperament, durability, maternal_vitality,
+                    growth_type, peak_age, current_ability_rate, running_style, generation
+                ) VALUES (
+                    ?, 'horse', ?, 12, ?, 1, 0, 0, 0,
+                    ?, ?, ?, ?, ?, ?, ?,
+                    'normal', 4.5, 1.0, 'between', ?
+                )
+                """,
+                (sire_parent_name, current_year - 12, b_id, imp_mstn, imp_spd, imp_sta, imp_acc, imp_temp, imp_dura, imp_vit, dummy_parent_gen),
+            )
+            dummy_sire_id = cur_p_sire.lastrowid
+
+            # ダミーの母馬レコード
+            cur_p_dam = conn.execute(
+                """
+                INSERT INTO horses (
+                    name, sex, birth_year, age, breeder_id, owner_id, is_active, is_sire, is_dam,
+                    mstn_type, speed, stamina, acceleration, temperament, durability, maternal_vitality,
+                    growth_type, peak_age, current_ability_rate, running_style, generation
+                ) VALUES (
+                    ?, 'mare', ?, 12, ?, 1, 0, 0, 0,
+                    ?, ?, ?, ?, ?, ?, ?,
+                    'normal', 4.5, 1.0, 'between', ?
+                )
+                """,
+                (dam_parent_name, current_year - 12, b_id, imp_mstn, imp_spd, imp_sta, imp_acc, imp_temp, imp_dura, imp_vit, dummy_parent_gen),
+            )
+            dummy_dam_id = cur_p_dam.lastrowid
 
             cur = conn.execute(
                 """
                 INSERT INTO horses (
-                    name, sex, birth_year, age, breeder_id, owner_id, is_active, is_sire,
+                    name, sex, birth_year, age, breeder_id, owner_id, sire_id, dam_id, is_active, is_sire,
                     mstn_type, speed, stamina, acceleration, temperament, durability,
-                    maternal_vitality, growth_type, peak_age, current_ability_rate, running_style
-                ) VALUES (?, 'horse', ?, 5, ?, 1, 0, 1, 'C/T', ?, ?, ?, 65.0, 65.0, 70.0, 'normal', 4.5, 1.0, 'between')
+                    maternal_vitality, growth_type, peak_age, current_ability_rate, running_style, generation
+                ) VALUES (?, 'horse', ?, 5, ?, 1, ?, ?, 0, 1, ?, ?, ?, ?, ?, ?, ?, 'normal', 4.5, 1.0, 'between', ?)
                 """,
-                (imp_name, current_year - 5, b_id, imp_spd, imp_sta, imp_acc),
+                (imp_name, current_year - 5, b_id, dummy_sire_id, dummy_dam_id, imp_mstn, imp_spd, imp_sta, imp_acc, imp_temp, imp_dura, imp_vit, imp_gen),
             )
             imp_horse_id = cur.lastrowid
             conn.execute(
                 """
-                INSERT INTO sires (horse_id, breeder_id, sire_line, max_coverings, stud_fee, is_active, is_imported, debut_year)
-                VALUES (?, ?, ?, 30, 3000000, 1, 1, ?)
+                INSERT INTO sires (horse_id, breeder_id, sire_line, max_coverings, stud_fee, generation, start_year, is_active, is_foreign)
+                VALUES (?, ?, ?, 30, ?, ?, ?, 1, 1)
                 """,
-                (imp_horse_id, b_id, imp_sire_line, current_year + 1),
+                (imp_horse_id, b_id, imp_sire_line, stud_fee, imp_gen, current_year),
             )
             imported_sire_count += 1
-            print(f"    - 【海外種牡馬導入 [外]】{imp_name} ({imp_sire_line}・初年度種付け料: 3,000,000円) 導入完了！")
+            print(f"    - 【海外種牡馬導入 [外]{tier_label}】{imp_name} (父:{sire_parent_name} 母:{dam_parent_name} / {imp_sire_line}・MSTN:{imp_mstn}・第{imp_gen}世代・繋養開始:{current_year}年・能力SPD:{imp_spd}/STA:{imp_sta}/ACC:{imp_acc}/VIT:{imp_vit}・初年度種付け料: {stud_fee:,}円) 導入完了！")
 
         # 3. 新種牡馬の昇格判定 (優先度1: 当年主要G1勝ちオープン馬, 優先度2: G1通算3勝以上, 優先度3: スコア順)
-        ret_colts = [h for h in retired_horses if h["sex"] in ("horse", "colt")]
+        ret_colts = [
+            h for h in retired_horses
+            if h["sex"] in ("horse", "colt") and (h.get("career_starts", 0) if isinstance(h, dict) else (h["career_starts"] or 0)) > 0 and (h.get("age", 0) if isinstance(h, dict) else (h["age"] or 0)) >= 3
+        ]
         # オープン馬の抽出
         open_colts = []
         for h in ret_colts:
             wins = h["career_wins"] or 0
-            cond_prz = h.get("condition_prize_money", 0) if isinstance(h, dict) else (h["condition_prize_money"] if "condition_prize_money" in h.keys() else 0)
-            is_open = (h["g1_wins"] > 0 or h["g2_wins"] > 0 or h["g3_wins"] > 0 or wins >= 4 or cond_prz >= 16_000_000)
+            cond_prz = (h["condition_prize_money"] if "condition_prize_money" in h.keys() else 0) if not isinstance(h, dict) else h.get("condition_prize_money", 0)
+            cond_prz = cond_prz or 0
+            is_open = (
+                (h["g1_wins"] or 0) > 0
+                or (h["g2_wins"] or 0) > 0
+                or (h["g3_wins"] or 0) > 0
+                or wins >= 4
+                or cond_prz >= 16_000_000
+            )
             if is_open:
                 open_colts.append(h)
 
-        # 優先度1: 当年主要G1勝利馬
-        # 優先度2: G1通算3勝以上
-        # 優先度3: スコア順 (重賞勝利数, 3着内率, 勝率, 能力値)
         def sire_candidate_score(h):
             g1 = h["g1_wins"] or 0
             g2 = h["g2_wins"] or 0
@@ -800,13 +1005,13 @@ class LifecycleEngine:
             wins = h["career_wins"] or 0
             starts = h["career_starts"] or 1
             prz = h["prize_money"] or 0
-            spd = h["speed"] or 50.0
-            sta = h["stamina"] or 50.0
-            acc = h["acceleration"] or 50.0
+            spd = h["speed"] or 10.0
+            sta = h["stamina"] or 10.0
+            acc = h["acceleration"] or 10.0
             win_rate = (wins / starts) * 100.0
             p1 = 1000 if g1 >= 1 else 0
             p2 = 500 if g1 >= 3 else 0
-            num_score = (g1 * 60) + (g2 * 25) + (g3 * 10) + (wins * 4) + (win_rate * 0.5) + (prz // 10_000_000) + ((spd + sta + acc) / 3.0 * 0.5)
+            num_score = (g1 * 80) + (g2 * 35) + (g3 * 15) + (wins * 5) + (win_rate * 0.8) + (prz // 10_000_000) + ((spd + sta + acc) / 3.0 * 1.5)
             return p1 + p2 + num_score
 
         sorted_colts = sorted(open_colts, key=sire_candidate_score, reverse=True)
@@ -821,45 +1026,154 @@ class LifecycleEngine:
             if g1 > 0 or new_sires_promoted < needed_sires or new_sires_promoted < 2:
                 h_id = h["horse_id"]
                 p_sire_line = None
+                sire_gen = 1
                 if h["sire_id"]:
-                    s_row = conn.execute("SELECT sire_line FROM sires WHERE horse_id = ?", (h["sire_id"],)).fetchone()
+                    s_row = conn.execute("SELECT sire_line, generation FROM sires WHERE horse_id = ?", (h["sire_id"],)).fetchone()
                     if s_row:
                         p_sire_line = s_row["sire_line"]
+                        if s_row["generation"]:
+                            sire_gen = s_row["generation"]
+                    else:
+                        h_row = conn.execute("SELECT generation FROM horses WHERE horse_id = ?", (h["sire_id"],)).fetchone()
+                        if h_row and h_row["generation"]:
+                            sire_gen = h_row["generation"]
                 if not p_sire_line:
                     p_sire_line = f"{h['name']}系"
+
+                # 自身の競走馬世代を引き継ぐ（競走馬誕生時に sire_gen + 1 に設定済み）
+                dam_or_sire_gen = (h["generation"] if "generation" in h.keys() else 1) if not isinstance(h, dict) else h.get("generation", 1)
+                new_sire_gen = dam_or_sire_gen or (sire_gen + 1)
+
+                # 競走成績および本人の能力からの決定因子 (1/3スピードに緩和)
+                g1_w = h["g1_wins"] or 0
+                g_all = (h["g1_wins"] or 0) + (h["g2_wins"] or 0) + (h["g3_wins"] or 0)
+                potential_boost = (g1_w * 0.4) + (g_all * 0.13) + min(1.0, (h["career_wins"] or 0) * 0.07)
+                
+                # 突然変異フラグ判定
+                is_mutation = (random.random() < 0.015)
+                cur_spd = h["speed"] or 10.0
+                new_sire_speed = cur_spd + potential_boost
+                if is_mutation:
+                    new_sire_speed = round(min(115.0, new_sire_speed + random.uniform(1.5, 3.5)), 1)
+                else:
+                    new_sire_speed = round(min(100.0, new_sire_speed), 1)
 
                 initial_fee = self.calculate_initial_stud_fee(
                     g1_wins=h["g1_wins"],
                     g2_wins=h["g2_wins"],
                     g3_wins=h["g3_wins"],
                     career_earnings=h["prize_money"],
-                    speed=h["speed"],
+                    speed=new_sire_speed,
                     stamina=h["stamina"],
                     acceleration=h["acceleration"],
                 )
 
-                conn.execute("UPDATE horses SET is_sire = 1 WHERE horse_id = ?", (h_id,))
+                conn.execute("UPDATE horses SET speed = ?, generation = ?, is_sire = 1 WHERE horse_id = ?", (new_sire_speed, new_sire_gen, h_id))
                 conn.execute(
                     """
-                    INSERT INTO sires (horse_id, breeder_id, sire_line, max_coverings, stud_fee, is_active, is_imported, debut_year)
-                    VALUES (?, ?, ?, 30, ?, 1, 0, ?)
+                    INSERT INTO sires (horse_id, breeder_id, sire_line, max_coverings, stud_fee, generation, start_year, is_active, is_new)
+                    VALUES (?, ?, ?, 30, ?, ?, ?, 1, 1)
                     """,
-                    (h_id, h["breeder_id"], p_sire_line, initial_fee, current_year + 1),
+                    (h_id, h["breeder_id"], p_sire_line, initial_fee, new_sire_gen, current_year),
                 )
                 new_sires_promoted += 1
-                print(f"    - 【新種牡馬入り [新]】{h['name']} (牡{h['age']}歳・G1:{h['g1_wins']}勝/重賞:{h['g1_wins']+h['g2_wins']+h['g3_wins']}勝) -> 初年度種付け料: {initial_fee:,}円 ({p_sire_line})")
+                print(f"    - 【新種牡馬入り [新]】{h['name']} (牡{h['age']}歳・第{new_sire_gen}世代種牡馬・繋養開始:{current_year}年・G1:{h['g1_wins']}勝/重賞:{g_all}勝/能力:{new_sire_speed}) -> 初年度種付け料: {initial_fee:,}円 ({p_sire_line})")
+
+        # 4. 最大頭数120頭の厳格維持（超過時はスコア下位を入れ替え引退）
+        active_sire_rows = conn.execute(
+            """
+            SELECT s.horse_id, s.start_year, s.stud_fee, h.name, h.age, h.speed, h.stamina, h.acceleration,
+                   COUNT(ch.horse_id) as prog_count,
+                   SUM(CASE WHEN ch.career_wins > 0 THEN 1 ELSE 0 END) as winner_count
+            FROM sires s
+            JOIN horses h ON s.horse_id = h.horse_id
+            LEFT JOIN horses ch ON s.horse_id = ch.sire_id
+            WHERE s.is_active = 1
+            GROUP BY s.horse_id
+            """
+        ).fetchall()
+
+        cur_sire_count = len(active_sire_rows)
+        if cur_sire_count > self.SIRE_MAX_CAPACITY:
+            excess = cur_sire_count - self.SIRE_MAX_CAPACITY
+            def sire_eval_score(r):
+                age = r["age"] or 10
+                p_cnt = r["prog_count"] or 0
+                w_cnt = r["winner_count"] or 0
+                fee = r["stud_fee"] or 0
+                spd = r["speed"] or 10.0
+                return (w_cnt * 10.0) + (p_cnt * 2.0) + (fee / 1_000_000) + spd - (max(0, age - 15) * 5.0)
+
+            # 就任1年目(新種牡馬)以外を対象に下位を引退
+            vet_sires = [r for r in active_sire_rows if (r["start_year"] or 1) < current_year]
+            vet_sires.sort(key=sire_eval_score)
+            retire_targets = vet_sires[:excess]
+            for ts in retire_targets:
+                conn.execute("UPDATE sires SET is_active = 0 WHERE horse_id = ?", (ts["horse_id"],))
+                conn.execute("UPDATE horses SET is_sire = 0 WHERE horse_id = ?", (ts["horse_id"],))
+                print(f"    - 【種牡馬定員超過引退 (120頭上限)】{ts['name']} ({ts['age']}歳)")
 
         return new_sires_promoted + imported_sire_count
 
     def _manage_broodmare_roster(self, conn: Any, current_year: int, retired_horses: List[Any]) -> int:
         """
-        繁殖牝馬の定員600頭維持および入れ替えルール (Phase 8: ルールA/B/C/D)
-        - A: 引退時オープン馬は繁殖牝馬確定
-        - B: 産駒デビュー後3年間勝ち星なし & 20歳定年の繁殖牝馬は引退
-        - C: 600 - B + A < 600 の場合、引退牝馬のランク上位から補充して600頭に調整
-        - D: 600 - B + A > 600 の場合、2年連続勝利なし繁殖牝馬を下位から引退させて600頭に調整
+        繁殖牝馬の定員600頭維持および入れ替えルール:
+        - 1〜2年目: 入れ替えなし（初期600頭を維持）
+        - 3年目以降:
+          1. 引退時にオープン馬（G1/G2/G3勝ち、通算4勝以上、または収得賞金1600万円以上）である牝馬のみが繁殖牝馬に昇格
+          2. 昇格した頭数と同数の既存繁殖牝馬（ランキング下位：産駒成績・能力・年齢等のスコア下位）が引退して入れ替わり、定員600頭を厳格維持
         """
-        # 1. B: 産駒デビュー後3年間勝ち星なし & 20歳定年の繁殖牝馬 引退
+        target = self.BROODMARE_TARGET_COUNT  # 600頭
+
+        # 1〜2年目は入れ替えなし
+        if current_year < 3:
+            final_cnt = conn.execute("SELECT COUNT(*) FROM dams WHERE is_active = 1").fetchone()[0]
+            print(f"    ※ 繁殖牝馬入れ替え: 第{current_year}年度は初期繁殖牝馬体制を維持（入れ替えなし、稼働数: {final_cnt}頭）")
+            return 0
+
+        # 3年目以降: 当年引退牝馬から引退時オープン牝馬を抽出
+        ret_mares = [
+            h for h in retired_horses
+            if h["sex"] in ("mare", "filly", "牝")
+            and (h.get("age", 0) if isinstance(h, dict) else (h["age"] or 0)) >= 3
+            and (h.get("career_starts", 0) if isinstance(h, dict) else (h["career_starts"] or 0)) > 0
+        ]
+        open_mares = []
+        for h in ret_mares:
+            wins = h["career_wins"] or 0
+            cond_prz = (h["condition_prize_money"] if "condition_prize_money" in h.keys() else 0) if not isinstance(h, dict) else h.get("condition_prize_money", 0)
+            cond_prz = cond_prz or 0
+            is_open = (
+                (h["g1_wins"] or 0) > 0
+                or (h["g2_wins"] or 0) > 0
+                or (h["g3_wins"] or 0) > 0
+                or wins >= 4
+                or cond_prz >= 16_000_000
+            )
+            if is_open:
+                open_mares.append(h)
+
+        promoted_mare_ids = set()
+        for h in open_mares:
+            h_id = h["horse_id"]
+            dam_gen = (h["generation"] if "generation" in h.keys() else 1) if not isinstance(h, dict) else h.get("generation", 1)
+            dam_gen = dam_gen or 1
+            promoted_mare_ids.add(h_id)
+            conn.execute("UPDATE horses SET is_dam = 1, generation = ? WHERE horse_id = ?", (dam_gen, h_id))
+            conn.execute(
+                """
+                INSERT INTO dams (horse_id, breeder_id, is_active, start_year, generation)
+                VALUES (?, ?, 1, ?, ?)
+                ON CONFLICT(horse_id) DO UPDATE SET is_active = 1, breeder_id = excluded.breeder_id, start_year = excluded.start_year, generation = excluded.generation
+                """,
+                (h_id, h["breeder_id"], current_year, dam_gen),
+            )
+            g_all = (h["g1_wins"] or 0) + (h["g2_wins"] or 0) + (h["g3_wins"] or 0)
+            print(f"    - 【繁殖牝馬昇格 (引退オープン馬)】{h['name']} (牝{h['age']}歳・第{dam_gen}世代・繋養開始:{current_year}年・G1:{h['g1_wins']}勝/重賞:{g_all}勝/通算{h['career_wins']}勝)")
+
+        num_promoted = len(promoted_mare_ids)
+
+        # 既存繁殖牝馬の成績・能力・年齢・産駒成績を総合評価
         active_dams = conn.execute(
             """
             SELECT d.dam_id, d.horse_id, d.breeder_id, h.name, h.age,
@@ -869,149 +1183,89 @@ class LifecycleEngine:
             FROM dams d
             JOIN horses h ON d.horse_id = h.horse_id
             LEFT JOIN horses c ON c.dam_id = d.horse_id
-            WHERE d.is_active = 1
+            WHERE d.is_active = 1 AND d.horse_id NOT IN ({})
             GROUP BY d.horse_id
-            """
+            """.format(",".join("?" for _ in promoted_mare_ids) if promoted_mare_ids else "0"),
+            tuple(promoted_mare_ids) if promoted_mare_ids else (),
         ).fetchall()
 
-        retired_dam_ids = set()
+        # 1. 既存繁殖牝馬の20歳定年引退判定
+        age_retired_count = 0
+        age_retired_ids = set()
         for d in active_dams:
-            age = d["age"]
-            max_c_age = d["max_child_age"] or 0
-            child_wins = d["total_child_wins"] or 0
-            
-            is_retire = False
-            retire_reason = ""
+            age = d["age"] or 0
             if age >= 20:
-                is_retire = True
-                retire_reason = f"{age}歳定年"
-            elif max_c_age >= 4 and child_wins == 0:
-                is_retire = True
-                retire_reason = "産駒デビュー3年未勝利"
-
-            if is_retire:
-                retired_dam_ids.add(d["horse_id"])
                 conn.execute("UPDATE dams SET is_active = 0 WHERE horse_id = ?", (d["horse_id"],))
                 conn.execute("UPDATE horses SET is_dam = 0 WHERE horse_id = ?", (d["horse_id"],))
-                print(f"    - 【繁殖牝馬引退】{d['name']} ({age}歳) 引退理由: {retire_reason}")
+                age_retired_ids.add(d["horse_id"])
+                age_retired_count += 1
+                print(f"    - 【繁殖牝馬引退 (20歳定年)】{d['name']} ({age}歳)")
 
-        surviving_dams_count = len(active_dams) - len(retired_dam_ids)
+        remaining_active_dams = [d for d in active_dams if d["horse_id"] not in age_retired_ids]
 
-        # 2. A: 引退時オープン牝馬は繁殖牝馬確定
-        ret_mares = [h for h in retired_horses if h["sex"] in ("mare", "filly", "牝")]
-        
-        open_mares = []
-        non_open_mares = []
-        for h in ret_mares:
-            wins = h["career_wins"] or 0
-            cond_prz = h.get("condition_prize_money", 0) if isinstance(h, dict) else (h["condition_prize_money"] if "condition_prize_money" in h.keys() else 0)
-            is_open = (h["g1_wins"] > 0 or h["g2_wins"] > 0 or h["g3_wins"] > 0 or wins >= 4 or cond_prz >= 16_000_000)
-            if is_open:
-                open_mares.append(h)
-            else:
-                non_open_mares.append(h)
+        def dam_rank_score(d):
+            child_wins = d["total_child_wins"] or 0
+            max_c_age = d["max_child_age"] or 0
+            age = d["age"] or 10
+            spd = d["speed"] or 10.0
+            sta = d["stamina"] or 10.0
+            acc = d["acceleration"] or 10.0
+            vit = d["maternal_vitality"] or 10.0
+            # 産駒デビュー後未勝利ペナルティ
+            p_penalty = -500.0 if (max_c_age >= 4 and child_wins == 0) else 0.0
+            return p_penalty + (child_wins * 25.0) + ((spd + sta + acc) / 3.0) + (vit * 0.5) - (max(0, age - 15) * 10.0)
 
-        promoted_mare_ids = set()
-        # A: オープン牝馬確定昇格
-        for h in open_mares:
-            h_id = h["horse_id"]
-            promoted_mare_ids.add(h_id)
-            conn.execute("UPDATE horses SET is_dam = 1 WHERE horse_id = ?", (h_id,))
-            conn.execute(
+        sorted_existing_dams = sorted(remaining_active_dams, key=dam_rank_score)
+
+        # 昇格頭数が定年引退頭数を上回る場合、その差分だけランキング下位繁殖牝馬を入れ替え引退
+        needed_rank_retire = max(0, num_promoted - age_retired_count)
+        if needed_rank_retire > 0:
+            for d in sorted_existing_dams[:needed_rank_retire]:
+                conn.execute("UPDATE dams SET is_active = 0 WHERE horse_id = ?", (d["horse_id"],))
+                conn.execute("UPDATE horses SET is_dam = 0 WHERE horse_id = ?", (d["horse_id"],))
+                print(f"    - 【繁殖牝馬入れ替え引退 (ランキング下位)】{d['name']} ({d['age']}歳)")
+            sorted_existing_dams = sorted_existing_dams[needed_rank_retire:]
+
+        # 最終定員調整（常に600頭維持）
+        cur_count = conn.execute("SELECT COUNT(*) FROM dams WHERE is_active = 1").fetchone()[0]
+        if cur_count > target:
+            excess = cur_count - target
+            for d in sorted_existing_dams[:excess]:
+                conn.execute("UPDATE dams SET is_active = 0 WHERE horse_id = ?", (d["horse_id"],))
+                conn.execute("UPDATE horses SET is_dam = 0 WHERE horse_id = ?", (d["horse_id"],))
+                print(f"    - 【繁殖牝馬定員超過引退】{d['name']} ({d['age']}歳)")
+        elif cur_count < target:
+            shortage = target - cur_count
+            fallback_mares = conn.execute(
                 """
-                INSERT INTO dams (horse_id, breeder_id, is_active, debut_year)
-                VALUES (?, ?, 1, ?)
-                ON CONFLICT(horse_id) DO UPDATE SET is_active = 1, breeder_id = excluded.breeder_id, debut_year = excluded.debut_year
+                SELECT h.horse_id, h.name, h.age, h.breeder_id, h.career_wins, h.generation,
+                       ((h.speed + h.stamina + h.acceleration)/3.0 + h.maternal_vitality*0.5) as score
+                FROM horses h
+                LEFT JOIN dams d ON h.horse_id = d.horse_id
+                WHERE h.sex IN ('mare', 'filly', '牝')
+                  AND h.is_active = 0
+                  AND h.age >= 3
+                  AND h.age < 20
+                  AND h.career_starts > 0
+                  AND h.is_dead = 0
+                  AND (d.is_active IS NULL OR d.is_active = 0)
+                ORDER BY score DESC LIMIT ?
                 """,
-                (h_id, h["breeder_id"], current_year + 1),
-            )
-            print(f"    - 【繁殖牝馬確定昇格 (A:オープン馬)】{h['name']} (牝{h['age']}歳・G1:{h['g1_wins']}勝/重賞:{h['g1_wins']+h['g2_wins']+h['g3_wins']}勝)")
-
-        current_total = surviving_dams_count + len(promoted_mare_ids)
-        target = self.BROODMARE_TARGET_COUNT  # 600頭
-
-        # 3. C: 600頭に満たない場合 (不足) -> 引退牝馬のランク上位から補充
-        if current_total < target:
-            shortage = target - current_total
-            print(f"    ※ 繁殖牝馬定員調整: 現在{current_total}頭 / 目標{target}頭 (不足: {shortage}頭を引退牝馬ランク上位から補充)")
-
-            def mare_rank_score(m):
-                wins = m["career_wins"] or 0
-                prz = m["prize_money"] or 0
-                spd = m["speed"] or 50.0
-                sta = m["stamina"] or 50.0
-                acc = m["acceleration"] or 50.0
-                vit = m["maternal_vitality"] or 50.0
-                return (wins * 20.0) + (prz // 1_000_000) + ((spd + sta + acc) / 3.0 * 0.6) + (vit * 0.4)
-
-            sorted_non_open = sorted(non_open_mares, key=mare_rank_score, reverse=True)
-            for m in sorted_non_open[:shortage]:
-                m_id = m["horse_id"]
-                promoted_mare_ids.add(m_id)
-                conn.execute("UPDATE horses SET is_dam = 1 WHERE horse_id = ?", (m_id,))
+                (shortage,),
+            ).fetchall()
+            for fm in fallback_mares:
+                dam_gen = (fm["generation"] or 1)
+                conn.execute("UPDATE horses SET is_dam = 1, generation = ? WHERE horse_id = ?", (dam_gen, fm["horse_id"]))
                 conn.execute(
                     """
-                    INSERT INTO dams (horse_id, breeder_id, is_active, debut_year)
-                    VALUES (?, ?, 1, ?)
-                    ON CONFLICT(horse_id) DO UPDATE SET is_active = 1, breeder_id = excluded.breeder_id, debut_year = excluded.debut_year
+                    INSERT INTO dams (horse_id, breeder_id, is_active, start_year, generation)
+                    VALUES (?, ?, 1, ?, ?)
+                    ON CONFLICT(horse_id) DO UPDATE SET is_active = 1, breeder_id = excluded.breeder_id, start_year = excluded.start_year, generation = excluded.generation
                     """,
-                    (m_id, m["breeder_id"], current_year + 1),
+                    (fm["horse_id"], fm["breeder_id"], current_year, dam_gen),
                 )
-                print(f"    - 【繁殖牝馬補充昇格 (C:ランク上位)】{m['name']} (牝{m['age']}歳・通算{m['career_wins']}勝)")
-
-            # もしまだ足りない場合は過去の引退牝馬から能力上位を補填
-            if len(promoted_mare_ids) + surviving_dams_count < target:
-                remaining_shortage = target - (len(promoted_mare_ids) + surviving_dams_count)
-                fallback_mares = conn.execute(
-                    """
-                    SELECT h.horse_id, h.name, h.age, h.breeder_id, h.career_wins,
-                           ((h.speed + h.stamina + h.acceleration)/3.0 + h.maternal_vitality*0.5) as score
-                    FROM horses h
-                    LEFT JOIN dams d ON h.horse_id = d.horse_id
-                    WHERE h.sex IN ('mare', 'filly', '牝') AND h.is_active = 0 AND (d.is_active IS NULL OR d.is_active = 0)
-                    ORDER BY score DESC LIMIT ?
-                    """,
-                    (remaining_shortage,),
-                ).fetchall()
-                for fm in fallback_mares:
-                    conn.execute("UPDATE horses SET is_dam = 1 WHERE horse_id = ?", (fm["horse_id"],))
-                    conn.execute(
-                        """
-                        INSERT INTO dams (horse_id, breeder_id, is_active, debut_year)
-                        VALUES (?, ?, 1, ?)
-                        ON CONFLICT(horse_id) DO UPDATE SET is_active = 1, breeder_id = excluded.breeder_id, debut_year = excluded.debut_year
-                        """,
-                        (fm["horse_id"], fm["breeder_id"], current_year + 1),
-                    )
-
-        # 4. D: 600頭を超過している場合 (超過) -> 2年連続勝利なし繁殖牝馬を下位から引退
-        elif current_total > target:
-            excess = current_total - target
-            print(f"    ※ 繁殖牝馬定員調整: 現在{current_total}頭 / 目標{target}頭 (超過: {excess}頭を不振・高齢繁殖牝馬から引退)")
-
-            # 既存残存繁殖牝馬（今回新昇格した馬を除く）のスコア付け
-            remaining_active_dams = [d for d in active_dams if d["horse_id"] not in retired_dam_ids]
-            
-            def dam_retire_priority(d):
-                max_c_age = d["max_child_age"] or 0
-                child_wins = d["total_child_wins"] or 0
-                age = d["age"]
-                spd = d["speed"] or 50.0
-                sta = d["stamina"] or 50.0
-                acc = d["acceleration"] or 50.0
-                vit = d["maternal_vitality"] or 50.0
-                # 産駒2年未勝利 (max_c_age >= 3 and child_wins == 0) は最優先で下位に
-                is_winless_2y = (max_c_age >= 3 and child_wins == 0)
-                p_penalty = -1000 if is_winless_2y else 0
-                score = p_penalty + (child_wins * 20.0) + ((spd + sta + acc) / 3.0) + (vit * 0.5) - (max(0, age - 12) * 8.0)
-                return score
-
-            sorted_dams_to_retire = sorted(remaining_active_dams, key=dam_retire_priority)
-            for d in sorted_dams_to_retire[:excess]:
-                conn.execute("UPDATE dams SET is_active = 0 WHERE horse_id = ?", (d["horse_id"],))
-                conn.execute("UPDATE horses SET is_dam = 0 WHERE horse_id = ?", (d["horse_id"],))
-                print(f"    - 【繁殖牝馬定員超過引退 (D:不振・高齢)】{d['name']} ({d['age']}歳)")
+                print(f"    - 【繁殖牝馬補充】{fm['name']} (牝{fm['age']}歳・第{dam_gen}世代・通算{fm['career_wins']}勝)")
 
         final_dam_count = conn.execute("SELECT COUNT(*) FROM dams WHERE is_active = 1").fetchone()[0]
         print(f"    ★ 繁殖牝馬 最終定員確定: {final_dam_count} 頭 (目標: {target}頭)")
-        return len(promoted_mare_ids)
+        return num_promoted

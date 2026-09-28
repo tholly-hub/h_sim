@@ -134,8 +134,8 @@ class TestPhase1(unittest.TestCase):
             # 最小・最大チェック
             self.assertGreaterEqual(stats[0], 0.0)
             self.assertLessEqual(stats[1], 100.0)
-            # 平均値が 48.0 〜 55.0 の適正範囲内であること
-            self.assertTrue(48.0 <= stats[2] <= 55.0, f"速度の平均値が外れています: {stats[2]}")
+            # 初期能力平均値が 8.0 〜 20.0 の適正範囲内であること（新仕様: 10±10）
+            self.assertTrue(8.0 <= stats[2] <= 20.0, f"速度の平均値が外れています: {stats[2]}")
 
             # 6. ミオスタチン遺伝子型の検証 (C/C, C/T, T/T のみ)
             mstn_types = conn.execute("SELECT DISTINCT m_type FROM (SELECT DISTINCT mstn_type as m_type FROM horses) WHERE m_type IS NOT NULL").fetchall()

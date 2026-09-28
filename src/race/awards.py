@@ -254,44 +254,198 @@ class AwardsManager:
     # 顕彰馬・特別功労・殿堂・100勝メモリアル管理機能
     # =========================================================================
 
-    def get_hall_of_fame_horses(self) -> List[Dict[str, Any]]:
+    def get_hall_and_merit_horses(self, filter_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        顕彰馬一覧を取得
-        条件: 「異なるG1レースを5勝以上した馬」
-        """
-        query = """
-            SELECT 
-                h.horse_id,
-                h.name AS horse_name,
-                h.sex,
-                h.age,
-                h.prize_money,
-                h.career_starts,
-                h.career_wins,
-                h.g1_wins,
-                sire.name AS sire_name,
-                dam.name AS dam_name,
-                t.name AS trainer_name,
-                o.name AS owner_name,
-                b.name AS breeder_name,
-                COUNT(DISTINCT rc.name) AS distinct_g1_wins,
-                GROUP_CONCAT(DISTINCT rc.name) AS g1_titles
-            FROM results res
-            JOIN races rc ON res.race_id = rc.race_id
-            JOIN horses h ON res.horse_id = h.horse_id
-            LEFT JOIN horses sire ON h.sire_id = sire.horse_id
-            LEFT JOIN horses dam ON h.dam_id = dam.horse_id
-            LEFT JOIN trainers t ON h.trainer_id = t.trainer_id
-            LEFT JOIN owners o ON h.owner_id = o.owner_id
-            LEFT JOIN breeders b ON h.breeder_id = b.breeder_id
-            WHERE rc.grade = 'G1' AND res.finish_position = 1
-            GROUP BY h.horse_id
-            HAVING distinct_g1_wins >= 5
-            ORDER BY distinct_g1_wins DESC, h.g1_wins DESC, h.prize_money DESC
+        顕彰馬および功労馬の一覧を取得:
+        【🏆 顕彰馬】:
+          1. G1レース5勝以上
+          2. 3歳牡馬3冠、3歳牝馬3冠、3歳ダート3冠、ダート王道路線3冠 のいずれか達成
+          3. 同一G1レース3連覇 (3年連続勝利)
+        【🎖 功労馬】:
+          1. G1通算2〜4勝
+          2. G1通算1勝 かつ 重賞通算3勝以上
+          3. 重賞通算5勝以上
+          4. 7歳以上で重賞2勝以上（長年活躍の功労）
+          5. 通算賞金5億円以上
+        filter_type: None (すべて), 'hall' (顕彰馬のみ), 'merit' (功労馬のみ)
         """
         with self.db.session() as conn:
+            # 重賞勝利実績またはG1勝利のある全馬のレース履歴を取得
+            query = """
+                SELECT 
+                    h.horse_id,
+                    h.name AS horse_name,
+                    h.sex,
+                    h.age,
+                    h.is_active,
+                    h.prize_money,
+                    h.career_starts,
+                    h.career_wins,
+                    h.g1_wins,
+                    h.g2_wins,
+                    h.g3_wins,
+                    h.major_wins,
+                    sire.name AS sire_name,
+                    dam.name AS dam_name,
+                    t.name AS trainer_name,
+                    o.name AS owner_name,
+                    b.name AS breeder_name,
+                    rc.year,
+                    rc.grade,
+                    rc.name AS race_name
+                FROM results res
+                JOIN races rc ON res.race_id = rc.race_id
+                JOIN horses h ON res.horse_id = h.horse_id
+                LEFT JOIN horses sire ON h.sire_id = sire.horse_id
+                LEFT JOIN horses dam ON h.dam_id = dam.horse_id
+                LEFT JOIN trainers t ON h.trainer_id = t.trainer_id
+                LEFT JOIN owners o ON h.owner_id = o.owner_id
+                LEFT JOIN breeders b ON h.breeder_id = b.breeder_id
+                WHERE res.finish_position = 1 AND rc.grade IN ('G1', 'G2', 'G3')
+                ORDER BY h.horse_id ASC, rc.year ASC
+            """
             rows = conn.execute(query).fetchall()
-            return [dict(r) for r in rows]
+
+            # 馬ごとに重賞・G1勝利履歴を集約
+            horse_win_map: Dict[int, Dict[str, Any]] = {}
+            for r in rows:
+                hid = r["horse_id"]
+                if hid not in horse_win_map:
+                    horse_win_map[hid] = {
+                        "info": dict(r),
+                        "g1_wins": [],
+                        "graded_wins": [],
+                    }
+                raw_name = r["race_name"]
+                clean_name = raw_name.split("[")[0].split("(")[0].strip()
+                grade = r["grade"]
+                yr = r["year"]
+
+                horse_win_map[hid]["graded_wins"].append((yr, grade, clean_name))
+                if grade == "G1":
+                    horse_win_map[hid]["g1_wins"].append((yr, clean_name))
+
+            # 3冠定義
+            TRIPLE_CROWNS = {
+                "3歳牡馬3冠": {"皐月賞", "東京優駿", "菊花賞", "日本ダービー"},
+                "3歳牝馬3冠": {"桜花賞", "優駿牝馬", "秋華賞", "オークス"},
+                "3歳ダート3冠": {"羽田盃", "東京ダービー", "ジャパンダートクラシック", "JDC", "ジャパンDクラシック"},
+                "ダート王道路線3冠": {"帝王賞", "JBCクラシック", "チャンピオンズカップ", "チャンピオンズC"},
+            }
+
+            all_honored_list = []
+
+            for hid, data in horse_win_map.items():
+                info = data["info"]
+                g1_records = data["g1_wins"]
+                graded_records = data["graded_wins"]
+
+                total_g1 = len(g1_records)
+                total_graded = len(graded_records)
+                prize = info.get("prize_money", 0) or 0
+                age = info.get("age", 3)
+
+                won_g1_names = {rname for _, rname in g1_records}
+                won_graded_names = [f"{rname}({gr})" for _, gr, rname in graded_records]
+
+                hall_reasons = []
+                merit_reasons = []
+
+                # --- 顕彰馬の判定 ---
+                # 1. G1 5勝以上
+                if total_g1 >= 5 or (info.get("g1_wins", 0) >= 5):
+                    hall_reasons.append(f"G1通算{max(total_g1, info.get('g1_wins', 0))}勝")
+
+                # 2. 3冠達成
+                for tc_name, req_races in TRIPLE_CROWNS.items():
+                    matched = 0
+                    if tc_name == "3歳牡馬3冠":
+                        if any("皐月賞" in r for r in won_g1_names): matched += 1
+                        if any("東京優駿" in r or "ダービー" in r for r in won_g1_names): matched += 1
+                        if any("菊花賞" in r for r in won_g1_names): matched += 1
+                    elif tc_name == "3歳牝馬3冠":
+                        if any("桜花賞" in r for r in won_g1_names): matched += 1
+                        if any("優駿牝馬" in r or "オークス" in r for r in won_g1_names): matched += 1
+                        if any("秋華賞" in r for r in won_g1_names): matched += 1
+                    elif tc_name == "3歳ダート3冠":
+                        if any("羽田盃" in r for r in won_g1_names): matched += 1
+                        if any("東京ダービー" in r for r in won_g1_names): matched += 1
+                        if any("ジャパンダートクラシック" in r or "JDC" in r or "ジャパンDクラシック" in r for r in won_g1_names): matched += 1
+                    elif tc_name == "ダート王道路線3冠":
+                        if any("帝王賞" in r for r in won_g1_names): matched += 1
+                        if any("JBCクラシック" in r for r in won_g1_names): matched += 1
+                        if any("チャンピオンズ" in r for r in won_g1_names): matched += 1
+
+                    if matched >= 3:
+                        hall_reasons.append(f"👑 {tc_name}達成")
+
+                # 3. 同一G1 3連覇
+                race_years_map: Dict[str, List[int]] = {}
+                for y, rname in g1_records:
+                    if rname not in race_years_map:
+                        race_years_map[rname] = []
+                    race_years_map[rname].append(y)
+
+                for rname, yrs in race_years_map.items():
+                    s_yrs = sorted(set(yrs))
+                    if len(s_yrs) >= 3:
+                        for i in range(len(s_yrs) - 2):
+                            if s_yrs[i+1] == s_yrs[i] + 1 and s_yrs[i+2] == s_yrs[i] + 2:
+                                hall_reasons.append(f"🔥 {rname} 3連覇 ({s_yrs[i]}〜{s_yrs[i+2]}年)")
+                                break
+
+                # --- 功労馬の判定 (顕彰馬でない場合) ---
+                if not hall_reasons:
+                    if total_g1 >= 2:
+                        merit_reasons.append(f"G1通算{total_g1}勝の名馬")
+                    elif total_g1 == 1 and total_graded >= 3:
+                        merit_reasons.append(f"G1制覇＆重賞{total_graded}勝")
+                    elif total_graded >= 5:
+                        merit_reasons.append(f"重賞通算{total_graded}勝")
+                    elif age >= 7 and total_graded >= 2:
+                        merit_reasons.append(f"{age}歳長寿・重賞{total_graded}勝功労")
+                    elif prize >= 500_000_000 and total_graded >= 1:
+                        merit_reasons.append(f"賞金5億円突破・重賞馬功労")
+
+                if hall_reasons:
+                    award_type = "hall"
+                    label = "🏆 顕彰馬"
+                    reason = " / ".join(hall_reasons)
+                elif merit_reasons:
+                    award_type = "merit"
+                    label = "🎖 功労馬"
+                    reason = " / ".join(merit_reasons)
+                else:
+                    continue
+
+                if filter_type and filter_type != award_type:
+                    continue
+
+                item = dict(info)
+                item["award_type"] = award_type
+                item["award_type_label"] = label
+                item["g1_wins"] = total_g1
+                item["graded_wins_count"] = total_graded
+                item["reason"] = reason
+                item["hall_of_fame_reason"] = reason
+                item["major_titles"] = ", ".join(won_graded_names[:4]) if won_graded_names else "-"
+                item["last_active_year"] = max([y for y, _, _ in graded_records]) if graded_records else info.get("year", 1)
+                all_honored_list.append(item)
+
+            # 顕彰馬優先、次いでG1勝利数・獲得賞金順でソート
+            all_honored_list.sort(
+                key=lambda x: (1 if x["award_type"] == "hall" else 0, x.get("g1_wins", 0), x.get("prize_money", 0)),
+                reverse=True
+            )
+            return all_honored_list
+
+    def get_hall_of_fame_horses(self) -> List[Dict[str, Any]]:
+        """顕彰馬一覧を取得（後方互換性）"""
+        return self.get_hall_and_merit_horses(filter_type="hall")
+
+    def get_merit_horses(self) -> List[Dict[str, Any]]:
+        """功労馬一覧を取得"""
+        return self.get_hall_and_merit_horses(filter_type="merit")
 
     def get_special_merit_awards(self) -> Dict[str, List[Dict[str, Any]]]:
         """

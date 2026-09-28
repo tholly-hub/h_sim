@@ -32,7 +32,7 @@ class JockeyAssignmentResult:
 class JockeyManager:
     """騎手ライフサイクルおよび騎乗割り当てマネージャー"""
 
-    def __init__(self, db: Database, quota_miho: int = 45, quota_ritto: int = 45):
+    def __init__(self, db: Database, quota_miho: int = 60, quota_ritto: int = 60):
         self.db = db
         self.quota_miho = quota_miho
         self.quota_ritto = quota_ritto
@@ -53,17 +53,21 @@ class JockeyManager:
             for r in existing:
                 self.name_gen.register_jockey_name(r["name"])
 
-            # 所属厩舎が指定されていない場合、同地域の所属騎手がいない厩舎を優先探索
+            # 所属厩舎が指定されていない場合、同地域の所属騎手が2名未満の厩舎を優先探索
             if target_trainer_id is None:
                 trainer_rows = conn.execute(
                     """
                     SELECT t.trainer_id 
                     FROM trainers t
-                    WHERE t.location = ? AND t.trainer_id NOT IN (
-                        SELECT trainer_id FROM jockeys WHERE is_active = 1 AND trainer_id IS NOT NULL
+                    WHERE t.location = ? AND t.trainer_id IN (
+                        SELECT t2.trainer_id FROM trainers t2
+                        LEFT JOIN jockeys j ON t2.trainer_id = j.trainer_id AND j.is_active = 1
+                        WHERE t2.location = ?
+                        GROUP BY t2.trainer_id
+                        HAVING COUNT(j.jockey_id) < 2
                     )
                     """,
-                    (location,),
+                    (location, location),
                 ).fetchall()
                 if trainer_rows:
                     target_trainer_id = random.choice(trainer_rows)["trainer_id"]
@@ -84,11 +88,15 @@ class JockeyManager:
                         """
                         SELECT t.trainer_id 
                         FROM trainers t
-                        WHERE t.location = ? AND t.trainer_id NOT IN (
-                            SELECT trainer_id FROM jockeys WHERE is_active = 1 AND trainer_id IS NOT NULL
+                        WHERE t.location = ? AND t.trainer_id IN (
+                            SELECT t2.trainer_id FROM trainers t2
+                            LEFT JOIN jockeys j ON t2.trainer_id = j.trainer_id AND j.is_active = 1
+                            WHERE t2.location = ?
+                            GROUP BY t2.trainer_id
+                            HAVING COUNT(j.jockey_id) < 2
                         )
                         """,
-                        (location,),
+                        (location, location),
                     ).fetchall()
                     if trainer_rows:
                         target_trainer_id = random.choice(trainer_rows)["trainer_id"]
@@ -126,17 +134,14 @@ class JockeyManager:
 
     def progress_year_and_maintain_quota(self, current_year: int, strict_free: bool = True, conn: Optional[Any] = None) -> Dict[str, Any]:
         """
-        年次進行処理:
-        1. 全現役騎手の加齢・経験値加算・成長＆40歳以降の体力減衰
+        年次進行処理（3月4週終了時・年度更新時）:
+        1. 全現役騎手の加齢・経験値加算・成長＆体力推移
         2. 多段階引退判定:
-           - 5年目(22歳): 通算勝数 < 8勝
-           - 10年目(27歳): 通算勝数 < 25勝
-           - 20年目(37歳): 通算勝数 < 75勝 かつ 重賞0勝
-           - 50歳以上: 年間勝数 < 3勝
-           - 60歳定年引退
-        3. 引退騎手の転身（50歳未満は所属厩舎の調教助手に就任、調教助手は50歳定年）
+           - 6年目以降: 過去5年成績下位2名引退（キャリア5年未満除外）
+           - 年齢・勝数による引退判定（50歳定年等）
+        3. 引退騎手の転身（30歳超で引退した騎手は調教助手に就任）
         4. フリー転向判定（条件を満たした所属騎手のフリー化）
-        5. 引退同数の新人騎手（18歳）を補充（美浦45・栗東45の定員を完全維持）
+        5. 新人騎手補充（6年目まで欠員補充、6年目以降毎年最低2名デビュー、定員120名維持）
         """
         retired_jockeys: List[Dict[str, Any]] = []
         retired_by_loc: Dict[str, List[Dict[str, Any]]] = {"美浦": [], "栗東": []}
@@ -167,45 +172,62 @@ class JockeyManager:
         new_assistants: List[Dict[str, Any]],
         new_jockeys: List[Jockey],
     ) -> Dict[str, Any]:
-        # 1. 現役騎手の能力更新・引退判定
+        # 1. 現役騎手の能力更新
         active_rows = conn.execute(
             "SELECT * FROM jockeys WHERE is_active = 1 ORDER BY jockey_id"
         ).fetchall()
 
+        jockeys_list: List[Jockey] = []
         for r in active_rows:
             j = Jockey.from_row(r)
-            # 年次加齢と能力・体力推移
             j.advance_age_and_abilities(
                 wins_this_year=j.current_year_wins,
                 g1_this_year=j.current_year_g1,
                 rides_this_year=j.current_year_rides,
             )
+            if j.current_year_wins < 5:
+                j.low_performance_years += 1
+            else:
+                j.low_performance_years = 0
+            jockeys_list.append(j)
 
-            # 多段階引退判定
-            should_retire = False
-            retire_reason = ""
+        # 引退候補の選定
+        to_retire_ids: set[int] = set()
+        retire_reasons: Dict[int, str] = {}
 
-            if j.age >= 60:
-                should_retire = True
-                retire_reason = "60歳定年引退"
-            elif j.age >= 50 and j.current_year_wins < 3:
-                should_retire = True
-                retire_reason = "50歳以上年間成績不振"
-            elif j.career_years == 5 and j.career_wins < 8:
-                should_retire = True
-                retire_reason = "5年目成績足切り"
-            elif j.career_years == 10 and j.career_wins < 25:
-                should_retire = True
-                retire_reason = "10年目成績足切り"
-            elif j.career_years == 20 and j.career_wins < 75 and (j.g1_wins + j.g2_wins + j.g3_wins) == 0:
-                should_retire = True
-                retire_reason = "20年目重賞未勝利足切り"
+        for j in jockeys_list:
+            if j.age >= 50:
+                to_retire_ids.add(j.jockey_id)
+                retire_reasons[j.jockey_id] = "50歳定年引退"
+            elif j.age >= 45 and j.current_year_wins < 3:
+                to_retire_ids.add(j.jockey_id)
+                retire_reasons[j.jockey_id] = "45歳以上年間3勝未満"
+            elif j.career_years >= 10 and j.career_wins < 20 and j.low_performance_years >= 3:
+                to_retire_ids.add(j.jockey_id)
+                retire_reasons[j.jockey_id] = "10年以上・成績低迷"
 
-            # 3年目終了までは引退完全ガード（3年間現役維持）
-            if current_year <= 3:
-                should_retire = False
+        # 6年目以降: 過去5年成績下位2名引退（キャリア5年未満は除外）
+        if current_year >= 6:
+            eligible_for_bottom_retire = [
+                j for j in jockeys_list 
+                if j.career_years >= 5 and j.jockey_id not in to_retire_ids
+            ]
+            # 勝利数・賞金が少ない順
+            eligible_for_bottom_retire.sort(key=lambda x: (x.career_wins, x.career_earnings, x.experience))
+            # 最低2名引退が確保されるように追加
+            needed_bottom = max(0, 2 - len(to_retire_ids))
+            for b_j in eligible_for_bottom_retire[:needed_bottom]:
+                to_retire_ids.add(b_j.jockey_id)
+                retire_reasons[b_j.jockey_id] = "過去5年成績下位引退"
 
-            if should_retire:
+        # 3年目終了までは引退完全ガード（3年間現役維持）
+        if current_year <= 3:
+            to_retire_ids.clear()
+            retire_reasons.clear()
+
+        # 引退処理と現役更新
+        for j in jockeys_list:
+            if j.jockey_id in to_retire_ids:
                 conn.execute(
                     """
                     UPDATE jockeys 
@@ -220,6 +242,7 @@ class JockeyManager:
                         j.experience, j.stamina, j.jockey_id
                     ),
                 )
+                reason = retire_reasons.get(j.jockey_id, "引退")
                 ret_info = {
                     "jockey_id": j.jockey_id,
                     "name": j.name,
@@ -228,14 +251,14 @@ class JockeyManager:
                     "career_years": j.career_years,
                     "career_wins": j.career_wins,
                     "g1_wins": j.g1_wins,
-                    "reason": retire_reason,
+                    "reason": reason,
                     "trainer_id": j.trainer_id,
                 }
                 retired_jockeys.append(ret_info)
                 retired_by_loc[j.location].append(ret_info)
 
-                # 50歳未満で引退した場合は調教助手に就任
-                if j.age < 50 and j.trainer_id is not None:
+                # 30歳超で引退した場合は調教助手に就任
+                if j.age > 30 and j.trainer_id is not None:
                     conn.execute(
                         """
                         INSERT INTO assistant_trainers (
@@ -281,26 +304,58 @@ class JockeyManager:
         conn.execute("UPDATE assistant_trainers SET age = age + 1 WHERE is_active = 1")
         conn.execute("UPDATE assistant_trainers SET is_active = 0 WHERE age >= 50 AND is_active = 1")
 
-        # 3. 引退分と同数の新人騎手を生成・登録（定員維持: 美浦45名・栗東45名）
-        for loc in ["美浦", "栗東"]:
-            for _ in range(len(retired_by_loc[loc])):
-                rookie = self.generate_rookie_jockey(loc, current_year, conn=conn)
-                cursor = conn.execute(
-                    """
-                    INSERT INTO jockeys (
-                        name, gender, location, age, debut_year, career_years, is_active,
-                        growth_type, is_free, trainer_id, experience, stamina,
-                        skill, drive, start_dash, temperament_handling
-                    ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        rookie.name, rookie.gender, rookie.location, rookie.age, rookie.debut_year, rookie.career_years,
-                        rookie.growth_type, rookie.is_free, rookie.trainer_id, rookie.experience, rookie.stamina,
-                        rookie.skill, rookie.drive, rookie.start_dash, rookie.temperament_handling,
-                    ),
-                )
-                rookie.jockey_id = cursor.lastrowid
-                new_jockeys.append(rookie)
+        # 3. 新人騎手の補充
+        # 6年目以降は毎年最低2名（美浦1名・栗東1名）デビューを保証
+        target_quota_miho = self.quota_miho  # 60
+        target_quota_ritto = self.quota_ritto  # 60
+
+        current_miho = conn.execute("SELECT COUNT(*) as c FROM jockeys WHERE is_active = 1 AND location = '美浦'").fetchone()["c"]
+        current_ritto = conn.execute("SELECT COUNT(*) as c FROM jockeys WHERE is_active = 1 AND location = '栗東'").fetchone()["c"]
+
+        needed_miho = max(0, target_quota_miho - current_miho)
+        needed_ritto = max(0, target_quota_ritto - current_ritto)
+
+        if current_year >= 6:
+            needed_miho = max(1, needed_miho)
+            needed_ritto = max(1, needed_ritto)
+
+        for _ in range(needed_miho):
+            rookie = self.generate_rookie_jockey("美浦", current_year, conn=conn)
+            cursor = conn.execute(
+                """
+                INSERT INTO jockeys (
+                    name, gender, location, age, debut_year, career_years, is_active,
+                    growth_type, is_free, trainer_id, experience, stamina,
+                    skill, drive, start_dash, temperament_handling
+                ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    rookie.name, rookie.gender, rookie.location, rookie.age, rookie.debut_year, rookie.career_years,
+                    rookie.growth_type, rookie.is_free, rookie.trainer_id, rookie.experience, rookie.stamina,
+                    rookie.skill, rookie.drive, rookie.start_dash, rookie.temperament_handling,
+                ),
+            )
+            rookie.jockey_id = cursor.lastrowid
+            new_jockeys.append(rookie)
+
+        for _ in range(needed_ritto):
+            rookie = self.generate_rookie_jockey("栗東", current_year, conn=conn)
+            cursor = conn.execute(
+                """
+                INSERT INTO jockeys (
+                    name, gender, location, age, debut_year, career_years, is_active,
+                    growth_type, is_free, trainer_id, experience, stamina,
+                    skill, drive, start_dash, temperament_handling
+                ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    rookie.name, rookie.gender, rookie.location, rookie.age, rookie.debut_year, rookie.career_years,
+                    rookie.growth_type, rookie.is_free, rookie.trainer_id, rookie.experience, rookie.stamina,
+                    rookie.skill, rookie.drive, rookie.start_dash, rookie.temperament_handling,
+                ),
+            )
+            rookie.jockey_id = cursor.lastrowid
+            new_jockeys.append(rookie)
 
         # 引退した騎手が主戦だった馬の主戦騎手リセット
         if retired_jockeys:
@@ -312,14 +367,14 @@ class JockeyManager:
             )
 
         return {
-        "retired_count": len(retired_jockeys),
-        "retired_jockeys": retired_jockeys,
-        "retired_by_location": retired_by_loc,
-        "promoted_free_count": len(promoted_free_jockeys),
-        "promoted_free_jockeys": promoted_free_jockeys,
-        "new_assistants_count": len(new_assistants),
-        "new_jockeys": new_jockeys,
-        "new_count": len(new_jockeys),
+            "retired_count": len(retired_jockeys),
+            "retired_jockeys": retired_jockeys,
+            "retired_by_location": retired_by_loc,
+            "promoted_free_count": len(promoted_free_jockeys),
+            "promoted_free_jockeys": promoted_free_jockeys,
+            "new_assistants_count": len(new_assistants),
+            "new_jockeys": new_jockeys,
+            "new_count": len(new_jockeys),
         }
 
 

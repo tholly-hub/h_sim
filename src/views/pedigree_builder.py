@@ -102,9 +102,107 @@ class PedigreeBuilder:
         with self.db.session() as session_conn:
             return _fetch(session_conn)
 
+    @staticmethod
+    def calculate_inbreeding(tree: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        5代血統表の血量（インブリード・アウトブリード）を計算
+        - 5世代内に同じ牡馬が重複して出現しない場合: 「アウトブリード」
+        - 5世代内に同じ牡馬が出現する場合:
+          - 出現世代を特定 (例: 3×5)
+          - 血量を計算: Σ (1/2)^n × 100% (例: 15.63%)
+        """
+        if not tree:
+            return {
+                "is_outbreed": True,
+                "summary_text": "アウトブリード",
+                "inbreeds": [],
+            }
+
+        # 祖先牡馬の出現世代マップ: {horse_identifier: {"name": str, "horse_id": int, "generations": [int, ...]}}
+        ancestors_map: Dict[str, Dict[str, Any]] = {}
+
+        def traverse(node: Optional[Dict[str, Any]], current_gen: int) -> None:
+            if not node or current_gen > 5:
+                return
+
+            h_id = node.get("horse_id")
+            name = node.get("name", "").strip()
+            sex = str(node.get("sex", "")).lower()
+            is_male = (sex in ("horse", "colt", "gelding", "牡") or "牡" in sex)
+
+            # 始祖や不明は除外
+            if name and "不明" not in name and "始祖" not in name and is_male:
+                key = f"{name}_{h_id}" if h_id else name
+                if key not in ancestors_map:
+                    ancestors_map[key] = {
+                        "horse_id": h_id,
+                        "name": name,
+                        "generations": [],
+                    }
+                ancestors_map[key]["generations"].append(current_gen)
+
+            # 再帰探索 (第5世代まで)
+            if current_gen < 5:
+                if node.get("sire"):
+                    traverse(node["sire"], current_gen + 1)
+                if node.get("dam"):
+                    traverse(node["dam"], current_gen + 1)
+
+        # 起点馬の父系・母系から探索（起点馬自身は対象外）
+        if tree.get("sire"):
+            traverse(tree["sire"], 1)
+        if tree.get("dam"):
+            traverse(tree["dam"], 1)
+
+        # 重複（インブリード）の検出
+        inbreeds = []
+        for key, data in ancestors_map.items():
+            gens = sorted(data["generations"])
+            if len(gens) >= 2:
+                # 血量計算: 各世代 g に対し (1/2)^g
+                total_fraction = sum((0.5) ** g for g in gens)
+                pct = total_fraction * 100.0
+                cross_str = "×".join(str(g) for g in gens)
+                # 四捨五入（round half-up）で小数点第2位まで整形
+                rounded_pct = round(pct + 1e-8, 2)
+                pct_str = f"{rounded_pct:.2f}%" if rounded_pct % 1 != 0 else f"{int(rounded_pct)}%"
+                display_str = f"{data['name']} {cross_str} {pct_str}"
+
+                inbreeds.append({
+                    "horse_id": data["horse_id"],
+                    "name": data["name"],
+                    "generations": gens,
+                    "cross_str": cross_str,
+                    "percentage": rounded_pct,
+                    "percentage_str": pct_str,
+                    "display": display_str,
+                })
+
+        if not inbreeds:
+            return {
+                "is_outbreed": True,
+                "summary_text": "アウトブリード",
+                "inbreeds": [],
+            }
+
+        # 血量の高い順、出現世代の若い順にソート
+        inbreeds.sort(key=lambda item: (-item["percentage"], item["generations"]))
+        summary_text = "、".join(item["display"] for item in inbreeds)
+
+        return {
+            "is_outbreed": False,
+            "summary_text": summary_text,
+            "inbreeds": inbreeds,
+        }
+
+    def build_tree(self, horse_id: int, generations: int = 5, conn: Optional[Any] = None) -> Dict[str, Any]:
+        """get_ancestors_tree のエイリアス"""
+        return self.get_ancestors_tree(horse_id, depth=generations, conn=conn)
+
     def build_html(self, horse_id: int, output_path: Optional[str] = None) -> str:
         """5代血統表のインタラクティブHTMLを生成してファイルに保存"""
         tree_data = self.get_ancestors_tree(horse_id, depth=5)
+        inbreed_info = self.calculate_inbreeding(tree_data)
         tree_json = json.dumps(tree_data, ensure_ascii=False)
 
         html_template = f"""<!DOCTYPE html>
@@ -345,7 +443,8 @@ class PedigreeBuilder:
                 <span class="tag" id="rootHorseSex">{tree_data['sex']}</span>
             </h1>
             <div class="header-info" id="rootHorseInfo">
-                馬ID: {tree_data['horse_id']} | 生年: {tree_data['birth_year']}年 | 所属: {tree_data.get('trainer_name', '未定')} | 主戦: {tree_data.get('jockey_name', '未定')}
+                馬ID: {tree_data['horse_id']} | 生年: {tree_data['birth_year']}年 | 所属: {tree_data.get('trainer_name', '未定')} | 主戦: {tree_data.get('jockey_name', '未定')}<br>
+                <strong style="color: {'#34d399' if inbreed_info['is_outbreed'] else '#fbbf24'};">🧬 血量（インブリード）: {inbreed_info['summary_text']}</strong>
             </div>
         </div>
         <div>

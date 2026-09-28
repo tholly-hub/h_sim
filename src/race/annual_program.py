@@ -1,16 +1,18 @@
 """
 年間レース番組表定義モジュール (Annual Race Program)
-- 年間48週 (12ヶ月 × 4週) の全レース体系 (約1,070レース)
+- 年間48週 (12ヶ月 × 4週) の全レース体系
 - JRA 8場 ＋ 地方 4場（大井・川崎・船橋・盛岡）の12競馬場開催
 - 2歳戦線、3歳クラシック・ダート三冠戦線、古馬王道路線
 - 冠名付きリステッド・3勝クラス、1000mおよび2400〜3600m番組、牝馬限定戦
+- 定量戦・別定戦・ハンデ戦の完全対応
+- 年度別段階的レース体系（1〜2年目: レースなし、3年目: 7月以降2歳戦、4年目: 3歳戦+2歳戦、5年目〜: フル番組）
 - 1レース8頭限定フルゲート
 """
 
 from __future__ import annotations
 
 from collections import Counter
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from src.models.race import AgeRestriction, Race, RaceGrade, RaceSurface, SexRestriction
 from src.race.track import TRACK_CONFIGS
@@ -27,6 +29,63 @@ GRADE_PRIZE_MAP: Dict[RaceGrade, tuple[int, int]] = {
     RaceGrade.NEWCOMER: (7_200_000, 4_000_000),
     RaceGrade.MAIDEN: (5_500_000, 4_000_000),
 }
+
+# ハンデ戦対象レース名（部分一致判定用）
+HANDICAP_RACE_NAMES: Set[str] = {
+    '中山金杯', '京都金杯', '日経新春杯', 'シルクロードS', '小倉大賞典', 'ダービー卿',
+    '中山牝馬S', '新潟大賞典', '目黒記念', 'マーメイドS', 'エプソムC', 'ラジオNIKKEI賞',
+    'CBC賞', '七夕賞', 'プロキオンS', '小倉記念', '北九州記念', '新潟記念', '京成杯オータムH',
+    'シリウスS', 'アルゼンチン共和国杯', '福島記念', 'チャレンジC', 'チャレンジカップ',
+    '中日新聞杯', 'ターコイズS',
+    '仁川S', '仁川ステークス', '総武S', '総武ステークス', '春雷S', '春雷ステークス',
+    '福島民報杯', 'メイS', 'メイステークス', '安土城S', '安土城ステークス', 'パラダイスS',
+    '巴賞', '福島テレビOP', 'マリーンS', 'マリーンステークス', '朱鷺S', '朱鷺ステークス',
+    'エニフS', 'エニフステークス', 'ラジオ日本賞', 'ポートアイランドS', 'オパールS',
+    '信越S', '信越ステークス', 'ブラジルC', 'ブラジルカップ', 'カシオペアS',
+    'ルミエールオータムD', 'オーロC', 'オーロカップ', 'アンドロメダS', '師走S',
+    '師走ステークス', 'ディセンバーS', 'ベテルギウスS', 'ムーンライトH', 'サンタクロースH',
+}
+
+# 別定戦対象レース名（部分一致判定用）
+SPECIAL_WEIGHT_RACE_NAMES: Set[str] = {
+    '東海S', '根岸S', 'アメリカJCC', '東京新聞杯', 'きさらぎ賞', '共同通信杯', 'クイーンC',
+    '京都記念', '阪急杯', 'オーシャンS', '中山記念', '金鯱賞', 'ファルコンS', '阪神大賞典',
+    'フラワーC', '日経賞', '毎日杯', 'ニュージーランドT', 'アーリントンC', 'アーリントンカップ',
+    '阪神牝馬S', 'アンタレスS', 'マイラーズC', '京王杯スプリングC', '平安S', '葵S',
+    '葵ステークス', '鳴尾記念', 'クイーンS', 'アイビスサマーダッシュ', 'レパードS', 'エルムS',
+    '関屋記念', 'キーンランドC', '紫苑S', 'ローズS', 'セントライト記念', 'オールカマー',
+    '神戸新聞杯', '毎日王冠', '京都大賞典', '府中牝馬S', '富士S', 'スワンS', 'みやこS',
+    '武蔵野S', '京阪杯', 'ステイヤーズS', 'カペラS', '阪神カップ', '阪神C',
+    'ジュニアC', 'ジュニアカップ', 'ニューイヤーS', '紅梅S', '紅梅ステークス', '白富士S',
+    '白富士ステークス', '洛陽S', '洛陽ステークス', 'ヒヤシンスS', '六甲S', '六甲ステークス',
+    'オアシスS', '都大路S', '都大路ステークス', '米子S', '米子ステークス', 'キャピタルS',
+    'リゲルS', 'リゲルステークス',
+}
+
+def determine_race_weight_type(name: str, grade: RaceGrade, age_restriction: AgeRestriction) -> str:
+    """レース名・格付け・年齢条件から斤量種別を判定"""
+    # 1. G1および2歳戦はすべて定量（馬齢固定）
+    if grade == RaceGrade.G1 or age_restriction == AgeRestriction.TWO_YO:
+        return '定量'
+
+    # 2. ハンデ戦判定
+    for hn in HANDICAP_RACE_NAMES:
+        if hn in name:
+            return 'ハンデ'
+
+    # 3. 別定戦判定
+    for sn in SPECIAL_WEIGHT_RACE_NAMES:
+        if sn in name:
+            return '別定'
+
+    # 4. G2のデフォルトは別定、G3のデフォルトはハンデ
+    if grade == RaceGrade.G2:
+        return '別定'
+    elif grade == RaceGrade.G3:
+        return 'ハンデ'
+
+    # 5. 条件戦・新馬・未勝利は定量
+    return '定量'
 
 COND3_TITLES = [
     '初富士S', '初春S', '節分S', '飛鳥S', '雲雀S', 'アクアマリンS', '甲南S', '春風S',
@@ -51,9 +110,9 @@ LISTED_TITLES = [
     (12, '六甲ステークス', 'HANSHIN', RaceSurface.TURF, 1600, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, False, None),
     (13, '春雷ステークス', 'NAKAYAMA', RaceSurface.TURF, 1200, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, False, None),
     (14, '福島民報杯', 'FUKUSHIMA', RaceSurface.TURF, 2000, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, False, None),
-    (15, 'スイートピーS', 'TOKYO', RaceSurface.TURF, 1800, AgeRestriction.THREE_YO, SexRestriction.FILLY_MARE, True, 'オークス'),
+    (15, 'スイートピーS', 'TOKYO', RaceSurface.TURF, 1800, AgeRestriction.THREE_YO, SexRestriction.FILLY_MARE, True, '優駿牝馬（オークス）'),
     (16, 'オアシスS', 'TOKYO', RaceSurface.DIRT, 1600, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, False, None),
-    (16, 'プリンシパルS', 'TOKYO', RaceSurface.TURF, 2000, AgeRestriction.THREE_YO, SexRestriction.COLT_HORSE, True, '日本ダービー'),
+    (16, 'プリンシパルS', 'TOKYO', RaceSurface.TURF, 2000, AgeRestriction.THREE_YO, SexRestriction.COLT_HORSE, True, '東京優駿（日本ダービー）'),
     (19, '都大路ステークス', 'KYOTO', RaceSurface.TURF, 1800, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, False, None),
     (20, 'メイステークス', 'TOKYO', RaceSurface.TURF, 1800, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, False, None),
     (21, '安土城ステークス', 'HANSHIN', RaceSurface.TURF, 1400, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, False, None),
@@ -76,7 +135,6 @@ LISTED_TITLES = [
     (40, 'カシオペアS', 'KYOTO', RaceSurface.TURF, 1800, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, False, None),
     (40, '萩ステークス', 'KYOTO', RaceSurface.TURF, 1800, AgeRestriction.TWO_YO, SexRestriction.MIXED, False, None),
     (41, 'カトレアステークス', 'TOKYO', RaceSurface.DIRT, 1600, AgeRestriction.TWO_YO, SexRestriction.MIXED, True, '全日本２歳優駿'),
-
     (41, 'ルミエールオータムD', 'TOKYO', RaceSurface.TURF, 1000, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, False, None),
     (42, 'オーロカップ', 'TOKYO', RaceSurface.TURF, 1400, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, False, None),
     (43, 'アンドロメダS', 'KYOTO', RaceSurface.TURF, 2000, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, False, None),
@@ -87,7 +145,17 @@ LISTED_TITLES = [
     (48, 'ベテルギウスS', 'HANSHIN', RaceSurface.DIRT, 1800, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, False, None),
 ]
 
-def generate_full_program(year: int = 1) -> List[Race]:
+def generate_full_program(year: int = 5) -> List[Race]:
+    """
+    年度に応じたレース番組表を生成
+    - 1〜2年目: レースなし（空リスト）
+    - 3年目: 7月（第27週）以降の2歳戦のみ
+    - 4年目: 3歳限定戦 ＋ 6月/7月以降の2歳戦
+    - 5年目以降: 古馬戦 ＋ 3歳戦 ＋ 2歳戦 の全フル番組 (デフォルト)
+    """
+    if year <= 2:
+        return []
+
     # 週間開催競馬場ローテーション（2〜3場）
     weekly_tracks = {
         1: ['NAKAYAMA', 'CHUKYO', 'KOKURA'],
@@ -200,9 +268,9 @@ def generate_full_program(year: int = 1) -> List[Race]:
         (14, '阪神牝馬S', 'HANSHIN', RaceGrade.G2, RaceSurface.TURF, 1600, AgeRestriction.FOUR_YO_UP, SexRestriction.FILLY_MARE, 1, 'ヴィクトリアマイル', 55_000_000),
         (15, '皐月賞', 'NAKAYAMA', RaceGrade.G1, RaceSurface.TURF, 2000, AgeRestriction.THREE_YO, SexRestriction.COLT_HORSE, 0, None, 200_000_000),
         (15, 'アンタレスS', 'HANSHIN', RaceGrade.G3, RaceSurface.DIRT, 1800, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, 0, None, 40_000_000),
-        (15, 'フローラS', 'TOKYO', RaceGrade.G2, RaceSurface.TURF, 2000, AgeRestriction.THREE_YO, SexRestriction.FILLY_MARE, 1, 'オークス', 52_000_000),
-        (16, '青葉賞', 'TOKYO', RaceGrade.G2, RaceSurface.TURF, 2400, AgeRestriction.THREE_YO, SexRestriction.COLT_HORSE, 1, '日本ダービー', 54_000_000),
-        (16, '京都新聞杯', 'KYOTO', RaceGrade.G2, RaceSurface.TURF, 2200, AgeRestriction.THREE_YO, SexRestriction.COLT_HORSE, 1, '日本ダービー', 54_000_000),
+        (15, 'フローラS', 'TOKYO', RaceGrade.G2, RaceSurface.TURF, 2000, AgeRestriction.THREE_YO, SexRestriction.FILLY_MARE, 1, '優駿牝馬（オークス）', 52_000_000),
+        (16, '青葉賞', 'TOKYO', RaceGrade.G2, RaceSurface.TURF, 2400, AgeRestriction.THREE_YO, SexRestriction.COLT_HORSE, 1, '東京優駿（日本ダービー）', 54_000_000),
+        (16, '京都新聞杯', 'KYOTO', RaceGrade.G2, RaceSurface.TURF, 2200, AgeRestriction.THREE_YO, SexRestriction.COLT_HORSE, 1, '東京優駿（日本ダービー）', 54_000_000),
         (16, 'ユニコーンS', 'KYOTO', RaceGrade.G3, RaceSurface.DIRT, 1900, AgeRestriction.THREE_YO, SexRestriction.MIXED, 1, '東京ダービー', 40_000_000),
         (16, 'マイラーズC', 'KYOTO', RaceGrade.G2, RaceSurface.TURF, 1600, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, 1, '安田記念', 59_000_000),
         (16, '羽田盃', 'OI', RaceGrade.G1, RaceSurface.DIRT, 1800, AgeRestriction.THREE_YO, SexRestriction.MIXED, 0, None, 80_000_000),
@@ -214,9 +282,9 @@ def generate_full_program(year: int = 1) -> List[Race]:
         (18, '新潟大賞典', 'NIIGATA', RaceGrade.G3, RaceSurface.TURF, 2000, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, 0, None, 43_000_000),
         (19, 'ヴィクトリアマイル', 'TOKYO', RaceGrade.G1, RaceSurface.TURF, 1600, AgeRestriction.FOUR_YO_UP, SexRestriction.FILLY_MARE, 0, None, 130_000_000),
         (19, '平安S', 'KYOTO', RaceGrade.G3, RaceSurface.DIRT, 1900, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, 0, None, 40_000_000),
-        (20, 'オークス', 'TOKYO', RaceGrade.G1, RaceSurface.TURF, 2400, AgeRestriction.THREE_YO, SexRestriction.FILLY_MARE, 0, None, 150_000_000),
+        (20, '優駿牝馬（オークス）', 'TOKYO', RaceGrade.G1, RaceSurface.TURF, 2400, AgeRestriction.THREE_YO, SexRestriction.FILLY_MARE, 0, None, 150_000_000),
         # 6月
-        (21, '日本ダービー', 'TOKYO', RaceGrade.G1, RaceSurface.TURF, 2400, AgeRestriction.THREE_YO, SexRestriction.COLT_HORSE, 0, None, 300_000_000),
+        (21, '東京優駿（日本ダービー）', 'TOKYO', RaceGrade.G1, RaceSurface.TURF, 2400, AgeRestriction.THREE_YO, SexRestriction.COLT_HORSE, 0, None, 300_000_000),
         (21, '東京ダービー', 'OI', RaceGrade.G1, RaceSurface.DIRT, 2000, AgeRestriction.THREE_YO, SexRestriction.MIXED, 0, None, 100_000_000),
         (21, '目黒記念', 'TOKYO', RaceGrade.G2, RaceSurface.TURF, 2500, AgeRestriction.FOUR_YO_UP, SexRestriction.MIXED, 0, None, 57_000_000),
         (21, '葵ステークス', 'HANSHIN', RaceGrade.G3, RaceSurface.TURF, 1200, AgeRestriction.THREE_YO, SexRestriction.MIXED, 0, None, 40_000_000),
@@ -236,7 +304,6 @@ def generate_full_program(year: int = 1) -> List[Race]:
         # 8月
         (29, 'レパードS', 'NIIGATA', RaceGrade.G3, RaceSurface.DIRT, 1800, AgeRestriction.THREE_YO, SexRestriction.MIXED, 1, 'ジャパンダートクラシック', 40_000_000),
         (29, 'エルムS', 'NIIGATA', RaceGrade.G3, RaceSurface.DIRT, 1700, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, 0, None, 40_000_000),
-        (30, '小倉記念', 'KOKURA', RaceGrade.G3, RaceSurface.TURF, 2000, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, 0, None, 43_000_000),
         (30, '関屋記念', 'NIIGATA', RaceGrade.G3, RaceSurface.TURF, 1600, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, 0, None, 41_000_000),
         (31, '北九州記念', 'KOKURA', RaceGrade.G3, RaceSurface.TURF, 1200, AgeRestriction.THREE_YO_UP, SexRestriction.MIXED, 0, None, 41_000_000),
         (31, '新潟2歳S', 'NIIGATA', RaceGrade.G3, RaceSurface.TURF, 1600, AgeRestriction.TWO_YO, SexRestriction.MIXED, 0, None, 31_000_000),
@@ -301,228 +368,251 @@ def generate_full_program(year: int = 1) -> List[Race]:
     ]
 
     for w, name, trk, grd, surf, dist, age_r, sex_r, is_tr, tg1, bp in major_races:
-        if year <= 2 and age_r in (AgeRestriction.FOUR_YO_UP, AgeRestriction.THREE_YO_UP):
+        # 年度別フィルタ
+        if year == 3:
+            # 3年目は7月（第27週）以降の2歳戦のみ
+            if age_r != AgeRestriction.TWO_YO or w < 27:
+                continue
+        elif year == 4:
+            # 4年目は3歳戦 ＋ 2歳戦のみ
+            if age_r not in (AgeRestriction.THREE_YO, AgeRestriction.TWO_YO):
+                continue
+        elif year <= 2:
             continue
+
         m = (w - 1) // 4 + 1
         disp_name = f"{name} [{tg1}トライアル]" if (is_tr and tg1) else name
         real_surf = resolve_surface(trk, surf)
+        w_type = determine_race_weight_type(name, grd, age_r)
+
         races.append(Race(
             name=disp_name, track_id=trk, month=m, week=w, grade=grd,
             surface=real_surf, distance=dist, age_restriction=age_r,
-            sex_restriction=sex_r, full_gate=8, is_trial=is_tr,
+            sex_restriction=sex_r, weight_type=w_type, full_gate=8, is_trial=is_tr,
             target_g1_name=tg1, base_prize=bp, year=year
         ))
 
     # 2. リステッドレース (L / OP・実在冠名付き)
     for w, name, trk, surf, dist, age_r, sex_r, is_tr, tg1 in LISTED_TITLES:
-        if year <= 2 and age_r in (AgeRestriction.FOUR_YO_UP, AgeRestriction.THREE_YO_UP):
+        # 年度別フィルタ
+        if year == 3:
+            if age_r != AgeRestriction.TWO_YO or w < 27:
+                continue
+        elif year == 4:
+            if age_r not in (AgeRestriction.THREE_YO, AgeRestriction.TWO_YO):
+                continue
+        elif year <= 2:
             continue
+
         m = (w - 1) // 4 + 1
         base_name = f"{name}(L)"
         disp_name = f"{base_name} [{tg1}トライアル]" if (is_tr and tg1) else base_name
         real_surf = resolve_surface(trk, surf)
+        w_type = determine_race_weight_type(name, RaceGrade.L, age_r)
+
         races.append(Race(
             name=disp_name, track_id=trk, month=m, week=w, grade=RaceGrade.L,
             surface=real_surf, distance=dist, age_restriction=age_r,
-            sex_restriction=sex_r, full_gate=8, is_trial=1 if is_tr else 0,
+            sex_restriction=sex_r, weight_type=w_type, full_gate=8, is_trial=1 if is_tr else 0,
             target_g1_name=tg1, base_prize=25_000_000, condition_prize=10_000_000, year=year
         ))
 
-    # 3. 冠名付き特別競走 (1〜36週は2勝C特別、10月1週・第37週以降に3勝クラス特別を開催)
-    for w in range(1, 49):
-        m = (w - 1) // 4 + 1
-        tracks = weekly_tracks.get(w, ['TOKYO', 'HANSHIN', 'CHUKYO'])
-        age_cond = AgeRestriction.FOUR_YO_UP if w <= 20 else AgeRestriction.THREE_YO_UP
-        is_cond3_season = (w >= 37)
-        grade_to_use = RaceGrade.COND_3W if is_cond3_season else RaceGrade.COND_2W
-        prize_base = 18_400_000 if is_cond3_season else 15_000_000
-        prize_cond = 6_000_000 if is_cond3_season else 5_000_000
-        suffix = "(3勝C)" if is_cond3_season else "(特別)"
+    # 3. 冠名付き特別競走 (3勝クラス/2勝クラス特別・5年目以降の古馬または4年目秋以降)
+    if year >= 5 or (year == 4):
+        for w in range(1, 49):
+            # 4年目の場合は3歳以上戦のみ（w >= 21以降）
+            if year == 4 and w < 21:
+                continue
 
-        # 特別戦1: 主場1 (芝中距離/マイル)
-        c3_name1 = COND3_TITLES[(w - 1) % len(COND3_TITLES)]
-        t1 = tracks[0]
-        dist1 = 1600 if w % 3 == 0 else (2000 if w % 3 == 1 else 2400)
-        s1 = resolve_surface(t1, RaceSurface.TURF)
-        races.append(Race(
-            name=f"{c3_name1}{suffix}", track_id=t1, month=m, week=w,
-            grade=grade_to_use, surface=s1, distance=dist1,
-            age_restriction=age_cond, full_gate=8, base_prize=prize_base, condition_prize=prize_cond, year=year
-        ))
+            m = (w - 1) // 4 + 1
+            tracks = weekly_tracks.get(w, ['TOKYO', 'HANSHIN', 'CHUKYO'])
+            age_cond = AgeRestriction.FOUR_YO_UP if (w <= 20 and year >= 5) else AgeRestriction.THREE_YO_UP
+            is_cond3_season = (w >= 37)
+            grade_to_use = RaceGrade.COND_3W if is_cond3_season else RaceGrade.COND_2W
+            prize_base = 18_400_000 if is_cond3_season else 15_000_000
+            prize_cond = 6_000_000 if is_cond3_season else 5_000_000
+            suffix = "(3勝C)" if is_cond3_season else "(特別)"
 
-        # 特別戦2: 主場2 (ダート中短距離)
-        c3_name2 = COND3_TITLES[(w + 12) % len(COND3_TITLES)]
-        t2 = tracks[1] if len(tracks) > 1 else tracks[0]
-        dist2 = 1800 if w % 2 == 1 else 1400
-        s2 = resolve_surface(t2, RaceSurface.DIRT)
-        races.append(Race(
-            name=f"{c3_name2}特別{suffix}", track_id=t2, month=m, week=w,
-            grade=grade_to_use, surface=s2, distance=dist2,
-            age_restriction=age_cond, full_gate=8, base_prize=prize_base, condition_prize=prize_cond, year=year
-        ))
-
-        # 特別戦3: 第3場がある場合は第3場 (芝短距離/長距離 または ダート)
-        if len(tracks) > 2:
-            c3_name3 = COND3_TITLES[(w + 24) % len(COND3_TITLES)]
-            t3 = tracks[2]
-            surf3 = resolve_surface(t3, RaceSurface.DIRT if (w % 3 == 0) else RaceSurface.TURF)
-            dist3 = 1200 if (w % 2 == 1) else (2000 if surf3 == RaceSurface.TURF else 1800)
+            # 特別戦1: 主場1 (芝中距離/マイル)
+            c3_name1 = COND3_TITLES[(w - 1) % len(COND3_TITLES)]
+            t1 = tracks[0]
+            dist1 = 1600 if w % 3 == 0 else (2000 if w % 3 == 1 else 2400)
+            s1 = resolve_surface(t1, RaceSurface.TURF)
+            w_type1 = determine_race_weight_type(c3_name1, grade_to_use, age_cond)
             races.append(Race(
-                name=f"{c3_name3}特別{suffix}", track_id=t3, month=m, week=w,
-                grade=grade_to_use, surface=surf3, distance=dist3,
-                age_restriction=age_cond, full_gate=8, base_prize=prize_base, condition_prize=prize_cond, year=year
+                name=f"{c3_name1}{suffix}", track_id=t1, month=m, week=w,
+                grade=grade_to_use, surface=s1, distance=dist1,
+                age_restriction=age_cond, weight_type=w_type1, full_gate=8, base_prize=prize_base, condition_prize=prize_cond, year=year
             ))
 
-    # 4. 2勝クラス (各開催場にバランスよく配置)
-    for w in range(1, 49):
-        m = (w - 1) // 4 + 1
-        tracks = weekly_tracks.get(w, ['TOKYO', 'HANSHIN', 'CHUKYO'])
-        age_cond = AgeRestriction.FOUR_YO_UP if w <= 20 else AgeRestriction.THREE_YO_UP
-
-        # 2勝C 芝中距離 (主場1)
-        t1 = tracks[0]
-        dist_turf = 2000 if w % 2 == 1 else 1800
-        s1 = resolve_surface(t1, RaceSurface.TURF)
-        races.append(Race(
-            name=f"2勝クラス({'ダ' if s1 == RaceSurface.DIRT else '芝'}{dist_turf}m)", track_id=t1, month=m, week=w,
-            grade=RaceGrade.COND_2W, surface=s1, distance=dist_turf,
-            age_restriction=age_cond, full_gate=8, base_prize=15_000_000, condition_prize=5_000_000, year=year
-        ))
-
-        # 2勝C ダート (主場2)
-        t2 = tracks[1] if len(tracks) > 1 else tracks[0]
-        dist_dirt = 1800 if w % 2 == 1 else 1400
-        s2 = resolve_surface(t2, RaceSurface.DIRT)
-        races.append(Race(
-            name=f"2勝クラス(ダ{dist_dirt}m)", track_id=t2, month=m, week=w,
-            grade=RaceGrade.COND_2W, surface=s2, distance=dist_dirt,
-            age_restriction=age_cond, full_gate=8, base_prize=15_000_000, condition_prize=5_000_000, year=year
-        ))
-
-        # 2勝C 短距離 または 中長距離 (第3場 または 主場2)
-        t3 = tracks[2] if len(tracks) > 2 else (tracks[1] if len(tracks) > 1 else tracks[0])
-        is_sprint = (w % 2 == 1)
-        special_dist = (1000 if 'NIIGATA' in tracks else 1200) if is_sprint else 2400
-        s3 = resolve_surface(t3, RaceSurface.TURF)
-        races.append(Race(
-            name=f"2勝クラス({'短距離' if is_sprint else '中長距離'}・{'ダ' if s3 == RaceSurface.DIRT else '芝'}{special_dist}m)", track_id=t3, month=m, week=w,
-            grade=RaceGrade.COND_2W, surface=s3, distance=special_dist,
-            age_restriction=age_cond, full_gate=8, base_prize=15_000_000, condition_prize=5_000_000, year=year
-        ))
-
-        # 2勝C 芝中距離 または ダート短距離 (主場1 または 第3場)
-        if w % 2 == 0:
-            s_ex = resolve_surface(t1, RaceSurface.TURF)
+            # 特別戦2: 主場2 (ダート中短距離)
+            c3_name2 = COND3_TITLES[(w + 12) % len(COND3_TITLES)]
+            t2 = tracks[1] if len(tracks) > 1 else tracks[0]
+            dist2 = 1800 if w % 2 == 1 else 1400
+            s2 = resolve_surface(t2, RaceSurface.DIRT)
+            w_type2 = determine_race_weight_type(c3_name2, grade_to_use, age_cond)
             races.append(Race(
-                name=f"2勝クラス({'ダ' if s_ex == RaceSurface.DIRT else '芝'}1600m)", track_id=t1, month=m, week=w,
-                grade=RaceGrade.COND_2W, surface=s_ex, distance=1600,
-                age_restriction=age_cond, full_gate=8, base_prize=15_000_000, condition_prize=5_000_000, year=year
-            ))
-        else:
-            t_d_target = tracks[2] if len(tracks) > 2 else t1
-            s_ex = resolve_surface(t_d_target, RaceSurface.DIRT)
-            races.append(Race(
-                name=f"2勝クラス(ダ1200m)", track_id=t_d_target, month=m, week=w,
-                grade=RaceGrade.COND_2W, surface=s_ex, distance=1200,
-                age_restriction=age_cond, full_gate=8, base_prize=15_000_000, condition_prize=5_000_000, year=year
+                name=f"{c3_name2}特別{suffix}", track_id=t2, month=m, week=w,
+                grade=grade_to_use, surface=s2, distance=dist2,
+                age_restriction=age_cond, weight_type=w_type2, full_gate=8, base_prize=prize_base, condition_prize=prize_cond, year=year
             ))
 
-    # 5. 1勝クラス (週3レースの適正規模に集約し、全場4レース以上開催＆6〜8頭の多頭数・フルゲート熱戦を実現)
-    for w in range(1, 49):
-        m = (w - 1) // 4 + 1
-        tracks = weekly_tracks.get(w, ['TOKYO', 'HANSHIN', 'CHUKYO'])
-        t0 = tracks[0]
-        t1 = tracks[1] if len(tracks) > 1 else tracks[0]
-        t2 = tracks[2] if len(tracks) > 2 else t0
-
-        # (A) 1〜20週は4歳以上(FOUR_YO_UP)＆3歳限定(THREE_YO)、21〜48週は3歳以上(THREE_YO_UP)
-        if w <= 20:
-            # 1〜20週（春競馬）: 主場1(芝)、主場2(ダート)、第3場(短距離/長距離)
-            # 1. 芝レース（4歳以上 または 3歳）
-            if w % 2 == 1:
-                d_t0 = 1600 if (w // 2) % 2 == 0 else 2000
-                s_t0 = resolve_surface(t0, RaceSurface.TURF)
+            # 特別戦3: 第3場がある場合は第3場 (芝短距離/長距離 または ダート)
+            if len(tracks) > 2:
+                c3_name3 = COND3_TITLES[(w + 24) % len(COND3_TITLES)]
+                t3 = tracks[2]
+                surf3 = resolve_surface(t3, RaceSurface.DIRT if (w % 3 == 0) else RaceSurface.TURF)
+                dist3 = 1200 if (w % 2 == 1) else (2000 if surf3 == RaceSurface.TURF else 1800)
+                w_type3 = determine_race_weight_type(c3_name3, grade_to_use, age_cond)
                 races.append(Race(
-                    name=f"1勝クラス({'ダ' if s_t0 == RaceSurface.DIRT else '芝'}{d_t0}m)", track_id=t0, month=m, week=w,
-                    grade=RaceGrade.COND_1W, surface=s_t0, distance=d_t0,
-                    age_restriction=AgeRestriction.FOUR_YO_UP, full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
+                    name=f"{c3_name3}特別{suffix}", track_id=t3, month=m, week=w,
+                    grade=grade_to_use, surface=surf3, distance=dist3,
+                    age_restriction=age_cond, weight_type=w_type3, full_gate=8, base_prize=prize_base, condition_prize=prize_cond, year=year
                 ))
+
+    # 4. 2勝クラス・3勝クラス平場（条件戦の拡充・レース間隔空き防止）
+    if year >= 5 or (year == 4):
+        for w in range(1, 49):
+            if year == 4 and w < 21:
+                continue
+
+            m = (w - 1) // 4 + 1
+            tracks = weekly_tracks.get(w, ['TOKYO', 'HANSHIN', 'CHUKYO'])
+            age_cond = AgeRestriction.FOUR_YO_UP if (w <= 20 and year >= 5) else AgeRestriction.THREE_YO_UP
+            t1 = tracks[0]
+            t2 = tracks[1] if len(tracks) > 1 else tracks[0]
+
+            # 2勝C 芝中距離 (主場1)
+            dist_turf = 2000 if w % 2 == 1 else 1800
+            s1 = resolve_surface(t1, RaceSurface.TURF)
+            races.append(Race(
+                name=f"2勝クラス({'ダ' if s1 == RaceSurface.DIRT else '芝'}{dist_turf}m)", track_id=t1, month=m, week=w,
+                grade=RaceGrade.COND_2W, surface=s1, distance=dist_turf,
+                age_restriction=age_cond, weight_type='定量', full_gate=8, base_prize=15_000_000, condition_prize=5_000_000, year=year
+            ))
+
+            # 2勝C ダート (主場2)
+            dist_dirt = 1800 if w % 2 == 1 else 1400
+            s2 = resolve_surface(t2, RaceSurface.DIRT)
+            races.append(Race(
+                name=f"2勝クラス(ダ{dist_dirt}m)", track_id=t2, month=m, week=w,
+                grade=RaceGrade.COND_2W, surface=s2, distance=dist_dirt,
+                age_restriction=age_cond, weight_type='定量', full_gate=8, base_prize=15_000_000, condition_prize=5_000_000, year=year
+            ))
+
+            # 2勝C 短距離 / 中長距離 (第3場 または 主場2)
+            t3 = tracks[2] if len(tracks) > 2 else (tracks[1] if len(tracks) > 1 else tracks[0])
+            is_sprint = (w % 2 == 1)
+            special_dist = (1000 if 'NIIGATA' in tracks else 1200) if is_sprint else 2400
+            s3 = resolve_surface(t3, RaceSurface.TURF)
+            races.append(Race(
+                name=f"2勝クラス({'短距離' if is_sprint else '中長距離'}・{'ダ' if s3 == RaceSurface.DIRT else '芝'}{special_dist}m)", track_id=t3, month=m, week=w,
+                grade=RaceGrade.COND_2W, surface=s3, distance=special_dist,
+                age_restriction=age_cond, weight_type='定量', full_gate=8, base_prize=15_000_000, condition_prize=5_000_000, year=year
+            ))
+
+            # 3勝クラス 平場（第37週以降）
+            if w >= 37:
+                s_3w = resolve_surface(t1, RaceSurface.TURF if (w % 2 == 0) else RaceSurface.DIRT)
+                d_3w = 1600 if (w % 2 == 0) else 1800
+                races.append(Race(
+                    name=f"3勝クラス({'ダ' if s_3w == RaceSurface.DIRT else '芝'}{d_3w}m)", track_id=t1, month=m, week=w,
+                    grade=RaceGrade.COND_3W, surface=s_3w, distance=d_3w,
+                    age_restriction=age_cond, weight_type='定量', full_gate=8, base_prize=18_400_000, condition_prize=6_000_000, year=year
+                ))
+
+    # 5. 1勝クラス (4年目以降)
+    if year >= 4:
+        for w in range(1, 49):
+            m = (w - 1) // 4 + 1
+            tracks = weekly_tracks.get(w, ['TOKYO', 'HANSHIN', 'CHUKYO'])
+            t0 = tracks[0]
+            t1 = tracks[1] if len(tracks) > 1 else tracks[0]
+            t2 = tracks[2] if len(tracks) > 2 else t0
+
+            # (A) 1〜20週: 4歳以上(FOUR_YO_UP)＆3歳限定(THREE_YO)
+            if w <= 20:
+                if year >= 5:
+                    d_t0 = 1600 if (w // 2) % 2 == 0 else 2000
+                    s_t0 = resolve_surface(t0, RaceSurface.TURF)
+                    races.append(Race(
+                        name=f"1勝クラス({'ダ' if s_t0 == RaceSurface.DIRT else '芝'}{d_t0}m)", track_id=t0, month=m, week=w,
+                        grade=RaceGrade.COND_1W, surface=s_t0, distance=d_t0,
+                        age_restriction=AgeRestriction.FOUR_YO_UP, weight_type='定量', full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
+                    ))
+                
+                # 3歳1勝クラス
                 d_3d = 1400 if (w // 2) % 2 == 0 else 1800
                 s_3d = resolve_surface(t1, RaceSurface.DIRT)
                 races.append(Race(
                     name=f"3歳1勝クラス(ダ{d_3d}m)", track_id=t1, month=m, week=w,
                     grade=RaceGrade.COND_1W, surface=s_3d, distance=d_3d,
-                    age_restriction=AgeRestriction.THREE_YO, full_gate=8, base_prize=10_500_000, condition_prize=4_000_000, year=year
+                    age_restriction=AgeRestriction.THREE_YO, weight_type='定量', full_gate=8, base_prize=10_500_000, condition_prize=4_000_000, year=year
                 ))
-            else:
+
                 d_3t = 1600 if (w // 2) % 2 == 0 else 2000
                 s_3t = resolve_surface(t0, RaceSurface.TURF)
                 races.append(Race(
                     name=f"3歳1勝クラス({'ダ' if s_3t == RaceSurface.DIRT else '芝'}{d_3t}m)", track_id=t0, month=m, week=w,
                     grade=RaceGrade.COND_1W, surface=s_3t, distance=d_3t,
-                    age_restriction=AgeRestriction.THREE_YO, full_gate=8, base_prize=10_500_000, condition_prize=4_000_000, year=year
-                ))
-                d_4d = 1400 if (w // 2) % 2 == 0 else 1800
-                s_4d = resolve_surface(t1, RaceSurface.DIRT)
-                races.append(Race(
-                    name=f"1勝クラス(ダ{d_4d}m)", track_id=t1, month=m, week=w,
-                    grade=RaceGrade.COND_1W, surface=s_4d, distance=d_4d,
-                    age_restriction=AgeRestriction.FOUR_YO_UP, full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
+                    age_restriction=AgeRestriction.THREE_YO, weight_type='定量', full_gate=8, base_prize=10_500_000, condition_prize=4_000_000, year=year
                 ))
 
-            # 第3場 (t2): 短距離 または 長距離
-            if len(tracks) > 2:
-                dist_ex = 1200 if w % 2 == 1 else 2400
-                s_t2 = resolve_surface(t2, RaceSurface.TURF)
-                races.append(Race(
-                    name=f"1勝クラス({'短距離' if dist_ex == 1200 else '長距離'}・{'ダ' if s_t2 == RaceSurface.DIRT else '芝'}{dist_ex}m)", track_id=t2, month=m, week=w,
-                    grade=RaceGrade.COND_1W, surface=s_t2, distance=dist_ex,
-                    age_restriction=AgeRestriction.FOUR_YO_UP, full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
-                ))
-
-        else:
-            # 21〜48週（夏〜秋冬競馬）: 3歳以上1勝クラス (週3レース)
-            # 1. 芝レース (t0: マイル/中距離/短距離ローテ)
-            d_t0 = 1600 if w % 3 == 0 else (2000 if w % 3 == 1 else 1400)
-            s_t0 = resolve_surface(t0, RaceSurface.TURF)
-            races.append(Race(
-                name=f"1勝クラス({'ダ' if s_t0 == RaceSurface.DIRT else '芝'}{d_t0}m)", track_id=t0, month=m, week=w,
-                grade=RaceGrade.COND_1W, surface=s_t0, distance=d_t0,
-                age_restriction=AgeRestriction.THREE_YO_UP, full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
-            ))
-
-            # 2. ダートレース (t1: 1400m / 1800m ローテ)
-            d_t1 = 1800 if w % 2 == 1 else 1400
-            s_t1 = resolve_surface(t1, RaceSurface.DIRT)
-            races.append(Race(
-                name=f"1勝クラス(ダ{d_t1}m)", track_id=t1, month=m, week=w,
-                grade=RaceGrade.COND_1W, surface=s_t1, distance=d_t1,
-                age_restriction=AgeRestriction.THREE_YO_UP, full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
-            ))
-
-            # 3. 第3場 (t2): 2歳秋（第33〜48週）は2歳1勝C、夏競馬（第21〜32週）は直線/長距離/短距離
-            if len(tracks) > 2:
-                if w >= 33:
-                    d_2yo = 1400 if w % 3 == 0 else (1600 if w % 3 == 1 else 1800)
-                    s_2yo = resolve_surface(t2, RaceSurface.TURF if (w % 3 != 0) else RaceSurface.DIRT)
+                if year >= 5:
+                    d_4d = 1400 if (w // 2) % 2 == 0 else 1800
+                    s_4d = resolve_surface(t1, RaceSurface.DIRT)
                     races.append(Race(
-                        name=f"2歳1勝クラス({'ダ' if s_2yo == RaceSurface.DIRT else '芝'}{d_2yo}m)", track_id=t2, month=m, week=w,
-                        grade=RaceGrade.COND_1W, surface=s_2yo, distance=d_2yo,
-                        age_restriction=AgeRestriction.TWO_YO, full_gate=8, base_prize=10_200_000, condition_prize=4_000_000, year=year
+                        name=f"1勝クラス(ダ{d_4d}m)", track_id=t1, month=m, week=w,
+                        grade=RaceGrade.COND_1W, surface=s_4d, distance=d_4d,
+                        age_restriction=AgeRestriction.FOUR_YO_UP, weight_type='定量', full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
                     ))
-                else:
-                    dist_ex = 1000 if 'NIIGATA' in tracks else (1200 if w % 2 == 1 else 2400)
+
+                if len(tracks) > 2 and year >= 5:
+                    dist_ex = 1200 if w % 2 == 1 else 2400
                     s_t2 = resolve_surface(t2, RaceSurface.TURF)
                     races.append(Race(
-                        name=f"1勝クラス({'直線' if dist_ex == 1000 else ('短距離' if dist_ex == 1200 else '長距離')}・{'ダ' if s_t2 == RaceSurface.DIRT else '芝'}{dist_ex}m)", track_id=t2, month=m, week=w,
+                        name=f"1勝クラス({'短距離' if dist_ex == 1200 else '長距離'}・{'ダ' if s_t2 == RaceSurface.DIRT else '芝'}{dist_ex}m)", track_id=t2, month=m, week=w,
                         grade=RaceGrade.COND_1W, surface=s_t2, distance=dist_ex,
-                        age_restriction=AgeRestriction.THREE_YO_UP, full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
+                        age_restriction=AgeRestriction.FOUR_YO_UP, weight_type='定量', full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
                     ))
 
-    # 6. 新馬・未勝利戦 (年間600頭・フルゲート8頭に対応し、新馬戦は年間厳密に75番組配置)
-    # - 2歳新馬（第21週〜第48週・28週）: 各週2R = 56レース
-    # - 3歳新馬（第1週〜第12週・3月4週まで・12週）: 19レース (第1〜7週は週2R=14R、第8〜12週は週1R=5R)
-    # 合計: 56 + 19 = 75番組の新馬戦を配置！
+            else:
+                # 21〜48週（夏〜秋冬競馬）: 3歳以上1勝クラス
+                d_t0 = 1600 if w % 3 == 0 else (2000 if w % 3 == 1 else 1400)
+                s_t0 = resolve_surface(t0, RaceSurface.TURF)
+                races.append(Race(
+                    name=f"1勝クラス({'ダ' if s_t0 == RaceSurface.DIRT else '芝'}{d_t0}m)", track_id=t0, month=m, week=w,
+                    grade=RaceGrade.COND_1W, surface=s_t0, distance=d_t0,
+                    age_restriction=AgeRestriction.THREE_YO_UP, weight_type='定量', full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
+                ))
+
+                d_t1 = 1800 if w % 2 == 1 else 1400
+                s_t1 = resolve_surface(t1, RaceSurface.DIRT)
+                races.append(Race(
+                    name=f"1勝クラス(ダ{d_t1}m)", track_id=t1, month=m, week=w,
+                    grade=RaceGrade.COND_1W, surface=s_t1, distance=d_t1,
+                    age_restriction=AgeRestriction.THREE_YO_UP, weight_type='定量', full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
+                ))
+
+                if len(tracks) > 2:
+                    if w >= 33:
+                        d_2yo = 1400 if w % 3 == 0 else (1600 if w % 3 == 1 else 1800)
+                        s_2yo = resolve_surface(t2, RaceSurface.TURF if (w % 3 != 0) else RaceSurface.DIRT)
+                        races.append(Race(
+                            name=f"2歳1勝クラス({'ダ' if s_2yo == RaceSurface.DIRT else '芝'}{d_2yo}m)", track_id=t2, month=m, week=w,
+                            grade=RaceGrade.COND_1W, surface=s_2yo, distance=d_2yo,
+                            age_restriction=AgeRestriction.TWO_YO, weight_type='定量', full_gate=8, base_prize=10_200_000, condition_prize=4_000_000, year=year
+                        ))
+                    else:
+                        dist_ex = 1000 if 'NIIGATA' in tracks else (1200 if w % 2 == 1 else 2400)
+                        s_t2 = resolve_surface(t2, RaceSurface.TURF)
+                        races.append(Race(
+                            name=f"1勝クラス({'直線' if dist_ex == 1000 else ('短距離' if dist_ex == 1200 else '長距離')}・{'ダ' if s_t2 == RaceSurface.DIRT else '芝'}{dist_ex}m)", track_id=t2, month=m, week=w,
+                            grade=RaceGrade.COND_1W, surface=s_t2, distance=dist_ex,
+                            age_restriction=AgeRestriction.THREE_YO_UP, weight_type='定量', full_gate=8, base_prize=11_000_000, condition_prize=4_000_000, year=year
+                        ))
+
+    # 6. 新馬・未勝利戦
     for w in range(1, 49):
         m = (w - 1) // 4 + 1
         tracks = weekly_tracks.get(w, ['TOKYO', 'HANSHIN', 'CHUKYO'])
@@ -530,129 +620,139 @@ def generate_full_program(year: int = 1) -> List[Race]:
         t1 = tracks[1] if len(tracks) > 1 else tracks[0]
         t2 = tracks[2] if len(tracks) > 2 else t0
 
-        # --- 3歳新馬戦（第1週〜第12週・3月4週までに19レース配置） ---
-        if w <= 12:
-            # 3歳新馬1 (主場1: 芝1600m/1800m/2000m または ダート)
+        # --- 3歳新馬戦（4年目以降・第1週〜第12週・3月4週までに配置） ---
+        if year >= 4 and w <= 12:
             dist_3new0 = 1600 if w % 3 == 0 else (1800 if w % 3 == 1 else 2000)
             s_3new0 = resolve_surface(t0, RaceSurface.DIRT if (w % 4 == 0) else RaceSurface.TURF)
             races.append(Race(
                 name=f"3歳新馬({'ダ' if s_3new0 == RaceSurface.DIRT else '芝'}{dist_3new0}m)",
                 track_id=t0, month=m, week=w,
                 grade=RaceGrade.NEWCOMER, surface=s_3new0, distance=dist_3new0,
-                age_restriction=AgeRestriction.THREE_YO, full_gate=8, base_prize=6_000_000, condition_prize=4_000_000, year=year
+                age_restriction=AgeRestriction.THREE_YO, weight_type='定量', full_gate=8, base_prize=6_000_000, condition_prize=4_000_000, year=year
             ))
 
-            # 第1週〜第7週はさらに主場2にも3歳新馬を配置（14 + 5 = 19レース）
-            if w <= 7:
+            if w <= 8:
                 dist_3new1 = 1400 if w % 2 == 1 else 1800
                 s_3new1 = resolve_surface(t1, RaceSurface.TURF if (w % 3 != 0) else RaceSurface.DIRT)
                 races.append(Race(
                     name=f"3歳新馬({'ダ' if s_3new1 == RaceSurface.DIRT else '芝'}{dist_3new1}m)",
                     track_id=t1, month=m, week=w,
                     grade=RaceGrade.NEWCOMER, surface=s_3new1, distance=dist_3new1,
-                    age_restriction=AgeRestriction.THREE_YO, full_gate=8, base_prize=6_000_000, condition_prize=4_000_000, year=year
+                    age_restriction=AgeRestriction.THREE_YO, weight_type='定量', full_gate=8, base_prize=6_000_000, condition_prize=4_000_000, year=year
                 ))
 
-        # --- 3歳未勝利戦: 1月〜9月（第36週・9月末まで、各開催場に1〜2R配置） ---
-        if w <= 36:
-            # 主場1 (t0): 芝中距離/マイル
+        # --- 3歳未勝利戦（4年目以降・1月〜9月・第36週・9月末まで配置・大幅拡充） ---
+        if year >= 4 and w <= 36:
+            # 主場1: 芝中距離
             dist_turf_m0 = 1600 if w % 2 == 1 else 2000
             s_m0 = resolve_surface(t0, RaceSurface.TURF)
             races.append(Race(
                 name=f"3歳未勝利({'ダ' if s_m0 == RaceSurface.DIRT else '芝'}{dist_turf_m0}m)", track_id=t0, month=m, week=w,
                 grade=RaceGrade.MAIDEN, surface=s_m0, distance=dist_turf_m0,
-                age_restriction=AgeRestriction.THREE_YO, full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
+                age_restriction=AgeRestriction.THREE_YO, weight_type='定量', full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
             ))
-            # 主場2 (t1): ダート短距離/中距離
-            dist_dirt_m1 = 1400 if w % 2 == 1 else 1800
+
+            # 主場1: 芝短距離/マイル
+            dist_turf_m0_s = 1200 if w % 2 == 1 else 1600
+            races.append(Race(
+                name=f"3歳未勝利({'ダ' if s_m0 == RaceSurface.DIRT else '芝'}{dist_turf_m0_s}m)", track_id=t0, month=m, week=w,
+                grade=RaceGrade.MAIDEN, surface=s_m0, distance=dist_turf_m0_s,
+                age_restriction=AgeRestriction.THREE_YO, weight_type='定量', full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
+            ))
+
+            # 主場2: ダート中距離
+            dist_dirt_m1 = 1800 if w % 2 == 1 else 1700
             s_m1 = resolve_surface(t1, RaceSurface.DIRT)
             races.append(Race(
                 name=f"3歳未勝利(ダ{dist_dirt_m1}m)", track_id=t1, month=m, week=w,
                 grade=RaceGrade.MAIDEN, surface=s_m1, distance=dist_dirt_m1,
-                age_restriction=AgeRestriction.THREE_YO, full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
+                age_restriction=AgeRestriction.THREE_YO, weight_type='定量', full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
             ))
-            # 第3場 (t2): 芝短距離 または 芝中距離
+
+            # 主場2: ダート短距離
+            dist_dirt_m1_s = 1200 if w % 2 == 1 else 1400
+            races.append(Race(
+                name=f"3歳未勝利(ダ{dist_dirt_m1_s}m)", track_id=t1, month=m, week=w,
+                grade=RaceGrade.MAIDEN, surface=s_m1, distance=dist_dirt_m1_s,
+                age_restriction=AgeRestriction.THREE_YO, weight_type='定量', full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
+            ))
+
+            # 第3場
             if len(tracks) > 2:
-                dist_m2 = 1200 if w % 4 == 1 else 1800
-                s_m2 = resolve_surface(t2, RaceSurface.TURF)
+                dist_m2 = 1200 if w % 3 == 0 else (1800 if w % 3 == 1 else 2400)
+                s_m2 = resolve_surface(t2, RaceSurface.TURF if (w % 4 != 0) else RaceSurface.DIRT)
                 races.append(Race(
                     name=f"3歳未勝利({'ダ' if s_m2 == RaceSurface.DIRT else '芝'}{dist_m2}m)", track_id=t2, month=m, week=w,
                     grade=RaceGrade.MAIDEN, surface=s_m2, distance=dist_m2,
-                    age_restriction=AgeRestriction.THREE_YO, full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
+                    age_restriction=AgeRestriction.THREE_YO, weight_type='定量', full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
                 ))
 
-        # --- 2歳戦: 6月（第21週）〜12月（第48週） ---
-        if w >= 21:
-            # 2歳新馬1（主場1: 芝1200m/1600m/1800m または ダート）
+        # --- 2歳戦: 3年目は7月（第27週）から、4年目以降は6月（第21週）〜12月（第48週） ---
+        min_2yo_week = 27 if year == 3 else 21
+        if year >= 3 and w >= min_2yo_week:
+            # 2歳新馬1（主場1: 芝マイル/中距離）
             dist_new0 = 1200 if w % 3 == 0 else (1600 if w % 3 == 1 else 1800)
             surf_new0 = resolve_surface(t0, RaceSurface.DIRT if (w % 4 == 0) else RaceSurface.TURF)
             races.append(Race(
                 name=f"2歳新馬({'ダ' if surf_new0 == RaceSurface.DIRT else '芝'}{dist_new0}m)",
                 track_id=t0, month=m, week=w,
                 grade=RaceGrade.NEWCOMER, surface=surf_new0, distance=dist_new0,
-                age_restriction=AgeRestriction.TWO_YO, full_gate=8, base_prize=7_200_000, condition_prize=4_000_000, year=year
+                age_restriction=AgeRestriction.TWO_YO, weight_type='定量', full_gate=8, base_prize=7_200_000, condition_prize=4_000_000, year=year
             ))
             
-            # 2歳新馬2（主場2: 芝1400m/1600m、第32週は小倉2歳S小倉開催に伴い中京へ移動）
+            # 2歳新馬2（主場2: 芝短距離/ダート）
             track_new1 = t2 if w == 32 else t1
             s_new1 = resolve_surface(track_new1, RaceSurface.TURF)
             races.append(Race(
                 name=f"2歳新馬({'ダ' if s_new1 == RaceSurface.DIRT else '芝'}{1400 if w % 2 == 1 else 1600}m)",
                 track_id=track_new1, month=m, week=w,
                 grade=RaceGrade.NEWCOMER, surface=s_new1, distance=1400 if w % 2 == 1 else 1600,
-                age_restriction=AgeRestriction.TWO_YO, full_gate=8, base_prize=7_200_000, condition_prize=4_000_000, year=year
+                age_restriction=AgeRestriction.TWO_YO, weight_type='定量', full_gate=8, base_prize=7_200_000, condition_prize=4_000_000, year=year
             ))
 
-            # 2歳未勝利戦（第25週〜第48週）
-            if w >= 25:
-                s_2m1 = resolve_surface(t1, RaceSurface.TURF)
+            # 2歳未勝利戦（第23週または第27週以降・大幅拡充）
+            min_maiden_week = 27 if year == 3 else 23
+            if w >= min_maiden_week:
+                # 2歳未勝利: 芝中距離 (主場1/2)
+                s_2m1 = resolve_surface(t0, RaceSurface.TURF)
                 races.append(Race(
-                    name=f"2歳未勝利({'ダ' if s_2m1 == RaceSurface.DIRT else '芝'}{1400 if w % 2 == 1 else 1800}m)", track_id=t1, month=m, week=w,
-                    grade=RaceGrade.MAIDEN, surface=s_2m1, distance=1400 if w % 2 == 1 else 1800,
-                    age_restriction=AgeRestriction.TWO_YO, full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
+                    name=f"2歳未勝利({'ダ' if s_2m1 == RaceSurface.DIRT else '芝'}{1600 if w % 2 == 1 else 1800}m)", track_id=t0, month=m, week=w,
+                    grade=RaceGrade.MAIDEN, surface=s_2m1, distance=1600 if w % 2 == 1 else 1800,
+                    age_restriction=AgeRestriction.TWO_YO, weight_type='定量', full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
                 ))
-                s_2m2 = resolve_surface(t2, RaceSurface.DIRT)
+
+                # 2歳未勝利: 芝短距離 (主場1/2)
+                s_2m2 = resolve_surface(t1, RaceSurface.TURF)
                 races.append(Race(
-                    name=f"2歳未勝利(ダ{1400 if w % 4 == 0 else 1800}m)", track_id=t2, month=m, week=w,
-                    grade=RaceGrade.MAIDEN, surface=s_2m2, distance=1400 if w % 4 == 0 else 1800,
-                    age_restriction=AgeRestriction.TWO_YO, full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
+                    name=f"2歳未勝利({'ダ' if s_2m2 == RaceSurface.DIRT else '芝'}{1200 if w % 2 == 1 else 1400}m)", track_id=t1, month=m, week=w,
+                    grade=RaceGrade.MAIDEN, surface=s_2m2, distance=1200 if w % 2 == 1 else 1400,
+                    age_restriction=AgeRestriction.TWO_YO, weight_type='定量', full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
                 ))
+
+                # 2歳未勝利: ダート (主場2/第3場)
+                s_2m3 = resolve_surface(t1, RaceSurface.DIRT)
+                races.append(Race(
+                    name=f"2歳未勝利(ダ{1400 if w % 2 == 1 else 1800}m)", track_id=t1, month=m, week=w,
+                    grade=RaceGrade.MAIDEN, surface=s_2m3, distance=1400 if w % 2 == 1 else 1800,
+                    age_restriction=AgeRestriction.TWO_YO, weight_type='定量', full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
+                ))
+
+                # 第3場 2歳未勝利
+                if len(tracks) > 2:
+                    s_2m4 = resolve_surface(t2, RaceSurface.DIRT if (w % 3 == 0) else RaceSurface.TURF)
+                    dist_2m4 = 1200 if w % 2 == 1 else 1800
+                    races.append(Race(
+                        name=f"2歳未勝利({'ダ' if s_2m4 == RaceSurface.DIRT else '芝'}{dist_2m4}m)", track_id=t2, month=m, week=w,
+                        grade=RaceGrade.MAIDEN, surface=s_2m4, distance=dist_2m4,
+                        age_restriction=AgeRestriction.TWO_YO, weight_type='定量', full_gate=8, base_prize=5_500_000, condition_prize=4_000_000, year=year
+                    ))
 
     return races
 
 if __name__ == "__main__":
-    races = generate_full_program(1)
-    print(f"総生成レース数: {len(races)} レース")
-    
-    weeks = Counter(r.week for r in races)
-    print(f"週あたり平均レース数: {len(races)/48.0:.2f} (最小={min(weeks.values())}, 最大={max(weeks.values())})")
-    
-    grades = Counter(r.grade.value for r in races)
-    print("\n【グレード別内訳】")
-    for g, cnt in sorted(grades.items()):
-        print(f"  {g:10s}: {cnt:4d} レース ({cnt/len(races)*100:.1f}%)")
-        
-    surfs = Counter(r.surface.value for r in races)
-    print("\n【馬場別内訳】")
-    for s, cnt in surfs.items():
-        print(f"  {s:10s}: {cnt:4d} レース ({cnt/len(races)*100:.1f}%)")
-
-    tracks = Counter(r.track_id for r in races)
-    print("\n【競馬場別内訳】")
-    for t, cnt in sorted(tracks.items(), key=lambda x: x[1], reverse=True):
-        print(f"  {t:12s}: {cnt:4d} レース")
-
-    print("\n【距離帯別内訳】")
-    d_1000 = sum(1 for r in races if r.distance <= 1000)
-    d_sprint = sum(1 for r in races if 1200 <= r.distance <= 1400)
-    d_mile = sum(1 for r in races if r.distance == 1600)
-    d_inter = sum(1 for r in races if 1800 <= r.distance <= 2000)
-    d_long = sum(1 for r in races if r.distance >= 2200)
-    print(f"  超短距離 (1000m)     : {d_1000:4d} レース")
-    print(f"  短距離   (1200-1400m): {d_sprint:4d} レース")
-    print(f"  マイル   (1600m)     : {d_mile:4d} レース")
-    print(f"  中距離   (1800-2000m): {d_inter:4d} レース")
-    print(f"  中長・長距離(2200m〜): {d_long:4d} レース")
-    
-    filly_cnt = sum(1 for r in races if r.sex_restriction == SexRestriction.FILLY_MARE)
-    print(f"\n【牝馬限定戦数】: {filly_cnt:4d} レース ({filly_cnt/len(races)*100:.1f}%)")
+    for y in [1, 2, 3, 4, 5]:
+        r_list = generate_full_program(y)
+        print(f"第{y}年度 生成レース数: {len(r_list)} レース")
+        if r_list:
+            wt_cnt = Counter(r.weight_type for r in r_list)
+            print(f"  斤量種別内訳: {dict(wt_cnt)}")
